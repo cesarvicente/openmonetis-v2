@@ -7,6 +7,27 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 
 ## [Unreleased]
 
+## [0.11.1] - 2026-10-21
+
+Corrige o timeout da publicação ARM64 com builds nativos por arquitetura e impede que falhas de
+compilação atualizem somente parte das imagens da versão.
+
+### Corrigido
+
+- Imagens Docker são compiladas em runners nativos AMD64 e ARM64, evitando o timeout do Vite sob
+  emulação. As tags de versão e `latest` só são atualizadas depois que os seis builds terminam
+  com sucesso; falhas de compilação deixam as tags existentes preservadas.
+
+### Notas de atualização
+
+- Publicação: esta versão substitui a publicação parcial da `0.11.0`. Configure
+  `OPENMONETIS_VERSION=0.11.1` e atualize API, web e migrator juntos com `docker compose pull` e
+  `docker compose up -d`.
+- Banco: ao atualizar a partir da `0.10.2` ou anterior, faça backup do PostgreSQL, do storage e da
+  configuração e siga também as notas da `0.11.0` abaixo. As migrations acumuladas `0011`–`0017`
+  continuam necessárias; acompanhe `docker compose logs migrator`. Esta correção não adiciona
+  migrations.
+
 ## [0.11.0] - 2026-10-21
 
 Amplia a organização e o acompanhamento financeiro com etiquetas, subcategorias, baixas por
@@ -578,7 +599,8 @@ API-first, com cliente web em PT-BR, domínio financeiro isolado e implantação
 - Backup e restauração definidos como operações de infraestrutura, cobrindo PostgreSQL, objetos do
   storage e segredos da implantação.
 
-[Unreleased]: https://github.com/felipegcoutinho/openmonetis-v2/compare/v0.11.0...HEAD
+[Unreleased]: https://github.com/felipegcoutinho/openmonetis-v2/compare/v0.11.1...HEAD
+[0.11.1]: https://github.com/felipegcoutinho/openmonetis-v2/compare/v0.11.0...v0.11.1
 [0.11.0]: https://github.com/felipegcoutinho/openmonetis-v2/compare/v0.10.2...v0.11.0
 [0.10.2]: https://github.com/felipegcoutinho/openmonetis-v2/compare/v0.10.1...v0.10.2
 [0.10.1]: https://github.com/felipegcoutinho/openmonetis-v2/compare/v0.10.0...v0.10.1
