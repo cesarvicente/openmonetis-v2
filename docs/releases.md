@@ -48,8 +48,17 @@ alinhar manualmente a tag do checkout ao `OPENMONETIS_VERSION`.
 
 A publicação só é iniciada por uma tag anotada `vX.Y.Z` que aponte para o commit validado na
 `main`. O workflow verifica que a referência é uma tag anotada, confirma que o commit pertence à
-história da `main`, repete a CI e confere os metadados novamente. Publica as três imagens no GHCR com tags
-`X.Y.Z`, `X.Y`, `X` e `latest` e só então cria a GitHub Release com as notas extraídas do changelog.
+história da `main`, repete a CI e confere os metadados novamente. Cada imagem é compilada
+separadamente em runners nativos `ubuntu-24.04` (AMD64) e `ubuntu-24.04-arm` (ARM64), sem QEMU,
+com cache independente por imagem e arquitetura.
+
+Os seis builds enviam imagens ao GHCR somente por digest. Depois que todos concluem com sucesso,
+o workflow reúne os dois digests de cada imagem em um manifesto, publica as tags `X.Y.Z`, `X.Y`,
+`X`, `sha-<commit>` e `latest` e verifica as duas arquiteturas. Uma falha de build impede a
+atualização das tags de todas as imagens. A publicação dos três manifestos não é uma operação
+atômica do registry; falhas nessa etapa precisam ser verificadas antes de atualizar uma instalação.
+A GitHub Release só é criada após os três manifestos serem publicados e verificados, com as notas
+extraídas do changelog.
 
 ```bash
 git tag -a v0.1.0 -m "v0.1.0"
