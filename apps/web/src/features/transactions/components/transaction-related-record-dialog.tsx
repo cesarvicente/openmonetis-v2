@@ -63,6 +63,7 @@ export function TransactionRelatedRecordDialog({
       <CategoryDialog
         category={null}
         defaultType={categoryType}
+        lockType
         open
         onOpenChange={changeOpen}
         onSubmit={async (input) => {

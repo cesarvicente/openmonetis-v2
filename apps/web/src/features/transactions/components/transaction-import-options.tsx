@@ -2,12 +2,10 @@ import type { AccountOutput } from "@openmonetis/validators/accounts";
 import type { CardOutput } from "@openmonetis/validators/cards";
 import type { CategoryOutput } from "@openmonetis/validators/categories";
 import type { PersonOutput } from "@openmonetis/validators/people";
-
 import { Image } from "@unpic/react";
-
 import type { ReactNode } from "react";
-
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { getCategoryLabel } from "@/features/categories/categories.presentation";
 
 import { CategoryIcon } from "@/features/categories/category-icons";
 import { cn } from "@/lib/utils";
@@ -102,7 +100,7 @@ export function CategoryOption({
         <CategoryIcon className={compact ? "size-3.5" : "size-4"} name={category.icon} />
       </span>
       <span className="grid min-w-0 text-left">
-        <span className="truncate font-medium text-sm">{category.name}</span>
+        <span className="truncate font-medium text-sm">{getCategoryLabel(category)}</span>
         {!compact && description ? (
           <span className="text-muted-foreground text-xs">{description}</span>
         ) : null}

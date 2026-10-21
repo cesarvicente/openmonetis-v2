@@ -20,7 +20,7 @@ import {
   getCurrentPeriod,
   type TransactionsSearch,
 } from "@/features/transactions/transactions.presentation";
-import { categoryTypeLabels } from "../categories.presentation";
+import { categoryTypeLabels, getCategoryLabel } from "../categories.presentation";
 import { categoryQueryOptions } from "../categories.queries";
 import { CategoryIcon } from "../category-icons";
 
@@ -96,7 +96,7 @@ function getCategoryTransactionsScope(
         { label: "Visão geral", href: "/dashboard" },
         { label: "Organização" },
         { label: "Categorias", href: "/categories" },
-        { label: category.name },
+        { label: getCategoryLabel(category) },
       ],
       summary: (
         <CategoryTransactionsSummary
@@ -234,8 +234,8 @@ function CategoryTransactionsSummary({
           <MoneyValue amount={categoryAmount} />
         )
       }
-      subtitle={`Categoria de ${categoryTypeLabels[category.type].toLocaleLowerCase("pt-BR")} · ${selected?.label ?? "Pessoa indisponível"}`}
-      title={category.name}
+      subtitle={`${category.parentId ? "Subcategoria" : "Categoria e suas subcategorias"} de ${categoryTypeLabels[category.type].toLocaleLowerCase("pt-BR")} · ${selected?.label ?? "Pessoa indisponível"}`}
+      title={getCategoryLabel(category)}
       variant="soft"
     />
   );

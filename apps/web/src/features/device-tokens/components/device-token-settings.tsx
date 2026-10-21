@@ -4,7 +4,7 @@ import {
 } from "@openmonetis/validators/device-tokens";
 import { useForm } from "@tanstack/react-form";
 import { useQuery } from "@tanstack/react-query";
-import { Clipboard, KeyRound, Plus, Smartphone, Unplug } from "lucide-react";
+import { Clipboard, Plus, Smartphone, Unplug } from "lucide-react";
 import { useId, useState } from "react";
 import { toast } from "sonner";
 import { MobileFormContent as DialogContent } from "@/components/forms/mobile-form-content";
@@ -22,7 +22,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -99,10 +98,13 @@ export function DeviceTokenSettings() {
       icon={Smartphone}
       title="Aparelhos do Companion"
     >
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-muted-foreground text-sm">
-          Cada autorização pode ser removida individualmente.
-        </p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <p className="font-medium text-sm">Aparelhos autorizados</p>
+          <p className="mt-1 max-w-xl text-muted-foreground text-sm leading-relaxed">
+            Gerencie os aparelhos conectados e remova os acessos que não utiliza mais.
+          </p>
+        </div>
         <Button className="w-full sm:w-auto" onClick={() => setCreateOpen(true)} type="button">
           <Plus aria-hidden="true" /> Conectar aparelho
         </Button>
@@ -123,23 +125,20 @@ export function DeviceTokenSettings() {
       ) : null}
       {query.data && !query.isError ? (
         query.data.length ? (
-          <ul className="divide-y rounded-lg border">
+          <ul className="divide-y divide-border rounded-lg border border-border">
             {query.data.map((token) => (
-              <li className="flex flex-wrap items-center gap-3 p-4" key={token.id}>
-                <span className="grid size-9 shrink-0 place-items-center rounded-full bg-muted text-muted-foreground">
-                  <KeyRound aria-hidden="true" className="size-4" />
+              <li className="flex items-center gap-2 p-4 sm:gap-3" key={token.id}>
+                <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-muted text-foreground">
+                  <Smartphone aria-hidden="true" className="size-4" />
                 </span>
                 <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <p className="break-all font-medium text-sm">{token.name}</p>
-                    <Badge variant="outline">
-                      {token.lastUsedAt ? "Uso registrado" : "Sem uso registrado"}
-                    </Badge>
-                  </div>
-                  <p className="mt-1 text-muted-foreground text-sm">
-                    {formatDeviceTokenLastUsed(token.lastUsedAt)} · expira em{" "}
-                    {formatDeviceTokenDate(token.expiresAt)}
+                  <p className="truncate font-medium text-sm" title={token.name}>
+                    {token.name}
                   </p>
+                  <div className="mt-1 flex flex-wrap gap-x-2 gap-y-1 text-muted-foreground text-xs">
+                    <span>{formatDeviceTokenLastUsed(token.lastUsedAt)}</span>
+                    <span>Expira em {formatDeviceTokenDate(token.expiresAt)}</span>
+                  </div>
                 </div>
                 <Button
                   aria-label={`Revogar acesso de ${token.name}`}
@@ -147,6 +146,7 @@ export function DeviceTokenSettings() {
                   disabled={revokeMutation.isPending}
                   onClick={() => setRevokeId(token.id)}
                   size="icon"
+                  type="button"
                   variant="ghost"
                 >
                   <Unplug aria-hidden="true" />
@@ -155,15 +155,17 @@ export function DeviceTokenSettings() {
             ))}
           </ul>
         ) : (
-          <div className="rounded-lg border border-dashed p-6 text-center">
-            <KeyRound aria-hidden="true" className="mx-auto size-5 text-muted-foreground" />
-            <p className="mt-2 font-medium text-sm">Nenhum aparelho autorizado</p>
-            <p className="mt-1 text-muted-foreground text-sm">
-              Conecte seu primeiro aparelho e siga as instruções abaixo.
-            </p>
+          <div className="flex items-center gap-3 rounded-lg border border-dashed border-border p-5 text-muted-foreground">
+            <Smartphone aria-hidden="true" className="size-5 shrink-0" />
+            <p className="text-sm">Você ainda não conectou um aparelho ao Companion.</p>
           </div>
         )
       ) : null}
+
+      <p className="text-muted-foreground text-sm leading-relaxed">
+        Antes de conectar, configure o endereço HTTPS da API no Companion. Depois, escaneie o QR
+        Code ou copie o token de acesso.
+      </p>
 
       <Dialog onOpenChange={changeCreateOpen} open={createOpen}>
         <DialogContent guarded className="max-h-[calc(100svh-2rem)] overflow-y-auto">

@@ -154,7 +154,13 @@ export function NotificationRow({
 export function NotificationIcon({ notification }: { notification: NotificationOutput }) {
   if (notification.kind === "bill") {
     return (
-      <EstablishmentLogo className="size-9" editable={false} name={notification.name} size={36} />
+      <EstablishmentLogo
+        categoryIcon={notification.categoryIcon}
+        className="size-9"
+        editable={false}
+        name={notification.name}
+        size={36}
+      />
     );
   }
 

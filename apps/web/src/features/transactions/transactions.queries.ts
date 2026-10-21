@@ -1,5 +1,7 @@
+import { InstallmentOptionsQuerySchema } from "@openmonetis/validators/transactions";
 import { keepPreviousData, queryOptions } from "@tanstack/react-query";
 import {
+  getInstallmentOptions,
   getRecentEstablishments,
   getTransaction,
   getTransactions,
@@ -11,7 +13,19 @@ export const transactionKeys = {
   list: (search: TransactionsApiSearch) => [...transactionKeys.all, search] as const,
   detail: (id: string) => [...transactionKeys.all, "detail", id] as const,
   recentEstablishments: () => [...transactionKeys.all, "recent-establishments"] as const,
+  installmentOptions: (amount: number | null) =>
+    [...transactionKeys.all, "installment-options", amount] as const,
 };
+
+export function installmentOptionsQueryOptions(amount: string, enabled: boolean) {
+  const parsed = InstallmentOptionsQuerySchema.safeParse({ amount });
+  return queryOptions({
+    queryKey: transactionKeys.installmentOptions(parsed.success ? parsed.data.amount : null),
+    enabled: enabled && parsed.success,
+    queryFn: () => getInstallmentOptions(InstallmentOptionsQuerySchema.parse({ amount }).amount),
+    staleTime: 60_000,
+  });
+}
 
 export function transactionsQueryOptions(search: TransactionsApiSearch) {
   return queryOptions({

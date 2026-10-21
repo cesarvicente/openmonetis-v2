@@ -28,11 +28,11 @@ import { dashboardWidgetFooterNavigationLinkClassName } from "@/features/dashboa
 import { DashboardWidgetListSheet } from "@/features/dashboard/components/dashboard-widget-list-sheet";
 import { DashboardWidgetRow } from "@/features/dashboard/components/dashboard-widget-row";
 import { EstablishmentLogo } from "@/features/establishments/components/establishment-logo";
+import { RecurringTransactionActionDialog } from "@/features/recurring-transactions/components/recurring-transaction-action-dialog";
 import { paymentMethodLabels } from "@/features/transactions/transactions.presentation";
 import { cn } from "@/lib/utils";
 import { recurringFrequencyLabels } from "../recurring-expenses.presentation";
 import { recurringExpensesQueryOptions } from "../recurring-expenses.queries";
-import { RecurringExpenseActionDialog } from "./recurring-expense-action-dialog";
 import { RecurringExpenseEditDialog } from "./recurring-expense-edit-dialog";
 
 const maximumVisibleExpenses = 5;
@@ -77,8 +77,8 @@ export function RecurringExpensesWidget({ period }: { period: string }) {
               ) : null}
               <Link
                 className={dashboardWidgetFooterNavigationLinkClassName}
-                search={{ period }}
-                to="/reports/recurring-expenses"
+                search={{ period, type: "expense", status: "active", paymentMethod: "all", q: "" }}
+                to="/reports/recurring-transactions"
               >
                 Ver relatório <ArrowRight aria-hidden="true" className="size-4" />
               </Link>
@@ -127,9 +127,9 @@ export function RecurringExpensesWidget({ period }: { period: string }) {
           open
         />
       ) : null}
-      <RecurringExpenseActionDialog
+      <RecurringTransactionActionDialog
         action={action}
-        expense={actionExpense}
+        recurrence={actionExpense}
         onOpenChange={(open) => {
           if (!open) {
             setAction(null);
@@ -157,7 +157,12 @@ function RecurringExpenseList({
           className={cn(item.status === "paused" && "-mx-2 rounded-md bg-muted/40 px-2")}
           key={`${item.id}:${item.purchaseDate}`}
         >
-          <EstablishmentLogo className="size-9" name={item.name} size={36} />
+          <EstablishmentLogo
+            categoryIcon={item.categoryIcon}
+            className="size-9"
+            name={item.name}
+            size={36}
+          />
           <div className="min-w-0 flex-1">
             <div className="flex min-w-0 items-center gap-2">
               <span

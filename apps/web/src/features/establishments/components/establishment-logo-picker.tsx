@@ -10,20 +10,22 @@ import {
   MobilePickerTrigger as PopoverTrigger,
 } from "@/components/forms/mobile-picker";
 import { Input } from "@/components/ui/input";
+import { CategoryIcon } from "@/features/categories/category-icons";
 import { cn } from "@/lib/utils";
 import {
   useRemoveEstablishmentLogoMutation,
   useSetEstablishmentLogoMutation,
 } from "../establishments.mutations";
-import { getEstablishmentInitials } from "../establishments.presentation";
 import { establishmentLogoSearchQueryOptions } from "../establishments.queries";
 
 export function EstablishmentLogoPicker({
   children,
+  categoryIcon,
   name,
   selectedDomain,
 }: {
   children: ReactNode;
+  categoryIcon: string | null;
   name: string;
   selectedDomain: string | null;
 }) {
@@ -102,10 +104,10 @@ export function EstablishmentLogoPicker({
               onClick={() => void select(null)}
               type="button"
             >
-              <span className="grid size-10 place-items-center rounded-full bg-brand/10 font-semibold text-brand-strong">
-                {getEstablishmentInitials(name)}
+              <span className="grid size-10 place-items-center rounded-full bg-muted text-muted-foreground">
+                <CategoryIcon className="size-4" name={categoryIcon} />
               </span>
-              <span>Iniciais</span>
+              <span>Categoria</span>
             </button>
             {search.data?.map((result) => (
               <button

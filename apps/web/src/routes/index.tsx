@@ -1,7 +1,10 @@
+import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { LoginForm } from "@/components/auth/login-form";
 import { PublicOnlyRoute } from "@/components/auth/public-only-route";
 import { OpenMonetisLogo } from "@/components/openmonetis-logo";
+import { Button } from "@/components/ui/button";
+import { authConfigQueryOptions } from "@/features/auth-config/auth-config.queries";
 
 export const Route = createFileRoute("/")({
   head: () => ({ meta: [{ title: "Entrar · OpenMonetis" }] }),
@@ -9,6 +12,7 @@ export const Route = createFileRoute("/")({
 });
 
 function LoginPage() {
+  const configuration = useQuery(authConfigQueryOptions());
   return (
     <PublicOnlyRoute>
       <main className="relative isolate flex min-h-svh flex-col items-center justify-center gap-8 overflow-hidden bg-background px-4 py-16">
@@ -27,12 +31,24 @@ function LoginPage() {
           <div className="mt-8">
             <LoginForm />
           </div>
-          <p className="mt-6 text-center text-muted-foreground text-sm">
-            Ainda não tem conta?{" "}
-            <Link className="font-medium text-brand-strong hover:underline" to="/signup">
-              Criar conta
-            </Link>
-          </p>
+          {configuration.data?.signupEnabled ? (
+            <p className="mt-6 text-center text-muted-foreground text-sm">
+              Ainda não tem conta?{" "}
+              <Link className="font-medium text-brand-strong hover:underline" to="/signup">
+                Criar conta
+              </Link>
+            </p>
+          ) : null}
+          {configuration.isError ? (
+            <div className="mt-6 grid gap-2 text-center">
+              <p className="text-muted-foreground text-sm">
+                Não foi possível verificar as opções de acesso.
+              </p>
+              <Button type="button" variant="ghost" onClick={() => void configuration.refetch()}>
+                Tentar novamente
+              </Button>
+            </div>
+          ) : null}
         </section>
       </main>
     </PublicOnlyRoute>

@@ -1,4 +1,3 @@
-import type { RecurringExpenseOutput } from "@openmonetis/validators/recurring-expenses";
 import { CalendarX2, Pause, Play, Square } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -12,36 +11,39 @@ import {
   AlertDialogMedia,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { useRecurringExpenseStateMutation } from "../recurring-expenses.mutations";
-import { formatRecurringExpenseDate } from "../recurring-expenses.presentation";
+import { formatRecurringExpenseDate } from "@/features/recurring-expenses/recurring-expenses.presentation";
+import { useRecurringRuleActionMutation } from "@/features/transactions/transactions.mutations";
+import { getTransactionMutationErrorMessage } from "@/features/transactions/transactions.presentation";
 
-type ActionExpense = RecurringExpenseOutput & { actionDate?: string | null };
+type ActionRecurrence = { id: string; purchaseDate: string; actionDate?: string | null };
 
 type Props = {
   action: "pause" | "resume" | "skip" | "stop" | null;
-  expense: ActionExpense | null;
+  recurrence: ActionRecurrence | null;
   onOpenChange: (open: boolean) => void;
 };
 
-export function RecurringExpenseActionDialog({ action, expense, onOpenChange }: Props) {
-  const mutation = useRecurringExpenseStateMutation();
-  const effectiveDate = expense?.actionDate ?? expense?.purchaseDate;
+export function RecurringTransactionActionDialog({ action, recurrence, onOpenChange }: Props) {
+  const mutation = useRecurringRuleActionMutation();
+  const effectiveDate = recurrence?.actionDate ?? recurrence?.purchaseDate;
   const date = effectiveDate ? formatRecurringExpenseDate(effectiveDate) : "a próxima ocorrência";
   const content = action ? actionContent[action](date) : null;
 
   async function confirm() {
-    if (!action || !expense || !effectiveDate) return;
+    if (!action || !recurrence || !effectiveDate) return;
     try {
-      await mutation.mutateAsync({ action, id: expense.id, purchaseDate: effectiveDate });
+      await mutation.mutateAsync({ action, id: recurrence.id, occurrenceDate: effectiveDate });
       toast.success(actionContent[action](date).success);
       onOpenChange(false);
-    } catch {
-      toast.error("Não foi possível alterar a recorrência.");
+    } catch (error) {
+      toast.error("Não foi possível alterar a recorrência.", {
+        description: getTransactionMutationErrorMessage(error),
+      });
     }
   }
 
   return (
-    <AlertDialog onOpenChange={onOpenChange} open={Boolean(action && expense)}>
+    <AlertDialog onOpenChange={onOpenChange} open={Boolean(action && recurrence)}>
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogMedia>{content?.icon}</AlertDialogMedia>
@@ -71,7 +73,7 @@ const actionContent = {
     icon: <CalendarX2 />,
     title: `Pular ${date}?`,
     description:
-      "Somente esta ocorrência será ignorada. A despesa volta automaticamente na próxima data prevista.",
+      "Somente esta ocorrência será ignorada. A recorrência volta automaticamente na próxima data prevista.",
     actionLabel: "Pular lançamento",
     success: `Ocorrência de ${date} ignorada`,
   }),
@@ -87,16 +89,16 @@ const actionContent = {
     icon: <Play />,
     title: `Retomar em ${date}?`,
     description:
-      "A despesa volta a ser projetada a partir desta ocorrência. O período em pausa continua preservado.",
+      "A recorrência volta a ser projetada a partir desta ocorrência. O período em pausa continua preservado.",
     actionLabel: "Retomar recorrência",
     success: `Recorrência retomada em ${date}`,
   }),
   stop: (date: string) => ({
     icon: <Square />,
-    title: `Parar em ${date}?`,
+    title: `Encerrar a partir de ${date}?`,
     description:
-      "Esta ocorrência e todas as seguintes deixam de existir. Os meses anteriores permanecem no histórico.",
-    actionLabel: "Parar recorrência",
+      "Esta ocorrência e as seguintes deixam de ser projetadas. O histórico anterior e seus pagamentos ou recebimentos permanecem preservados.",
+    actionLabel: "Encerrar recorrência",
     success: `Recorrência encerrada em ${date}`,
   }),
 } as const;

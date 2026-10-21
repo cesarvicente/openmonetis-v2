@@ -8,6 +8,7 @@ import {
   ReplaceCategoryInputSchema,
 } from "@openmonetis/validators/categories";
 import { useForm } from "@tanstack/react-form";
+import { useQuery } from "@tanstack/react-query";
 import { useId, useState } from "react";
 import { toast } from "sonner";
 import { MobileFormState } from "@/components/forms/mobile-form-state";
@@ -18,35 +19,43 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { showInvalidFormToast } from "@/lib/form-feedback";
-import { categoryTypeLabels } from "../categories.presentation";
+import { categoryTypeLabels, getCategoryErrorMessage } from "../categories.presentation";
+import { categoriesQueryOptions } from "../categories.queries";
 import { CategoryIconPicker } from "./category-icon-picker";
 
 export function CategoryForm({
   category,
   defaultType = "expense",
+  lockType = false,
   onCancel,
   onSubmit,
 }: {
   category?: CategoryOutput | null;
   defaultType?: CreateCategoryInput["type"];
+  lockType?: boolean;
   onCancel: () => void;
   onSubmit: (input: CreateCategoryInput | ReplaceCategoryInput) => Promise<void>;
 }) {
   const id = useId();
   const [error, setError] = useState<string | null>(null);
   const editing = Boolean(category);
+  const categoriesQuery = useQuery(categoriesQueryOptions());
+  const categories = categoriesQuery.data ?? [];
+  const hasChildren = categories.some((item) => item.parentId === category?.id);
   const form = useForm({
     defaultValues: {
       name: category?.name ?? "",
       type: category?.type ?? defaultType,
       icon: category?.icon ?? "tag",
+      parentId: category?.parentId ?? "",
     },
     onSubmitInvalid: showInvalidFormToast,
     onSubmit: async ({ value }) => {
       setError(null);
-      const result = (editing ? ReplaceCategoryInputSchema : CreateCategoryInputSchema).safeParse(
-        value,
-      );
+      const result = (editing ? ReplaceCategoryInputSchema : CreateCategoryInputSchema).safeParse({
+        ...value,
+        parentId: value.parentId || null,
+      });
       if (!result.success) {
         showInvalidFormToast();
         return;
@@ -54,9 +63,10 @@ export function CategoryForm({
       try {
         await onSubmit(result.data);
         toast.success(editing ? "Categoria atualizada" : "Categoria criada");
-      } catch {
-        setError("Não foi possível salvar.");
-        toast.error("Não foi possível salvar.");
+      } catch (error) {
+        const message = getCategoryErrorMessage(error);
+        setError(message);
+        toast.error(message);
       }
     },
   });
@@ -67,6 +77,7 @@ export function CategoryForm({
       noValidate
       onSubmit={(event) => {
         event.preventDefault();
+        event.stopPropagation();
         void form.handleSubmit();
       }}
     >
@@ -108,8 +119,12 @@ export function CategoryForm({
           <div className="grid gap-1.5">
             <Label htmlFor={`${id}-type`}>Tipo da categoria</Label>
             <Select
+              disabled={hasChildren || lockType}
               onValueChange={(value) => {
-                if (value) field.handleChange(value);
+                if (value) {
+                  field.handleChange(value);
+                  form.setFieldValue("parentId", "");
+                }
               }}
               value={field.state.value}
             >
@@ -127,9 +142,62 @@ export function CategoryForm({
                 </SelectItem>
               </SelectContent>
             </Select>
+            {lockType ? (
+              <p className="text-muted-foreground text-xs">O tipo acompanha o lançamento.</p>
+            ) : null}
           </div>
         )}
       </form.Field>
+      <form.Subscribe selector={(state) => state.values.type}>
+        {(type) => (
+          <form.Field name="parentId">
+            {(field) => (
+              <div className="grid gap-1.5">
+                <Label htmlFor={`${id}-parent`}>Categoria principal</Label>
+                <Select
+                  disabled={hasChildren || categoriesQuery.isPending || categoriesQuery.isError}
+                  value={field.state.value || "root"}
+                  onValueChange={(value) => {
+                    if (value) field.handleChange(value === "root" ? "" : value);
+                  }}
+                >
+                  <SelectTrigger className="w-full" id={`${id}-parent`}>
+                    <SelectValue>
+                      {categories.find((item) => item.id === field.state.value)?.name ??
+                        "Nenhuma — categoria principal"}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="root">Nenhuma — categoria principal</SelectItem>
+                    {categories
+                      .filter(
+                        (item) =>
+                          !item.parentId &&
+                          !item.isSystem &&
+                          item.type === type &&
+                          item.id !== category?.id,
+                      )
+                      .map((item) => (
+                        <SelectItem key={item.id} value={item.id}>
+                          {item.name}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-muted-foreground text-xs">
+                  {categoriesQuery.isError
+                    ? "Não foi possível carregar as categorias principais."
+                    : hasChildren
+                      ? "Mova as subcategorias antes de alterar o tipo ou a categoria principal."
+                      : editing
+                        ? "Trocar o grupo também reorganiza os lançamentos anteriores nos relatórios."
+                        : "Escolha um grupo para transformar este cadastro em uma subcategoria."}
+                </p>
+              </div>
+            )}
+          </form.Field>
+        )}
+      </form.Subscribe>
       <form.Field name="icon">
         {(field) => (
           <div className="grid gap-1.5">

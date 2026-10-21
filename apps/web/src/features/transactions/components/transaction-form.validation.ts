@@ -21,12 +21,16 @@ export type TransactionFormValues = {
   accountId: string;
   cardId: string;
   categoryId: string;
+  tagIds: string[];
   sourceAccountId: string;
   destinationAccountId: string;
   dueDate: string;
+  dueDateRuleExcluded: boolean;
   boletoPaymentDate: string;
   installmentCount: string;
   startInstallment: string;
+  recurrenceEndDate: string;
+  recurrenceAnchorDate: string;
   recurrenceFrequency: NonNullable<TransactionInput["recurrenceFrequency"]>;
   isSettled: "true" | "false";
   note: string;
@@ -40,6 +44,7 @@ export type TransactionCreateDefaults = Partial<
     | "cardId"
     | "categoryId"
     | "condition"
+    | "dueDateRuleExcluded"
     | "dueDate"
     | "boletoPaymentDate"
     | "installmentCount"
@@ -71,13 +76,17 @@ const transactionFieldMessages: Record<TransactionFieldName, string> = {
   accountId: "Selecione uma conta.",
   cardId: "Selecione um cartão.",
   categoryId: "Selecione uma categoria.",
+  tagIds: "Selecione até 20 etiquetas.",
   sourceAccountId: "Selecione a conta de origem.",
   destinationAccountId: "Selecione a conta de destino.",
   dueDate: "Informe uma data válida.",
+  dueDateRuleExcluded: "Confira a regra de vencimento.",
   boletoPaymentDate: "Informe uma data de pagamento válida.",
   installmentCount: "Informe a quantidade de parcelas.",
   startInstallment: "Selecione uma parcela inicial válida.",
   recurrenceFrequency: "Selecione a frequência.",
+  recurrenceAnchorDate: "Confira a data de referência.",
+  recurrenceEndDate: "A data final deve ser igual ou posterior à data da ocorrência.",
   isSettled: "Selecione o status.",
   note: "A observação deve ter até 1000 caracteres.",
   splitShares: "Confira a divisão entre as pessoas.",
@@ -114,15 +123,19 @@ export function getDefaultTransactionFormValues(
     accountId,
     cardId: defaults.cardId ?? activeCards[0]?.id ?? "",
     categoryId: defaults.categoryId ?? "",
+    tagIds: [],
     sourceAccountId: defaults.sourceAccountId ?? accountId,
     destinationAccountId: "",
     dueDate: defaults.dueDate ?? "",
+    dueDateRuleExcluded: defaults.dueDateRuleExcluded ?? false,
     boletoPaymentDate:
       defaults.boletoPaymentDate ??
       (defaults.paymentMethod === "boleto" && defaults.isSettled !== "false" ? today : ""),
     installmentCount: defaults.installmentCount ?? "2",
     startInstallment: defaults.startInstallment ?? "1",
     recurrenceFrequency: "monthly",
+    recurrenceEndDate: "",
+    recurrenceAnchorDate: "",
     isSettled: defaults.isSettled ?? "false",
     note: "",
     splitShares: [],
@@ -147,30 +160,41 @@ export function getTransactionFormValuesFromTransaction(
     condition: transaction.condition,
     paymentMethod: transaction.paymentMethod ?? "bank_transfer",
     name: transaction.name,
-    amount: String(transaction.displayAmount * installmentCopyMultiplier),
+    amount: String(
+      (mode === "edit"
+        ? (transaction.plannedAmount ?? transaction.displayAmount)
+        : transaction.displayAmount) * installmentCopyMultiplier,
+    ),
     purchaseDate: transaction.purchaseDate,
     invoicePeriod: transaction.period,
     personId: transaction.personId,
     accountId: transaction.accountId ?? "",
     cardId: transaction.cardId ?? "",
     categoryId: transaction.categoryId ?? "",
+    tagIds: transaction.tagIds ?? [],
     sourceAccountId: transaction.sourceAccountId ?? "",
     destinationAccountId: transaction.destinationAccountId ?? "",
-    dueDate: transaction.dueDate ?? "",
+    dueDate: transaction.originalDueDate ?? transaction.dueDate ?? "",
+    dueDateRuleExcluded: transaction.dueDateRuleExcluded ?? false,
     boletoPaymentDate:
       mode === "copy"
         ? transaction.paymentMethod === "boleto" && transaction.isSettled
           ? today
           : ""
-        : (transaction.boletoPaymentDate ?? ""),
+        : (transaction.settledDate ?? transaction.boletoPaymentDate ?? ""),
     installmentCount: transaction.installmentCount ? String(transaction.installmentCount) : "2",
     startInstallment: transaction.currentInstallment ? String(transaction.currentInstallment) : "1",
     recurrenceFrequency: transaction.recurrenceFrequency ?? "monthly",
+    recurrenceEndDate: transaction.recurrenceEndDate ?? "",
+    recurrenceAnchorDate: mode === "edit" ? (transaction.recurrenceAnchorDate ?? "") : "",
     isSettled: transaction.isSettled === false ? "false" : "true",
     note: transaction.note ?? "",
     splitShares: transaction.splitShares.map((share) => ({
       personId: share.personId,
-      amount: String(share.amount * installmentCopyMultiplier),
+      amount: String(
+        (mode === "edit" ? (share.plannedAmount ?? share.amount) : share.amount) *
+          installmentCopyMultiplier,
+      ),
     })),
   };
 }
@@ -198,7 +222,8 @@ export function normalizeTransactionInput(
     categoryId: !isTransfer ? value.categoryId || null : null,
     sourceAccountId: isTransfer ? value.sourceAccountId || null : null,
     destinationAccountId: isTransfer ? value.destinationAccountId || null : null,
-    dueDate: isBoleto && value.dueDate ? value.dueDate : null,
+    dueDateRuleExcluded: value.dueDateRuleExcluded,
+    dueDate: !isTransfer && !isCreditCard && value.dueDate ? value.dueDate : null,
     boletoPaymentDate:
       isBoleto &&
       value.condition !== "recurring" &&
@@ -212,7 +237,17 @@ export function normalizeTransactionInput(
         ? Number(value.startInstallment)
         : undefined,
     recurrenceFrequency: value.condition === "recurring" ? value.recurrenceFrequency : null,
-    isSettled: isCreditCard ? null : value.isSettled === "true",
+    recurrenceEndDate: value.condition === "recurring" ? value.recurrenceEndDate || null : null,
+    settledDate:
+      value.condition !== "recurring" && !isCreditCard && value.isSettled === "true"
+        ? value.boletoPaymentDate || null
+        : null,
+    isSettled: isCreditCard
+      ? null
+      : value.condition === "recurring"
+        ? false
+        : value.isSettled === "true",
+    tagIds: value.tagIds,
     note: value.note.trim() || null,
     splitShares: value.splitShares.length
       ? value.splitShares.map((share) => ({
@@ -320,6 +355,9 @@ export function getChangedTransactionInput(
     ...(value.destinationAccountId !== defaults.destinationAccountId
       ? { destinationAccountId: data.destinationAccountId }
       : {}),
+    ...(value.dueDateRuleExcluded !== defaults.dueDateRuleExcluded
+      ? { dueDateRuleExcluded: data.dueDateRuleExcluded }
+      : {}),
     ...(value.dueDate !== defaults.dueDate ? { dueDate: data.dueDate } : {}),
     ...(value.boletoPaymentDate !== defaults.boletoPaymentDate
       ? { boletoPaymentDate: data.boletoPaymentDate }
@@ -330,8 +368,14 @@ export function getChangedTransactionInput(
     ...(value.recurrenceFrequency !== defaults.recurrenceFrequency
       ? { recurrenceFrequency: data.recurrenceFrequency }
       : {}),
+    ...(value.recurrenceEndDate !== defaults.recurrenceEndDate
+      ? { recurrenceEndDate: data.recurrenceEndDate }
+      : {}),
     ...(value.isSettled !== defaults.isSettled ? { isSettled: data.isSettled } : {}),
     ...(value.note !== defaults.note ? { note: data.note } : {}),
+    ...(JSON.stringify(value.tagIds) !== JSON.stringify(defaults.tagIds)
+      ? { tagIds: data.tagIds }
+      : {}),
     ...(JSON.stringify(value.splitShares) !== JSON.stringify(defaults.splitShares)
       ? { splitShares: data.splitShares }
       : {}),
@@ -378,7 +422,8 @@ function normalizeLooseTransactionInput(value: TransactionFormValues) {
     categoryId: !isTransfer ? value.categoryId || null : null,
     sourceAccountId: isTransfer ? value.sourceAccountId || null : null,
     destinationAccountId: isTransfer ? value.destinationAccountId || null : null,
-    dueDate: isBoleto && value.dueDate ? value.dueDate : null,
+    dueDateRuleExcluded: value.dueDateRuleExcluded,
+    dueDate: !isTransfer && !isCreditCard && value.dueDate ? value.dueDate : null,
     boletoPaymentDate:
       isBoleto &&
       value.condition !== "recurring" &&
@@ -390,7 +435,17 @@ function normalizeLooseTransactionInput(value: TransactionFormValues) {
     startInstallment:
       value.condition === "installment" ? Number(value.startInstallment) : undefined,
     recurrenceFrequency: value.condition === "recurring" ? value.recurrenceFrequency : null,
-    isSettled: isCreditCard ? null : value.isSettled === "true",
+    recurrenceEndDate: value.condition === "recurring" ? value.recurrenceEndDate || null : null,
+    settledDate:
+      value.condition !== "recurring" && !isCreditCard && value.isSettled === "true"
+        ? value.boletoPaymentDate || null
+        : null,
+    isSettled: isCreditCard
+      ? null
+      : value.condition === "recurring"
+        ? false
+        : value.isSettled === "true",
+    tagIds: value.tagIds,
     note: value.note,
     splitShares: value.splitShares.length
       ? value.splitShares.map((share) => ({

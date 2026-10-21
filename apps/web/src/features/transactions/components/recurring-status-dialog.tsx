@@ -1,4 +1,4 @@
-import { Pause, Trash2 } from "lucide-react";
+import { CalendarX2, Pause, Square } from "lucide-react";
 import { useState } from "react";
 import {
   AlertDialog,
@@ -12,11 +12,12 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-type RecurringStatusAction = "pause" | "cancel";
+type RecurringStatusAction = "pause" | "stop" | "skip";
 
 type RecurringStatusDialogProps = {
   action: RecurringStatusAction | null;
   name: string;
+  occurrenceDate: string;
   onConfirm: (action: RecurringStatusAction) => Promise<void> | void;
   onOpenChange: (open: boolean) => void;
 };
@@ -25,22 +26,30 @@ const actionContent = {
   pause: {
     actionLabel: "Pausar recorrência",
     description:
-      "Os lançamentos já registrados serão mantidos, e novas ocorrências deixarão de ser geradas até você retomar a recorrência.",
+      "Esta ocorrência e as próximas ficarão em pausa. As ocorrências anteriores e seus recebimentos ou pagamentos serão mantidos.",
     icon: <Pause aria-hidden="true" />,
     title: "Pausar recorrência?",
   },
-  cancel: {
+  stop: {
     actionLabel: "Encerrar recorrência",
     description:
-      "Os lançamentos já registrados serão mantidos, mas nenhuma nova ocorrência será gerada. Esta ação não pode ser desfeita.",
-    icon: <Trash2 aria-hidden="true" />,
+      "Esta ocorrência e as próximas deixarão de ser projetadas. As ocorrências anteriores e seus recebimentos ou pagamentos serão mantidos.",
+    icon: <Square aria-hidden="true" />,
     title: "Encerrar recorrência?",
+  },
+  skip: {
+    actionLabel: "Pular ocorrência",
+    description:
+      "Somente esta ocorrência será ignorada. A recorrência volta na próxima data prevista, respeitando sua data final.",
+    icon: <CalendarX2 aria-hidden="true" />,
+    title: "Pular esta ocorrência?",
   },
 } as const;
 
 export function RecurringStatusDialog({
   action,
   name,
+  occurrenceDate,
   onConfirm,
   onOpenChange,
 }: RecurringStatusDialogProps) {
@@ -67,7 +76,8 @@ export function RecurringStatusDialog({
           <AlertDialogMedia>{content?.icon}</AlertDialogMedia>
           <AlertDialogTitle>{content?.title}</AlertDialogTitle>
           <AlertDialogDescription>
-            {content?.description} Recorrência: &quot;{name}&quot;.
+            {content?.description} Recorrência: &quot;{name}&quot;. Data:{" "}
+            {occurrenceDate.split("-").reverse().join("/")}.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
@@ -78,7 +88,7 @@ export function RecurringStatusDialog({
               event.preventDefault();
               void confirm();
             }}
-            variant={action === "cancel" ? "destructive" : "default"}
+            variant={action === "stop" ? "destructive" : "default"}
           >
             {isPending ? "Salvando..." : content?.actionLabel}
           </AlertDialogAction>

@@ -1,6 +1,5 @@
 import type {
   RecurringExpensesOutput,
-  RecurringExpensesReportOutput,
   UpdateRecurringExpenseInput,
 } from "@openmonetis/validators/recurring-expenses";
 import { requestApi } from "@/lib/api-client";
@@ -15,12 +14,6 @@ export function getRecurringExpenses(period: string) {
   );
 }
 
-export function getRecurringExpensesReport(period: string) {
-  return request<RecurringExpensesReportOutput>(
-    `/recurring-expenses/report?${new URLSearchParams({ period }).toString()}`,
-  );
-}
-
 export function updateRecurringExpense(
   id: string,
   purchaseDate: string,
@@ -30,15 +23,4 @@ export function updateRecurringExpense(
     method: "PATCH",
     body: JSON.stringify(input),
   });
-}
-
-export function changeRecurringExpenseState(
-  action: "pause" | "resume" | "skip" | "stop",
-  id: string,
-  purchaseDate: string,
-) {
-  return request<{ success: true }>(
-    `/recurring-expenses/${id}/occurrences/${purchaseDate}/${action}`,
-    { method: "POST" },
-  );
 }

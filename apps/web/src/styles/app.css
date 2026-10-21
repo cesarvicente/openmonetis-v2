@@ -75,7 +75,7 @@
   --brand: var(--palette-coral);
   --brand-strong: color-mix(in srgb, var(--palette-coral) 45%, var(--palette-charcoal));
   --brand-foreground: var(--palette-charcoal);
-  --border: #24242433;
+  --border: oklch(26.033% 0.00003 271.152 / 0.2);
   --input: color-mix(in srgb, var(--palette-charcoal) 30%, var(--background));
   --ring: var(--info);
   --overlay: color-mix(in srgb, var(--palette-charcoal) 18%, transparent);
@@ -86,7 +86,7 @@
   --chart-3: var(--palette-green);
   --chart-4: color-mix(in srgb, var(--palette-coral) 45%, var(--palette-blue));
   --chart-5: color-mix(in srgb, var(--palette-blue) 55%, var(--palette-charcoal));
-  --financial-summary-neutral: #343434;
+  --financial-summary-neutral: oklch(32.504% 0.00004 271.152);
   --financial-summary-neutral-foreground: oklch(100% 0.00011 271.152);
   --text-body: 1rem;
   --app-text-xs: 0.8125rem;

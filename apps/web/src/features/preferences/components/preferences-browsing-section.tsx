@@ -37,7 +37,7 @@ export function PreferencesBrowsingSection({
         <form.Field name="notificationDueSoonDays">
           {(field) => (
             <SettingsRow
-              description="Quando boletos e faturas passam a aparecer como próximos do vencimento."
+              description="Quando contas a pagar e faturas passam a aparecer como próximos do vencimento."
               id={dueSoonDaysId}
               label="Sinalizar vencimentos"
             >

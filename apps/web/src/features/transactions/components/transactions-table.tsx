@@ -25,7 +25,7 @@ export function TransactionsTable({
   onRefund,
   onSettle,
   onSettleRecurringOccurrence,
-  onRecurringStatus,
+  onRecurringAction,
   currentPage,
   pageCount,
   pageSize,
@@ -80,7 +80,7 @@ export function TransactionsTable({
                           onAnticipate={onAnticipate}
                           onUndoAnticipation={onUndoAnticipation}
                           onRefund={onRefund}
-                          onRecurringStatus={onRecurringStatus}
+                          onRecurringAction={onRecurringAction}
                           onSettle={onSettle}
                           onSettleRecurringOccurrence={onSettleRecurringOccurrence}
                           onSelectionChange={(selected) =>

@@ -88,10 +88,6 @@ export function CategoryTrendsPage({ filters, onFiltersChange }: CategoryTrendsP
           {report && !reportQuery.isError ? (
             report.categories.length ? (
               <div className="grid gap-6" aria-busy={reportQuery.isFetching}>
-                <p className="text-muted-foreground text-sm">
-                  A média de cada categoria considera apenas os meses com movimento. Os totais
-                  incluem os valores previstos de recorrências.
-                </p>
                 <Tabs className="gap-0" defaultValue="table">
                   <TabsList variant="line">
                     <TabsTrigger value="table">
@@ -104,12 +100,27 @@ export function CategoryTrendsPage({ filters, onFiltersChange }: CategoryTrendsP
                     </TabsTrigger>
                   </TabsList>
                   <TabsContent className="pt-5" value="table">
+                    <div className="mb-4 grid gap-1 text-muted-foreground text-xs">
+                      <p>
+                        Variações em relação ao mês anterior. A média considera os meses com
+                        movimento.
+                      </p>
+                      {report.categories.some((category) => category.subcategories?.length) ? (
+                        <p>
+                          Expanda as categorias pela seta para ver as subcategorias incluídas no
+                          total.
+                        </p>
+                      ) : null}
+                    </div>
                     <CategoryTrendsList categories={report.categories} periods={report.periods} />
                   </TabsContent>
                   <TabsContent className="pt-5" value="chart">
                     <CategoryTrendsChart categories={report.categories} periods={report.periods} />
                   </TabsContent>
                 </Tabs>
+                <p className="text-muted-foreground text-xs">
+                  Os totais incluem os valores previstos de recorrências.
+                </p>
               </div>
             ) : (
               <Card className="grid min-h-64 place-items-center p-6 text-center">

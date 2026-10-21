@@ -1,8 +1,7 @@
 import { getCurrentPeriodInBrazil } from "@openmonetis/shared/date-time";
-
 import type { CategoryOutput } from "@openmonetis/validators/categories";
-
 import type { Dispatch, SetStateAction } from "react";
+import { getCategoryLabel } from "../../categories/categories.presentation";
 import type { PreviewRow, ReviewRow } from "./transaction-import-screen.types";
 
 export function getCommonRowValue(rows: ReviewRow[], selectValue: (row: ReviewRow) => string) {
@@ -24,16 +23,22 @@ export function updateRow(
   );
 }
 
-export function findCategoryByImportedName(categories: CategoryOutput[], transaction: PreviewRow) {
+export function findCategoryByImportedName(
+  categories: CategoryOutput[],
+  transaction: Pick<PreviewRow, "suggestedCategoryId" | "categoryName" | "type">,
+) {
   if (transaction.suggestedCategoryId) return transaction.suggestedCategoryId;
   if (!transaction.categoryName) return "";
-  const normalized = normalizeText(transaction.categoryName);
-  return (
-    categories.find(
-      (category) =>
-        category.type === transaction.type && normalizeText(category.name) === normalized,
-    )?.id ?? ""
+  const normalized = normalizeCategoryPath(transaction.categoryName);
+  const candidates = categories.filter((category) => category.type === transaction.type);
+  const matches = candidates.filter(
+    (category) => normalizeCategoryPath(getCategoryLabel(category)) === normalized,
   );
+  if (matches.length === 1) return matches[0]?.id ?? "";
+  const byName = candidates.filter(
+    (category) => normalizeCategoryPath(category.name) === normalized,
+  );
+  return byName.length === 1 ? (byName[0]?.id ?? "") : "";
 }
 
 export function normalizeText(value: string) {
@@ -46,4 +51,8 @@ export function normalizeText(value: string) {
 
 export function currentPeriod() {
   return getCurrentPeriodInBrazil();
+}
+
+function normalizeCategoryPath(value: string) {
+  return normalizeText(value).replace(/\s*[›>]\s*/g, ">");
 }

@@ -63,6 +63,7 @@ export function ExternalExpenseRow({
       <TableCell>
         <div className="flex min-w-56 items-center gap-2.5">
           <EstablishmentLogo
+            categoryIcon={item.categoryIcon}
             fallbackLogoUrl={item.establishmentLogoUrl}
             name={item.snapshot.name}
             size={36}

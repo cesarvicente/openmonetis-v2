@@ -42,14 +42,14 @@ export function TransactionRow({
   onAnticipate,
   onUndoAnticipation,
   onRefund,
-  onRecurringStatus,
+  onRecurringAction,
   onSettle,
   onSettleRecurringOccurrence,
   onSelectionChange,
 }: TransactionRowProps) {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [installmentDeleteOpen, setInstallmentDeleteOpen] = useState(false);
-  const [recurringAction, setRecurringAction] = useState<"pause" | "cancel" | null>(null);
+  const [recurringAction, setRecurringAction] = useState<"pause" | "stop" | "skip" | null>(null);
   const visibleAmount = transaction.allocation?.amount ?? transaction.amount;
   const isIncomingTransfer = transaction.type === "transfer" && visibleAmount > 0;
   const amountClassName =
@@ -176,6 +176,16 @@ export function TransactionRow({
             transaction.type === "income" || isIncomingTransfer || isInvoiceReduction
           }
         />
+        {transaction.settledAmount != null &&
+        transaction.plannedAmount != null &&
+        transaction.settledAmount !== transaction.plannedAmount ? (
+          <span
+            className="block text-muted-foreground text-xs"
+            title={`Previsto total: ${transaction.plannedAmount.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}`}
+          >
+            Valor ajustado
+          </span>
+        ) : null}
       </TableCell>
       <TableCell className="pl-5 whitespace-nowrap">
         <span className="inline-flex items-center gap-2">
@@ -274,7 +284,7 @@ export function TransactionRow({
             transaction={transaction}
             pending={pending}
             onDelete={onDelete}
-            onRecurringStatus={onRecurringStatus}
+            onRecurringAction={onRecurringAction}
             isBalanceAdjustment={isBalanceAdjustment}
             isRefund={isRefund}
             isInvoiceAdjustment={isInvoiceAdjustment}

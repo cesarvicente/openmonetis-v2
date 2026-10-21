@@ -1,9 +1,13 @@
 import type {
   CreateTransactionRefundInput,
+  ExportTransactionsQuery,
   ImportTransactionsInput,
+  InstallmentOptionsOutput,
   PaginatedTransactionsOutput,
   RecentEstablishmentsOutput,
+  RecurringOccurrenceActionInput,
   TransactionActionScope,
+  TransactionExportOutput,
   TransactionImportPreview,
   TransactionImportResult,
   TransactionInput,
@@ -16,11 +20,12 @@ import type { TransactionsSearch } from "./transactions.presentation";
 
 export type TransactionsApiSearch = Omit<
   TransactionsSearch,
-  "people" | "categories" | "accounts" | "cards" | "edit"
+  "people" | "categories" | "accounts" | "cards" | "tags" | "edit"
 > & {
   view?: "accountStatement";
   personIds?: string[];
   categoryIds?: string[];
+  tagIds?: string[];
   accountIds?: string[];
   cardIds?: string[];
 };
@@ -39,7 +44,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   });
 }
 
-export function getTransactions(search: TransactionsApiSearch) {
+function transactionsSearchParams(search: TransactionsApiSearch) {
   const params = new URLSearchParams();
   const values: Record<string, string | number | boolean | undefined> = {
     period: search.period,
@@ -55,6 +60,8 @@ export function getTransactions(search: TransactionsApiSearch) {
     dateStart: search.dateStart,
     dateEnd: search.dateEnd,
     hasAttachments: search.hasAttachments,
+    payables: search.payables,
+    withoutTags: search.withoutTags,
     isDivided: search.isDivided,
     page: search.page,
     pageSize: search.pageSize,
@@ -65,13 +72,31 @@ export function getTransactions(search: TransactionsApiSearch) {
   for (const [key, values] of Object.entries({
     personIds: search.personIds,
     categoryIds: search.categoryIds,
+    tagIds: search.tagIds,
     accountIds: search.accountIds,
     cardIds: search.cardIds,
   })) {
     if (values?.length) params.set(key, values.join(","));
   }
 
-  return request<PaginatedTransactionsOutput>(`/transactions?${params.toString()}`);
+  return params;
+}
+
+export function getTransactions(search: TransactionsApiSearch) {
+  return request<PaginatedTransactionsOutput>(`/transactions?${transactionsSearchParams(search)}`);
+}
+
+export function exportTransactions(
+  search: TransactionsApiSearch,
+  format: ExportTransactionsQuery["format"],
+) {
+  const params = transactionsSearchParams({ ...search, page: undefined, pageSize: undefined });
+  params.set("format", format);
+  return request<TransactionExportOutput>(`/transactions/export?${params}`);
+}
+
+export function getInstallmentOptions(amount: number) {
+  return request<InstallmentOptionsOutput>(`/transactions/installments/preview?amount=${amount}`);
 }
 
 export function getTransaction(id: string) {
@@ -176,6 +201,8 @@ export const settleTransactions = (input: {
   ids: string[];
   isSettled: boolean;
   settledDate?: string;
+  settledAmount?: number;
+  accountId?: string;
 }) =>
   request<{ ids: string[]; isSettled: boolean }>("/transactions/settlement", {
     method: "PATCH",
@@ -186,16 +213,22 @@ export const settleRecurringOccurrence = (input: {
   purchaseDate: string;
   isSettled: boolean;
   settledDate?: string;
+  settledAmount?: number;
+  accountId?: string;
 }) =>
   request<typeof input>("/transactions/recurring-occurrences/settlement", {
     method: "PATCH",
     body: JSON.stringify(input),
   });
-export const changeRecurringRuleStatus = (input: {
+export const applyRecurringRuleAction = (input: {
   id: string;
-  status: "active" | "paused" | "cancelled";
+  action: RecurringOccurrenceActionInput["action"];
+  occurrenceDate: string;
 }) =>
-  request<{ id: string; status: string }>(`/transactions/recurring-rules/${input.id}/status`, {
-    method: "PATCH",
-    body: JSON.stringify({ status: input.status }),
-  });
+  request<{ id: string; action: string; occurrenceDate: string }>(
+    `/transactions/recurring-rules/${input.id}/actions`,
+    {
+      method: "POST",
+      body: JSON.stringify({ action: input.action, occurrenceDate: input.occurrenceDate }),
+    },
+  );

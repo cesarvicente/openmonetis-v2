@@ -4,16 +4,13 @@ import { useQuery } from "@tanstack/react-query";
 import { KeyRound, LoaderCircle } from "lucide-react";
 import { useId, useState } from "react";
 import { toast } from "sonner";
-import { MobilePageFormGuard } from "@/components/forms/mobile-page-form-guard";
+import { MobileFormContent } from "@/components/forms/mobile-form-content";
+import { MobileFormDialog } from "@/components/forms/mobile-form-dialog";
+import { MobileFormState } from "@/components/forms/mobile-form-state";
 import { SettingsSection } from "@/components/settings-panel";
 import { SettingsQueryError } from "@/components/settings-query-error";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
 import { Button } from "@/components/ui/button";
+import { DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { PasswordInput } from "@/components/ui/password-input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -23,6 +20,7 @@ import { settingsSecurityQueryOptions } from "../settings.queries";
 
 export function PasswordSettings() {
   const securityQuery = useQuery(settingsSecurityQueryOptions());
+  const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
 
   return (
     <SettingsSection
@@ -52,28 +50,48 @@ export function PasswordSettings() {
       ) : null}
 
       {securityQuery.data?.passwordChangeAvailable ? (
-        <Accordion>
-          <AccordionItem value="password">
-            <AccordionTrigger className="flex-wrap items-center gap-3 py-1 hover:no-underline sm:flex-nowrap">
-              <span className="grid min-w-0 basis-full gap-1 sm:basis-auto">
-                <span>Senha cadastrada</span>
-                <span className="font-normal text-muted-foreground">
-                  Você pode atualizar sua senha a qualquer momento.
-                </span>
-              </span>
-              <span className="shrink-0 text-brand-strong sm:ml-auto">Alterar senha</span>
-            </AccordionTrigger>
-            <AccordionContent className="pt-5 pb-0">
-              <ChangePasswordForm />
-            </AccordionContent>
-          </AccordionItem>
-        </Accordion>
+        <div className="grid justify-items-start gap-2">
+          <p className="font-medium text-sm">Senha cadastrada</p>
+          <p className="text-muted-foreground text-sm">
+            Você pode atualizar sua senha a qualquer momento.
+          </p>
+          <Button
+            className="mt-1"
+            type="button"
+            variant="outline"
+            onClick={() => setPasswordDialogOpen(true)}
+          >
+            Alterar senha
+          </Button>
+          <MobileFormDialog onOpenChange={setPasswordDialogOpen} open={passwordDialogOpen}>
+            <MobileFormContent guarded mobileLayout="sheet" className="sm:max-w-lg">
+              <DialogHeader>
+                <DialogTitle>Alterar senha</DialogTitle>
+                <DialogDescription>
+                  Confirme sua senha atual e escolha uma nova senha de acesso.
+                </DialogDescription>
+              </DialogHeader>
+              {passwordDialogOpen ? (
+                <ChangePasswordForm
+                  onCancel={() => setPasswordDialogOpen(false)}
+                  onSuccess={() => setPasswordDialogOpen(false)}
+                />
+              ) : null}
+            </MobileFormContent>
+          </MobileFormDialog>
+        </div>
       ) : null}
     </SettingsSection>
   );
 }
 
-function ChangePasswordForm() {
+function ChangePasswordForm({
+  onCancel,
+  onSuccess,
+}: {
+  onCancel: () => void;
+  onSuccess: () => void;
+}) {
   const id = useId();
   const mutation = useChangeSettingsPasswordMutation();
   const [error, setError] = useState<string | null>(null);
@@ -97,6 +115,7 @@ function ChangePasswordForm() {
         toast.success("Senha alterada", {
           description: "As outras sessões da sua conta foram encerradas.",
         });
+        onSuccess();
       } catch (cause) {
         const message = passwordMutationErrorMessage(cause);
         setError(message);
@@ -110,7 +129,7 @@ function ChangePasswordForm() {
   return (
     <form
       data-mobile-page-form
-      className="grid max-w-xl gap-4"
+      className="grid gap-4"
       noValidate
       onSubmit={(event) => {
         event.preventDefault();
@@ -120,7 +139,7 @@ function ChangePasswordForm() {
       <form.Subscribe
         selector={(state) => ({ isDirty: !state.isDefaultValue, isSubmitting: state.isSubmitting })}
       >
-        {(state) => <MobilePageFormGuard {...state} />}
+        {(state) => <MobileFormState {...state} />}
       </form.Subscribe>
       <p className="rounded-lg bg-muted/40 p-3 text-muted-foreground text-sm leading-relaxed">
         Ao salvar, as outras sessões da sua conta serão encerradas. Este acesso continuará ativo.
@@ -202,14 +221,25 @@ function ChangePasswordForm() {
 
       <form.Subscribe selector={(state) => state.isSubmitting}>
         {(isSubmitting) => (
-          <Button className="w-full sm:w-fit" disabled={isSubmitting} type="submit">
-            {isSubmitting ? (
-              <LoaderCircle aria-hidden="true" className="size-4 animate-spin" />
-            ) : (
-              <KeyRound aria-hidden="true" className="size-4" />
-            )}
-            {isSubmitting ? "Alterando..." : "Alterar senha"}
-          </Button>
+          <DialogFooter>
+            <Button
+              data-mobile-cancel
+              disabled={isSubmitting}
+              onClick={onCancel}
+              type="button"
+              variant="outline"
+            >
+              Cancelar
+            </Button>
+            <Button disabled={isSubmitting} type="submit">
+              {isSubmitting ? (
+                <LoaderCircle aria-hidden="true" className="size-4 animate-spin" />
+              ) : (
+                <KeyRound aria-hidden="true" className="size-4" />
+              )}
+              {isSubmitting ? "Alterando..." : "Alterar senha"}
+            </Button>
+          </DialogFooter>
         )}
       </form.Subscribe>
     </form>

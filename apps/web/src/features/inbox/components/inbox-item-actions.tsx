@@ -26,20 +26,20 @@ export function InboxItemActions({
   status: InboxItemSummaryOutput["status"];
 }) {
   return (
-    <div className={`flex items-center gap-1${className ? ` ${className}` : ""}`}>
+    <div className={`flex min-w-0 items-center gap-2${className ? ` ${className}` : ""}`}>
       <Tooltip>
         <TooltipTrigger
           aria-label="Ver detalhes"
           onClick={onDetails}
           render={
             <Button
-              className="text-muted-foreground hover:text-foreground"
-              size="icon-sm"
-              variant="ghost"
+              className="text-muted-foreground hover:text-foreground max-md:size-11"
+              size="icon"
+              variant="outline"
             />
           }
         >
-          <Eye aria-hidden="true" />
+          <Eye aria-hidden="true" className="size-4 max-md:size-5" />
         </TooltipTrigger>
         <TooltipContent>Ver detalhes</TooltipContent>
       </Tooltip>
@@ -52,32 +52,55 @@ export function InboxItemActions({
               onClick={onDiscard}
               render={
                 <Button
-                  className="text-muted-foreground hover:text-destructive"
-                  size="icon-sm"
-                  variant="ghost"
+                  className="text-muted-foreground hover:text-destructive max-md:size-11"
+                  size="icon"
+                  variant="outline"
                 />
               }
             >
-              <ArchiveX aria-hidden="true" />
+              <ArchiveX aria-hidden="true" className="size-4 max-md:size-5" />
             </TooltipTrigger>
             <TooltipContent>Descartar</TooltipContent>
           </Tooltip>
-          <Button disabled={processing} onClick={onProcess} size="sm">
+          <Button
+            className="max-md:min-h-11 max-md:min-w-28"
+            disabled={processing}
+            onClick={onProcess}
+            size="default"
+          >
             <ClipboardPen aria-hidden="true" /> Revisar
           </Button>
         </>
       ) : status === "discarded" ? (
         <>
-          <Button disabled={processing} onClick={onRestore} size="sm" variant="outline">
+          <Button
+            className="max-md:min-h-11 max-md:min-w-28"
+            disabled={processing}
+            onClick={onRestore}
+            size="default"
+            variant="outline"
+          >
             <RotateCcw aria-hidden="true" /> Restaurar
           </Button>
-          <Button aria-label="Excluir" onClick={onDelete} size="icon-sm" variant="ghost">
-            <Trash2 aria-hidden="true" />
+          <Button
+            aria-label="Excluir"
+            className="max-md:size-11"
+            onClick={onDelete}
+            size="icon"
+            variant="outline"
+          >
+            <Trash2 aria-hidden="true" className="size-4 max-md:size-5" />
           </Button>
         </>
       ) : (
-        <Button aria-label="Excluir" onClick={onDelete} size="icon-sm" variant="ghost">
-          <Trash2 aria-hidden="true" />
+        <Button
+          aria-label="Excluir"
+          className="max-md:size-11"
+          onClick={onDelete}
+          size="icon"
+          variant="outline"
+        >
+          <Trash2 aria-hidden="true" className="size-4 max-md:size-5" />
         </Button>
       )}
     </div>

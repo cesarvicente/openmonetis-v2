@@ -3,12 +3,12 @@ import { Textarea } from "@/components/ui/textarea";
 import type { useTransactionForm } from "../useTransactionForm";
 import { TransactionAttachmentsField } from "./transaction-attachments-field";
 import { FieldShell } from "./transaction-field-shell";
-
 import type { TransactionFormProps } from "./transaction-form.types";
 import {
   getTransactionFormErrorMessage,
   type TransactionFormValues,
 } from "./transaction-form.validation";
+import { TransactionTagsField } from "./transaction-tags-field";
 
 export function TransactionAdvancedFields({
   pendingFiles,
@@ -44,7 +44,7 @@ export function TransactionAdvancedFields({
           aria-hidden="true"
           className="size-4 transition-transform group-open:rotate-180"
         />
-        Anotações e anexos
+        Etiquetas, anotações e anexos
         {pendingFiles.length ? (
           <span className="rounded-full bg-brand/10 px-2 py-0.5 font-medium text-brand-strong text-xs">
             {pendingFiles.length} {pendingFiles.length === 1 ? "anexo" : "anexos"}
@@ -53,6 +53,7 @@ export function TransactionAdvancedFields({
       </summary>
 
       <div className="mt-4 grid gap-4">
+        <TransactionTagsField form={form} disabled={isSubmitting} />
         <form.Field name="note">
           {(field) => (
             <FieldShell

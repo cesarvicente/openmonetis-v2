@@ -16,6 +16,7 @@ type RecurringEditScopeDialogProps = {
   open: boolean;
   pending: boolean;
   scheduleChanged: boolean;
+  endDateChanged?: boolean;
   onOpenChange: (open: boolean) => void;
   onConfirm: (scope: TransactionActionScope) => void | Promise<void>;
 };
@@ -24,10 +25,11 @@ export function RecurringEditScopeDialog({
   open,
   pending,
   scheduleChanged,
+  endDateChanged,
   onOpenChange,
   onConfirm,
 }: RecurringEditScopeDialogProps) {
-  const [scope, setScope] = useState<TransactionActionScope>(scheduleChanged ? "series" : "future");
+  const [scope, setScope] = useState<TransactionActionScope>("future");
   const options: Array<{
     scope: TransactionActionScope;
     title: string;
@@ -49,7 +51,11 @@ export function RecurringEditScopeDialog({
       description: "Inclui as ocorrências calculadas em meses anteriores.",
     },
   ];
-  const selectedScope = scheduleChanged ? "series" : scope;
+  const selectedScope = scheduleChanged
+    ? "future"
+    : endDateChanged && scope === "single"
+      ? "future"
+      : scope;
 
   return (
     <Dialog onOpenChange={(nextOpen) => !pending && onOpenChange(nextOpen)} open={open}>
@@ -60,14 +66,18 @@ export function RecurringEditScopeDialog({
         </DialogHeader>
         {scheduleChanged ? (
           <p className="text-muted-foreground text-sm">
-            Alterações na data ou frequência mudam o calendário da recorrência e só podem ser
-            aplicadas a todas as ocorrências.
+            A nova data ou frequência vale a partir desta ocorrência. As anteriores mantêm suas
+            datas e os dados já registrados. Baixas neste intervalo precisam ser desfeitas antes da
+            alteração.
           </p>
         ) : null}
         <div aria-label="Escolha o alcance da edição" className="grid gap-2" role="radiogroup">
           {options.map((option) => {
             const selected = option.scope === selectedScope;
-            const disabled = pending || (scheduleChanged && option.scope !== "series");
+            const disabled =
+              pending ||
+              (scheduleChanged && option.scope !== "future") ||
+              (endDateChanged && option.scope === "single");
             const Icon = selected ? CheckCircle2 : Circle;
             return (
               <label
@@ -102,6 +112,11 @@ export function RecurringEditScopeDialog({
             );
           })}
         </div>
+        {endDateChanged ? (
+          <p className="text-muted-foreground text-sm">
+            A data final vale para esta e as próximas ocorrências, ou para toda a série.
+          </p>
+        ) : null}
         <DialogFooter className="grid grid-cols-2 [&>*]:w-full">
           <Button
             disabled={pending}

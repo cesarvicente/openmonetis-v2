@@ -33,7 +33,7 @@ export function useTransactionImportReview({
   const [error, setError] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
   const selectableCategories = categories.filter(
-    (category) => category.name !== invoicePaymentCategoryName,
+    (category) => !(category.isSystem && category.name === invoicePaymentCategoryName),
   );
   const form = useForm({
     defaultValues: {
@@ -203,5 +203,3 @@ export function useTransactionImportReview({
     downloadTemplate,
   };
 }
-
-export type TransactionImportScreenApi = ReturnType<typeof useTransactionImportReview>["form"];

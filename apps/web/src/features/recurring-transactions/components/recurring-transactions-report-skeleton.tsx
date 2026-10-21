@@ -1,6 +1,6 @@
 import { Skeleton } from "@/components/ui/skeleton";
 
-export function RecurringExpensesReportSkeleton() {
+export function RecurringTransactionsReportSkeleton() {
   return (
     <div className="grid gap-6">
       <Skeleton className="h-72 rounded-xl" />

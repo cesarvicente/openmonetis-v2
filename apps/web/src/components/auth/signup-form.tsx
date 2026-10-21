@@ -4,6 +4,7 @@ import {
   SignupInputSchema,
 } from "@openmonetis/validators/auth";
 import { useForm } from "@tanstack/react-form";
+import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { UserPlus } from "lucide-react";
 import { useId, useState } from "react";
@@ -12,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PasswordInput } from "@/components/ui/password-input";
+import { authConfigQueryOptions } from "@/features/auth-config/auth-config.queries";
 import { authClient } from "@/lib/auth-client";
 import { GoogleAuthButton } from "./google-auth-button";
 
@@ -25,6 +27,8 @@ function getSignupErrorMessage(error: unknown) {
         }
       : { code: "", message: "", status: 0 };
   const identifier = `${details.code} ${details.message}`.toLowerCase();
+  if (identifier.includes("signup_disabled") || identifier.includes("sign up is disabled"))
+    return "O cadastro de novas contas está desabilitado nesta instalação.";
 
   if (details.status === 429 || identifier.includes("rate") || identifier.includes("too many")) {
     return "Muitas tentativas de cadastro. Aguarde um minuto e tente novamente.";
@@ -42,6 +46,7 @@ function getSignupErrorMessage(error: unknown) {
 }
 
 export function SignupForm() {
+  const configuration = useQuery(authConfigQueryOptions());
   const navigate = useNavigate();
   const id = useId();
   const [error, setError] = useState<string | null>(null);
@@ -247,20 +252,24 @@ export function SignupForm() {
           ) : null}
         </div>
       ) : null}
-      <div className="relative flex items-center py-1" aria-hidden="true">
-        <div className="grow border-t border-border" />
-        <span className="px-3 text-muted-foreground text-xs uppercase">ou</span>
-        <div className="grow border-t border-border" />
-      </div>
-      <form.Subscribe selector={(state) => state.isSubmitting}>
-        {(isSubmitting) => (
-          <GoogleAuthButton
-            disabled={isSubmitting}
-            isLoading={isGoogleSubmitting}
-            onClick={handleGoogleSignIn}
-          />
-        )}
-      </form.Subscribe>
+      {configuration.data?.googleEnabled ? (
+        <>
+          <div className="relative flex items-center py-1" aria-hidden="true">
+            <div className="grow border-t border-border" />
+            <span className="px-3 text-muted-foreground text-xs uppercase">ou</span>
+            <div className="grow border-t border-border" />
+          </div>
+          <form.Subscribe selector={(state) => state.isSubmitting}>
+            {(isSubmitting) => (
+              <GoogleAuthButton
+                disabled={isSubmitting}
+                isLoading={isGoogleSubmitting}
+                onClick={handleGoogleSignIn}
+              />
+            )}
+          </form.Subscribe>
+        </>
+      ) : null}
     </form>
   );
 }

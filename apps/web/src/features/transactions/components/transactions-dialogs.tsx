@@ -19,7 +19,7 @@ export function TransactionsDialogs({
   onDeleteTransaction,
   onSettleTransactions,
   onSettleRecurringOccurrence,
-  onRecurringStatus,
+  onRecurringAction,
   createDefaults,
   isDialogOpen,
   setIsDialogOpen,
@@ -50,7 +50,7 @@ export function TransactionsDialogs({
   onDeleteTransaction: TransactionsScreenProps["onDeleteTransaction"];
   onSettleTransactions: TransactionsScreenProps["onSettleTransactions"];
   onSettleRecurringOccurrence: TransactionsScreenProps["onSettleRecurringOccurrence"];
-  onRecurringStatus: TransactionsScreenProps["onRecurringStatus"];
+  onRecurringAction: TransactionsScreenProps["onRecurringAction"];
   createDefaults: TransactionsScreenProps["createDefaults"];
   isDialogOpen: ReturnType<typeof useTransactionsDialogs>["isDialogOpen"];
   setIsDialogOpen: ReturnType<typeof useTransactionsDialogs>["setIsDialogOpen"];
@@ -110,7 +110,7 @@ export function TransactionsDialogs({
                 onAnticipate: setAnticipatingTransaction,
                 onCopy: openCopyDialog,
                 onDelete: onDeleteTransaction,
-                onRecurringStatus,
+                onRecurringAction,
                 onRefund: setRefundingTransaction,
                 onSettle: onSettleTransactions,
                 onSettleRecurringOccurrence,

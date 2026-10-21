@@ -16,7 +16,7 @@ export function TransactionActionDialogs({
   transaction,
   pending,
   onDelete,
-  onRecurringStatus,
+  onRecurringAction,
   isBalanceAdjustment,
   isRefund,
   isInvoiceAdjustment,
@@ -30,16 +30,16 @@ export function TransactionActionDialogs({
   transaction: TransactionRowProps["transaction"];
   pending: TransactionRowProps["pending"];
   onDelete: TransactionRowProps["onDelete"];
-  onRecurringStatus: TransactionRowProps["onRecurringStatus"];
+  onRecurringAction: TransactionRowProps["onRecurringAction"];
   isBalanceAdjustment: boolean;
   isRefund: boolean;
   isInvoiceAdjustment: boolean;
   deleteOpen: boolean;
   installmentDeleteOpen: boolean;
-  recurringAction: "pause" | "cancel" | null;
+  recurringAction: "pause" | "stop" | "skip" | null;
   setDeleteOpen: Dispatch<SetStateAction<boolean>>;
   setInstallmentDeleteOpen: Dispatch<SetStateAction<boolean>>;
-  setRecurringAction: Dispatch<SetStateAction<"pause" | "cancel" | null>>;
+  setRecurringAction: Dispatch<SetStateAction<"pause" | "stop" | "skip" | null>>;
 }) {
   return (
     <>
@@ -92,11 +92,9 @@ export function TransactionActionDialogs({
       <RecurringStatusDialog
         action={recurringAction}
         name={transaction.name}
+        occurrenceDate={transaction.purchaseDate}
         onConfirm={(action) =>
-          onRecurringStatus(
-            transaction.recurringRuleId as string,
-            action === "pause" ? "paused" : "cancelled",
-          )
+          onRecurringAction(transaction.recurringRuleId as string, action, transaction.purchaseDate)
         }
         onOpenChange={(open) => {
           if (!open) setRecurringAction(null);

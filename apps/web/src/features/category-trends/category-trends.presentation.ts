@@ -4,6 +4,7 @@ import {
   periodToSafeInstant,
 } from "@openmonetis/shared/date-time";
 import type { CategoryTrendsOutput } from "@openmonetis/validators/category-trends";
+import { getCategoryLabel } from "../categories/categories.presentation";
 
 type CategoryTrendsSearch = {
   period?: string;
@@ -104,7 +105,7 @@ export function downloadCategoryTrendsCsv(report: CategoryTrendsOutput) {
     ...report.categories.flatMap((category) =>
       category.values.map((value) => [
         category.type === "expense" ? "Despesa" : "Receita",
-        category.name,
+        getCategoryLabel(category),
         value.period,
         formatCsvNumber(value.actualAmount),
         formatCsvNumber(value.recurringAmount),

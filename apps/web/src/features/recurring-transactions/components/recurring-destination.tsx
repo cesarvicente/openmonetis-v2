@@ -2,7 +2,7 @@ import { CreditCard, Landmark } from "lucide-react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
-import type { ReportItem } from "./recurring-expenses-report-page.types";
+import type { ReportItem } from "./recurring-transactions-report-page.types";
 
 export function RecurringDestination({ item }: { item: ReportItem }) {
   const isCard = Boolean(item.cardName);

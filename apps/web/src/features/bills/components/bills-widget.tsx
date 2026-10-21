@@ -1,7 +1,7 @@
 import type { DashboardBill } from "@openmonetis/validators/bills";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { ArrowRight, Barcode, CheckCircle2, RefreshCw } from "lucide-react";
+import { ArrowRight, CheckCircle2, ReceiptText, RefreshCw } from "lucide-react";
 import { useState } from "react";
 import { MoneyValue } from "@/components/money-value";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -14,7 +14,12 @@ import { DashboardWidgetEmptyState } from "@/features/dashboard/components/dashb
 import { dashboardWidgetFooterNavigationLinkClassName } from "@/features/dashboard/components/dashboard-widget-footer-link";
 import { DashboardWidgetListSheet } from "@/features/dashboard/components/dashboard-widget-list-sheet";
 import { DashboardWidgetRow } from "@/features/dashboard/components/dashboard-widget-row";
+import { DueDateIndicator } from "@/features/due-date-rules/components/due-date-indicator";
 import { EstablishmentLogo } from "@/features/establishments/components/establishment-logo";
+import {
+  paymentMethodIcons,
+  paymentMethodLabels,
+} from "@/features/transactions/transactions.presentation";
 import { cn } from "@/lib/utils";
 import { billDueLabel, billPaidLabel } from "../bills.presentation";
 import { billsQueryOptions } from "../bills.queries";
@@ -56,15 +61,15 @@ export function BillsWidget({ period }: { period: string }) {
                   description="Acompanhe vencimentos, responsáveis e status no mês selecionado."
                   onOpenChange={setListOpen}
                   open={listOpen}
-                  title="Todos os boletos"
-                  triggerLabel={`Ver mais ${hiddenCount} ${hiddenCount === 1 ? "boleto" : "boletos"}`}
+                  title="Todas as contas a pagar"
+                  triggerLabel={`Ver mais ${hiddenCount} ${hiddenCount === 1 ? "conta" : "contas"}`}
                 >
                   {rows(bills)}
                 </DashboardWidgetListSheet>
               ) : null}
               <Link
                 className={dashboardWidgetFooterNavigationLinkClassName}
-                search={{ paymentMethod: "boleto", period }}
+                search={{ payables: true, period, sort: "dueDate" }}
                 to="/transactions"
               >
                 Ver lançamentos <ArrowRight aria-hidden="true" className="size-4" />
@@ -72,14 +77,14 @@ export function BillsWidget({ period }: { period: string }) {
             </div>
           ) : undefined
         }
-        icon={<Barcode aria-hidden="true" />}
-        title="Boletos"
+        icon={<ReceiptText aria-hidden="true" />}
+        title="Contas a pagar"
       >
         {query.isLoading ? <BillsLoading /> : null}
         {query.isError ? (
           <div className="grid flex-1 place-items-center text-center">
             <div>
-              <p className="font-medium text-sm">Não foi possível carregar os boletos</p>
+              <p className="font-medium text-sm">Não foi possível carregar as contas a pagar</p>
               <Button
                 className="mt-3"
                 onClick={() => void query.refetch()}
@@ -96,9 +101,9 @@ export function BillsWidget({ period }: { period: string }) {
           <div className="flex flex-1 flex-col">
             {bills.length === 0 ? (
               <DashboardWidgetEmptyState
-                description="Os vencimentos do mês aparecerão aqui."
-                icon={<Barcode aria-hidden="true" />}
-                title="Nenhum boleto neste mês"
+                description="Informe um vencimento nas despesas por Pix, débito, boleto ou outros meios."
+                icon={<ReceiptText aria-hidden="true" />}
+                title="Nenhuma conta com vencimento neste mês"
               />
             ) : (
               rows(bills.slice(0, maximumVisibleBills))
@@ -120,14 +125,26 @@ export function BillsWidget({ period }: { period: string }) {
 }
 
 function BillRow({ bill, onSettle }: { bill: DashboardBill; onSettle: () => void }) {
+  const PaymentIcon = paymentMethodIcons[bill.paymentMethod];
   return (
     <DashboardWidgetRow>
       <Link
         className="shrink-0"
         to="/transactions"
-        search={{ period: bill.period, paymentMethod: "boleto", q: bill.name }}
+        search={{
+          period: bill.period,
+          payables: true,
+          paymentMethod: bill.paymentMethod,
+          q: bill.name,
+        }}
       >
-        <EstablishmentLogo editable={false} className="size-9" name={bill.name} size={36} />
+        <EstablishmentLogo
+          categoryIcon={bill.categoryIcon}
+          editable={false}
+          className="size-9"
+          name={bill.name}
+          size={36}
+        />
       </Link>
       <div className="min-w-0 flex-1">
         <div className="flex min-w-0 items-center gap-2">
@@ -140,18 +157,66 @@ function BillRow({ bill, onSettle }: { bill: DashboardBill; onSettle: () => void
             bill.status === "paid" && "text-success",
           )}
         >
+          <span className="inline-flex items-center gap-1">
+            <PaymentIcon aria-hidden="true" className="size-3" />
+            {paymentMethodLabels[bill.paymentMethod]}
+          </span>
+          {" · "}
           {bill.status === "paid" ? (
             <span className="inline-flex items-center gap-1">
               <CheckCircle2 aria-hidden="true" className="size-3" />
-              {bill.boletoPaymentDate ? billPaidLabel(bill.boletoPaymentDate) : "Pago"}
+              {bill.settledDate ? billPaidLabel(bill.settledDate) : "Pago"}
             </span>
           ) : (
-            billDueLabel(bill.dueDate)
+            <DueDateIndicator
+              dueDate={bill.dueDate}
+              originalDueDate={bill.originalDueDate}
+              adjustment={bill.dueDateAdjustment}
+              excluded={bill.dueDateRuleExcluded}
+              editable={bill.dueDateExceptionEditable}
+              target={
+                bill.recordId
+                  ? { target: "transaction", transactionId: bill.recordId }
+                  : bill.recurringRuleId
+                    ? {
+                        target: "recurring",
+                        recurringRuleId: bill.recurringRuleId,
+                        occurrenceDate: bill.purchaseDate,
+                      }
+                    : undefined
+              }
+            >
+              {billDueLabel(bill.dueDate)}
+            </DueDateIndicator>
           )}
           {bill.currentInstallment && bill.installmentCount
             ? ` · ${bill.currentInstallment}/${bill.installmentCount}`
             : null}
         </p>
+        {bill.isSettled && (bill.dueDateAdjustment || bill.dueDateRuleExcluded) ? (
+          <div className="text-xs">
+            <DueDateIndicator
+              dueDate={bill.dueDate}
+              originalDueDate={bill.originalDueDate}
+              adjustment={bill.dueDateAdjustment}
+              excluded={bill.dueDateRuleExcluded}
+              editable={bill.dueDateExceptionEditable}
+              target={
+                bill.recordId
+                  ? { target: "transaction", transactionId: bill.recordId }
+                  : bill.recurringRuleId
+                    ? {
+                        target: "recurring",
+                        recurringRuleId: bill.recurringRuleId,
+                        occurrenceDate: bill.purchaseDate,
+                      }
+                    : undefined
+              }
+            >
+              {billDueLabel(bill.dueDate)}
+            </DueDateIndicator>
+          </div>
+        ) : null}
       </div>
       <div className="flex shrink-0 flex-col items-end">
         <MoneyValue
@@ -183,7 +248,12 @@ function BillName({ bill }: { bill: DashboardBill }) {
         render={
           <Link
             to="/transactions"
-            search={{ period: bill.period, paymentMethod: "boleto", q: bill.name }}
+            search={{
+              period: bill.period,
+              payables: true,
+              paymentMethod: bill.paymentMethod,
+              q: bill.name,
+            }}
             className="group inline-flex min-w-0 items-center gap-1 rounded-sm font-medium text-sm transition-transform duration-200 ease-out hover:translate-x-1 focus-visible:translate-x-1 focus-visible:ring-3 focus-visible:ring-ring/50 motion-reduce:transition-none"
           />
         }
@@ -216,7 +286,7 @@ function BillName({ bill }: { bill: DashboardBill }) {
 
 function BillsLoading() {
   return (
-    <div aria-label="Carregando boletos" className="grid gap-3" role="status">
+    <div aria-label="Carregando contas a pagar" className="grid gap-3" role="status">
       <Skeleton className="h-8 w-36" />
       {["first", "second", "third"].map((key) => (
         <Skeleton className="h-16 w-full" key={key} />

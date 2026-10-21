@@ -15,7 +15,7 @@ import {
 } from "@openmonetis/validators/inbox-rules";
 import type { PersonOutput } from "@openmonetis/validators/people";
 import { useForm } from "@tanstack/react-form";
-import { CircleOff, Plus, Trash2 } from "lucide-react";
+import { CircleOff, Info, Plus, Trash2 } from "lucide-react";
 import { useId, useState } from "react";
 import { toast } from "sonner";
 import { MobileFormState } from "@/components/forms/mobile-form-state";
@@ -27,6 +27,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { getCategoryLabel } from "@/features/categories/categories.presentation";
 import { CategoryIcon } from "@/features/categories/category-icons";
 import { showInvalidFormToast } from "@/lib/form-feedback";
 import {
@@ -130,7 +132,7 @@ export function InboxRuleForm({
       >
         {(state) => <MobileFormState {...state} />}
       </form.Subscribe>
-      <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_7rem]">
+      <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_10rem]">
         <form.Field name="name">
           {(field) => (
             <div className="grid gap-1.5">
@@ -149,10 +151,25 @@ export function InboxRuleForm({
         <form.Field name="priority">
           {(field) => (
             <div className="grid gap-1.5">
-              <Label htmlFor={`${id}-priority`}>Ordem de aplicação</Label>
-              <p className="text-muted-foreground text-xs">
-                Números menores são aplicados primeiro.
-              </p>
+              <div className="flex items-center gap-1.5">
+                <Label htmlFor={`${id}-priority`}>Ordem de aplicação</Label>
+                <Tooltip>
+                  <TooltipTrigger
+                    aria-label="Informações sobre a ordem de aplicação"
+                    render={
+                      <button
+                        className="text-muted-foreground transition-colors hover:text-foreground"
+                        type="button"
+                      />
+                    }
+                  >
+                    <Info aria-hidden="true" className="size-3.5" />
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-xs">
+                    Números menores são aplicados primeiro.
+                  </TooltipContent>
+                </Tooltip>
+              </div>
               <Input
                 id={`${id}-priority`}
                 inputMode="numeric"
@@ -447,7 +464,7 @@ function CategoryOption({ category }: { category?: CategoryOutput }) {
           <CircleOff aria-hidden="true" className="size-3.5" />
         )}
       </span>
-      <span className="truncate">{category?.name ?? "Não preencher"}</span>
+      <span className="truncate">{category ? getCategoryLabel(category) : "Não preencher"}</span>
     </span>
   );
 }

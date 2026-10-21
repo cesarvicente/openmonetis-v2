@@ -65,7 +65,7 @@ export const dashboardWidgetRegistry: readonly DashboardWidgetDefinition[] = [
   },
   {
     id: "bills",
-    title: "Boletos",
+    title: "Contas a pagar",
     description: "Vencimentos e pagamentos do período",
     icon: ReceiptText,
     render: (period) => <BillsWidget period={period} />,

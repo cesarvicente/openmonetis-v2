@@ -96,7 +96,7 @@ function MonthlyTotalsCard({ data }: { data: PersonFinancialSummaryOutput }) {
             .sort((first, second) => second.amount - first.amount)
             .map((item) => (
               <div
-                className="grid min-w-0 gap-2 overflow-hidden rounded-lg border bg-muted/20 p-3"
+                className="grid min-w-0 gap-2 overflow-hidden rounded-lg border p-3"
                 key={item.paymentMethod}
               >
                 <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2">

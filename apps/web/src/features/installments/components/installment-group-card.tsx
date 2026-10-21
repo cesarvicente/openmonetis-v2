@@ -56,7 +56,12 @@ export function InstallmentGroupCard({
             disabled={pendingIds.length === 0}
             onCheckedChange={() => onToggleGroup(pendingIds)}
           />
-          <EstablishmentLogo className="shrink-0" name={group.name} size={40} />
+          <EstablishmentLogo
+            categoryIcon={group.categoryIcon}
+            className="shrink-0"
+            name={group.name}
+            size={40}
+          />
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
               <h3 className="min-w-0 truncate font-bold">{group.name}</h3>

@@ -8,21 +8,23 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { CategoryIcon } from "@/features/categories/category-icons";
 import { EstablishmentLogo } from "@/features/establishments/components/establishment-logo";
-import { paymentMethodLabels } from "@/features/transactions/transactions.presentation";
 import {
   formatRecurringExpenseDate,
   recurringFrequencyLabels,
-} from "../recurring-expenses.presentation";
+} from "@/features/recurring-expenses/recurring-expenses.presentation";
+import { paymentMethodLabels } from "@/features/transactions/transactions.presentation";
+import { recurringStatusLabels } from "../recurring-transactions.presentation";
 import { RecurringDestination } from "./recurring-destination";
-import type { ReportItem } from "./recurring-expenses-report-page.types";
-import { recurringPaymentMethodIcons } from "./recurring-expenses-report-page-options";
 import { RecurringPeople } from "./recurring-people";
-export function RecurringExpenseDetailsDialog({
+import type { ReportItem } from "./recurring-transactions-report-page.types";
+import { recurringPaymentMethodIcons } from "./recurring-transactions-report-page-options";
+export function RecurringTransactionDetailsDialog({
   item,
   detailsOpen,
   setDetailsOpen,
   onEdit,
   canManage,
+  canEdit,
   chooseRowAction,
 }: {
   item: ReportItem;
@@ -30,6 +32,7 @@ export function RecurringExpenseDetailsDialog({
   setDetailsOpen: Dispatch<SetStateAction<boolean>>;
   onEdit: (expense: ReportItem) => void;
   canManage: boolean;
+  canEdit: boolean;
   chooseRowAction: (action: "pause" | "resume" | "skip" | "stop") => void;
 }) {
   const PaymentIcon = recurringPaymentMethodIcons[item.paymentMethod];
@@ -38,12 +41,16 @@ export function RecurringExpenseDetailsDialog({
       <DialogContent data-mobile-details className="max-h-[90svh] overflow-y-auto sm:max-w-xl">
         <DialogHeader>
           <div className="flex min-w-0 items-center gap-3 pr-8">
-            <EstablishmentLogo className="shrink-0" name={item.name} size={40} />
+            <EstablishmentLogo
+              categoryIcon={item.categoryIcon}
+              className="shrink-0"
+              name={item.name}
+              size={40}
+            />
             <div className="min-w-0">
               <DialogTitle className="truncate">{item.name}</DialogTitle>
               <DialogDescription className="mt-1">
-                {recurringFrequencyLabels[item.frequency]} ·{" "}
-                {item.status === "active" ? "Ativa" : "Pausada"}
+                {recurringFrequencyLabels[item.frequency]} · {recurringStatusLabels[item.status]}
               </DialogDescription>
             </div>
           </div>
@@ -62,21 +69,35 @@ export function RecurringExpenseDetailsDialog({
 
           <dl className="grid gap-3 text-sm sm:grid-cols-2">
             <div>
+              <dt className="text-muted-foreground text-xs">Repetir até</dt>
+              <dd className="mt-1 font-medium">
+                {item.recurrenceEndDate
+                  ? formatRecurringExpenseDate(item.recurrenceEndDate)
+                  : item.status === "ended"
+                    ? "Recorrência encerrada"
+                    : "Sem prazo"}
+              </dd>
+            </div>
+            <div>
               <dt className="text-muted-foreground text-xs">Próxima ocorrência</dt>
               <dd className="mt-1 flex items-center gap-1.5 font-medium">
                 <CalendarDays
                   aria-hidden="true"
                   className="size-4 shrink-0 text-muted-foreground"
                 />
-                {item.status === "paused"
-                  ? "Sem lançamentos durante a pausa"
+                {item.status !== "active"
+                  ? item.status === "paused"
+                    ? "Sem lançamentos durante a pausa"
+                    : "Recorrência encerrada"
                   : item.nextOccurrenceDate
                     ? formatRecurringExpenseDate(item.nextOccurrenceDate)
                     : "Sem previsão"}
               </dd>
             </div>
             <div>
-              <dt className="text-muted-foreground text-xs">Forma de pagamento</dt>
+              <dt className="text-muted-foreground text-xs">
+                {item.type === "income" ? "Forma de recebimento" : "Forma de pagamento"}
+              </dt>
               <dd className="mt-1 flex items-center gap-1.5 font-medium">
                 <PaymentIcon aria-hidden="true" className="size-4 text-muted-foreground" />
                 {paymentMethodLabels[item.paymentMethod]}
@@ -107,7 +128,7 @@ export function RecurringExpenseDetailsDialog({
             {item.status === "active" ? (
               <>
                 <Button
-                  disabled={!canManage}
+                  disabled={!canManage || !canEdit}
                   onClick={() => {
                     setDetailsOpen(false);
                     onEdit(item);
@@ -137,7 +158,7 @@ export function RecurringExpenseDetailsDialog({
                   <Pause aria-hidden="true" /> Pausar
                 </Button>
               </>
-            ) : (
+            ) : item.status === "paused" ? (
               <Button
                 disabled={!canManage}
                 onClick={() => chooseRowAction("resume")}
@@ -147,16 +168,23 @@ export function RecurringExpenseDetailsDialog({
               >
                 <Play aria-hidden="true" /> Retomar
               </Button>
-            )}
-            <Button
-              disabled={!canManage}
-              onClick={() => chooseRowAction("stop")}
-              size="sm"
-              type="button"
-              variant="destructive"
-            >
-              <Square aria-hidden="true" /> Parar
-            </Button>
+            ) : null}
+            {item.status !== "ended" ? (
+              <Button
+                disabled={!canManage}
+                onClick={() => chooseRowAction("stop")}
+                size="sm"
+                type="button"
+                variant="destructive"
+              >
+                <Square aria-hidden="true" /> Encerrar
+              </Button>
+            ) : null}
+            {item.status === "ended" ? (
+              <p className="text-muted-foreground text-xs">
+                O histórico permanece disponível em Lançamentos.
+              </p>
+            ) : null}
           </div>
         </div>
       </DialogContent>

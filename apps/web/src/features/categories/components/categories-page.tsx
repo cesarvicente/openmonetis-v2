@@ -15,12 +15,12 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ApiClientError } from "@/lib/api-client";
 import {
   useCreateCategoryMutation,
   useDeleteCategoryMutation,
   useReplaceCategoryMutation,
 } from "../categories.mutations";
+import { getCategoryErrorMessage, getCategoryGroups } from "../categories.presentation";
 import { categoriesQueryOptions } from "../categories.queries";
 import { CategoriesTable } from "./categories-table";
 import { CategoryDialog } from "./category-dialog";
@@ -49,11 +49,7 @@ export function CategoriesPage() {
       await remove.mutateAsync(category.id);
       toast.success("Categoria removida");
     } catch (error) {
-      toast.error(
-        error instanceof ApiClientError && error.code === "category_in_use"
-          ? "Categoria em uso. Altere os lançamentos e remova os orçamentos vinculados antes de excluir."
-          : "Não foi possível remover a categoria. Tente novamente.",
-      );
+      toast.error(getCategoryErrorMessage(error, "remove"));
     }
   }
   return (
@@ -69,7 +65,7 @@ export function CategoriesPage() {
               </Button>
             }
             breadcrumbs={[{ label: "Visão geral", href: "/dashboard" }, { label: "Organização" }]}
-            description="Organize receitas e despesas para manter lançamentos e relatórios consistentes."
+            description="Organize receitas e despesas em categorias e subcategorias."
             eyebrow="Organização"
             icon={<Tags aria-hidden="true" className="size-5" />}
             title="Categorias"
@@ -95,20 +91,19 @@ export function CategoriesPage() {
                 </TabsTrigger>
               </TabsList>
               {(["expense", "income"] as const).map((type) => {
-                const items = categories.filter(
-                  (item) =>
-                    item.type === type &&
-                    item.name
-                      .toLocaleLowerCase("pt-BR")
-                      .includes(search.toLocaleLowerCase("pt-BR")),
-                );
+                const items = categories.filter((item) => item.type === type);
+                const groups = getCategoryGroups(items, search);
                 return (
                   <TabsContent className="min-w-0 pt-5" key={type} value={type}>
                     <Card className="min-w-0 gap-0 p-3 sm:p-4">
-                      {items.length ? (
+                      {groups.length ? (
                         <div className="min-w-0 max-w-full overflow-x-auto">
                           <CategoriesTable
                             categories={items}
+                            search={search}
+                            onCreateSubcategory={async (input) => {
+                              await create.mutateAsync(input);
+                            }}
                             onEdit={(category) => {
                               setEditing(category);
                               setOpen(true);

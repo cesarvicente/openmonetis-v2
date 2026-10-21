@@ -1,7 +1,7 @@
 import type { DashboardCategoryBreakdownOutput } from "@openmonetis/validators/dashboard";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { ArrowRight, ChartPie, List, RefreshCw, Tags } from "lucide-react";
+import { ArrowRight, ChartPie, RefreshCw, Tags } from "lucide-react";
 import { useState } from "react";
 import { MoneyValue } from "@/components/money-value";
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,7 @@ import { DashboardWidgetEmptyState } from "./dashboard-widget-empty-state";
 import { dashboardWidgetFooterNavigationLinkClassName } from "./dashboard-widget-footer-link";
 import { DashboardWidgetListSheet } from "./dashboard-widget-list-sheet";
 import { DashboardWidgetRow } from "./dashboard-widget-row";
+import { DashboardWidgetViewToggle } from "./dashboard-widget-view-toggle";
 
 type CategoryBreakdownItem = DashboardCategoryBreakdownOutput["expenses"][number];
 type CategoryBreakdownVariant = "expense" | "income";
@@ -63,17 +64,10 @@ export function CategoryBreakdownWidget({
     <DashboardWidget
       action={
         query.data && items.length > 0 ? (
-          <Button
-            aria-label={activeView === "list" ? "Exibir gráfico" : "Exibir lista"}
-            aria-pressed={activeView === "chart"}
-            onClick={() => setActiveView((view) => (view === "list" ? "chart" : "list"))}
-            size="icon-sm"
-            title={activeView === "list" ? "Exibir gráfico" : "Exibir lista"}
-            type="button"
-            variant="ghost"
-          >
-            {activeView === "list" ? <ChartPie aria-hidden="true" /> : <List aria-hidden="true" />}
-          </Button>
+          <DashboardWidgetViewToggle
+            view={activeView}
+            onToggle={() => setActiveView((view) => (view === "list" ? "chart" : "list"))}
+          />
         ) : null
       }
       description={config.description}

@@ -53,5 +53,3 @@ export function useCardForm({ accounts, card, onSubmit }: CardFormProps) {
 
   return { id, submissionError, isEditing, form, fieldId };
 }
-
-export type CardFormApi = ReturnType<typeof useCardForm>["form"];

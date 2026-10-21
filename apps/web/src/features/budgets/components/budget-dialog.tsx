@@ -18,6 +18,7 @@ import { CurrencyInput } from "@/components/ui/currency-input";
 import { DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { getCategoryLabel } from "@/features/categories/categories.presentation";
 import { CategoryIcon } from "@/features/categories/category-icons";
 import { showInvalidFormToast } from "@/lib/form-feedback";
 
@@ -234,7 +235,7 @@ function CategoryOption({ category }: { category?: CategoryOutput }) {
   return (
     <span className="flex min-w-0 items-center gap-2">
       <CategoryIcon className="size-4 shrink-0 text-muted-foreground" name={category.icon} />
-      <span className="truncate">{category.name}</span>
+      <span className="truncate">{getCategoryLabel(category)}</span>
     </span>
   );
 }

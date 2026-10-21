@@ -1,7 +1,15 @@
 import { balanceAdjustmentCategoryName } from "@openmonetis/domain/categories";
 import { canDeleteTransactionOrigin } from "@openmonetis/domain/transactions";
 import type { TransactionOutput } from "@openmonetis/validators/transactions";
-import { CircleCheck, Copy, Loader2, MoreHorizontal, Pause, Trash2 } from "lucide-react";
+import {
+  CalendarX2,
+  CircleCheck,
+  Copy,
+  Loader2,
+  MoreHorizontal,
+  Pause,
+  Trash2,
+} from "lucide-react";
 import type { Dispatch, SetStateAction } from "react";
 import { Button } from "@/components/ui/button";
 import { DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
@@ -22,7 +30,7 @@ export function TransactionDetailsActions({
   openRelatedAction: (action: () => void) => void;
   setDeleteOpen: Dispatch<SetStateAction<boolean>>;
   setInstallmentDeleteOpen: Dispatch<SetStateAction<boolean>>;
-  setRecurringAction: Dispatch<SetStateAction<"pause" | "cancel" | null>>;
+  setRecurringAction: Dispatch<SetStateAction<"pause" | "stop" | "skip" | null>>;
 }) {
   return (
     <>
@@ -91,14 +99,14 @@ export function TransactionDetailsActions({
             ) : null}
             {detail.recurringRuleId ? (
               <>
+                <DropdownMenuItem onClick={() => setRecurringAction("skip")}>
+                  <CalendarX2 /> Pular ocorrência
+                </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => setRecurringAction("pause")}>
                   <Pause /> Pausar recorrência
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onClick={() => setRecurringAction("cancel")}
-                  variant="destructive"
-                >
+                <DropdownMenuItem onClick={() => setRecurringAction("stop")} variant="destructive">
                   <Trash2 /> Encerrar recorrência
                 </DropdownMenuItem>
               </>

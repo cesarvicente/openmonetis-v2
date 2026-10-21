@@ -1,6 +1,9 @@
 import { getCurrentDateInBrazil } from "@openmonetis/shared/date-time";
 import { Circle, CircleCheck } from "lucide-react";
+import { useId } from "react";
+import { MobileDatePicker } from "@/components/forms/mobile-date-picker";
 import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import type { useTransactionForm } from "../useTransactionForm";
 import type { TransactionFormProps } from "./transaction-form.types";
@@ -8,13 +11,13 @@ import type { TransactionFormValues } from "./transaction-form.validation";
 
 export function TransactionSettlementField({
   form,
-  transaction,
+  transaction: _transaction,
   mode,
   values,
   isSubmitting,
   isTransfer,
   isCreditCard,
-  isBoleto,
+  isBoleto: _isBoleto,
 }: {
   form: ReturnType<typeof useTransactionForm>["form"];
   transaction: TransactionFormProps["transaction"];
@@ -25,9 +28,10 @@ export function TransactionSettlementField({
   isCreditCard: boolean;
   isBoleto: boolean;
 }) {
+  const dateId = useId();
   return (
     <>
-      {!isCreditCard && !(mode === "edit" && transaction?.isRecurring) ? (
+      {!isCreditCard && values.condition !== "recurring" && mode !== "edit" ? (
         <form.Field name="isSettled">
           {(field) => {
             const isSettled = field.state.value === "true";
@@ -79,14 +83,12 @@ export function TransactionSettlementField({
                   onClick={() => {
                     const nextValue = isSettled ? "false" : "true";
                     field.handleChange(nextValue);
-                    if (isBoleto) {
-                      form.setFieldValue(
-                        "boletoPaymentDate",
-                        nextValue === "true"
-                          ? form.getFieldValue("boletoPaymentDate") || getCurrentDateInBrazil()
-                          : "",
-                      );
-                    }
+                    form.setFieldValue(
+                      "boletoPaymentDate",
+                      nextValue === "true"
+                        ? form.getFieldValue("boletoPaymentDate") || getCurrentDateInBrazil()
+                        : "",
+                    );
                   }}
                   size="icon-sm"
                   type="button"
@@ -97,6 +99,28 @@ export function TransactionSettlementField({
               </section>
             );
           }}
+        </form.Field>
+      ) : null}
+      {!isCreditCard &&
+      !isTransfer &&
+      values.condition !== "recurring" &&
+      values.isSettled === "true" &&
+      mode !== "edit" ? (
+        <form.Field name="boletoPaymentDate">
+          {(field) => (
+            <div className="grid gap-2">
+              <Label htmlFor={dateId}>
+                {values.type === "income" ? "Data do recebimento" : "Data do pagamento"}
+              </Label>
+              <MobileDatePicker
+                id={dateId}
+                max={getCurrentDateInBrazil()}
+                value={field.state.value}
+                onChange={field.handleChange}
+                disabled={isSubmitting}
+              />
+            </div>
+          )}
         </form.Field>
       ) : null}
     </>

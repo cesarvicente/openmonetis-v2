@@ -83,6 +83,12 @@ export function InboxPage({
   const cardsQuery = useQuery(cardsQueryOptions());
   const categoriesQuery = useQuery(categoriesQueryOptions());
   const peopleQuery = useQuery(peopleQueryOptions());
+  const peopleByRuleId = new Map(
+    (rulesQuery.data?.items ?? []).flatMap((rule) => {
+      const person = peopleQuery.data?.find((person) => person.id === rule.person?.id);
+      return person ? [[rule.id, person] as const] : [];
+    }),
+  );
   const discardMutation = useDiscardInboxItemMutation();
   const restoreMutation = useRestoreInboxItemMutation();
   const confirmMutation = useConfirmInboxItemMutation();
@@ -279,6 +285,7 @@ export function InboxPage({
                     return (
                       <InboxItemCard
                         item={item}
+                        peopleByRuleId={peopleByRuleId}
                         key={item.id}
                         onDelete={() => setDeleteItem(item)}
                         onDetails={() => setDetailsItemId(item.id)}

@@ -24,6 +24,7 @@ import { Route as PeopleRouteImport } from './routes/people'
 import { Route as RobotsDottxtRouteImport } from './routes/robots[.]txt'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SignupRouteImport } from './routes/signup'
+import { Route as TagsRouteImport } from './routes/tags'
 import { Route as TransactionsRouteImport } from './routes/transactions'
 import { Route as AccountsAccountIdRouteImport } from './routes/accounts_.$accountId'
 import { Route as ApiProxySplatRouteImport } from './routes/api-proxy.$'
@@ -35,6 +36,7 @@ import { Route as PersonConnectionsAcceptRouteImport } from './routes/person-con
 import { Route as ReportsCategoryTrendsRouteImport } from './routes/reports/category-trends'
 import { Route as ReportsInstallmentsRouteImport } from './routes/reports/installments'
 import { Route as ReportsRecurringExpensesRouteImport } from './routes/reports/recurring-expenses'
+import { Route as ReportsRecurringTransactionsRouteImport } from './routes/reports/recurring-transactions'
 import { Route as TransactionsImportRouteImport } from './routes/transactions_.import'
 
 const IndexRoute = IndexRouteImport.update({
@@ -112,6 +114,11 @@ const SignupRoute = SignupRouteImport.update({
   path: '/signup',
   getParentRoute: () => rootRouteImport,
 } as any)
+const TagsRoute = TagsRouteImport.update({
+  id: '/tags',
+  path: '/tags',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const TransactionsRoute = TransactionsRouteImport.update({
   id: '/transactions',
   path: '/transactions',
@@ -168,6 +175,12 @@ const ReportsRecurringExpensesRoute =
     path: '/reports/recurring-expenses',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ReportsRecurringTransactionsRoute =
+  ReportsRecurringTransactionsRouteImport.update({
+    id: '/reports/recurring-transactions',
+    path: '/reports/recurring-transactions',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const TransactionsImportRoute = TransactionsImportRouteImport.update({
   id: '/transactions_/import',
   path: '/transactions/import',
@@ -190,6 +203,7 @@ export interface FileRoutesByFullPath {
   '/robots.txt': typeof RobotsDottxtRoute
   '/settings': typeof SettingsRoute
   '/signup': typeof SignupRoute
+  '/tags': typeof TagsRoute
   '/transactions': typeof TransactionsRoute
   '/accounts/$accountId': typeof AccountsAccountIdRoute
   '/api-proxy/$': typeof ApiProxySplatRoute
@@ -201,6 +215,7 @@ export interface FileRoutesByFullPath {
   '/reports/category-trends': typeof ReportsCategoryTrendsRoute
   '/reports/installments': typeof ReportsInstallmentsRoute
   '/reports/recurring-expenses': typeof ReportsRecurringExpensesRoute
+  '/reports/recurring-transactions': typeof ReportsRecurringTransactionsRoute
   '/transactions/import': typeof TransactionsImportRoute
 }
 export interface FileRoutesByTo {
@@ -219,6 +234,7 @@ export interface FileRoutesByTo {
   '/robots.txt': typeof RobotsDottxtRoute
   '/settings': typeof SettingsRoute
   '/signup': typeof SignupRoute
+  '/tags': typeof TagsRoute
   '/transactions': typeof TransactionsRoute
   '/accounts/$accountId': typeof AccountsAccountIdRoute
   '/api-proxy/$': typeof ApiProxySplatRoute
@@ -230,6 +246,7 @@ export interface FileRoutesByTo {
   '/reports/category-trends': typeof ReportsCategoryTrendsRoute
   '/reports/installments': typeof ReportsInstallmentsRoute
   '/reports/recurring-expenses': typeof ReportsRecurringExpensesRoute
+  '/reports/recurring-transactions': typeof ReportsRecurringTransactionsRoute
   '/transactions/import': typeof TransactionsImportRoute
 }
 export interface FileRoutesById {
@@ -249,6 +266,7 @@ export interface FileRoutesById {
   '/robots.txt': typeof RobotsDottxtRoute
   '/settings': typeof SettingsRoute
   '/signup': typeof SignupRoute
+  '/tags': typeof TagsRoute
   '/transactions': typeof TransactionsRoute
   '/accounts_/$accountId': typeof AccountsAccountIdRoute
   '/api-proxy/$': typeof ApiProxySplatRoute
@@ -260,6 +278,7 @@ export interface FileRoutesById {
   '/reports/category-trends': typeof ReportsCategoryTrendsRoute
   '/reports/installments': typeof ReportsInstallmentsRoute
   '/reports/recurring-expenses': typeof ReportsRecurringExpensesRoute
+  '/reports/recurring-transactions': typeof ReportsRecurringTransactionsRoute
   '/transactions_/import': typeof TransactionsImportRoute
 }
 export interface FileRouteTypes {
@@ -280,6 +299,7 @@ export interface FileRouteTypes {
     | '/robots.txt'
     | '/settings'
     | '/signup'
+    | '/tags'
     | '/transactions'
     | '/accounts/$accountId'
     | '/api-proxy/$'
@@ -291,6 +311,7 @@ export interface FileRouteTypes {
     | '/reports/category-trends'
     | '/reports/installments'
     | '/reports/recurring-expenses'
+    | '/reports/recurring-transactions'
     | '/transactions/import'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -309,6 +330,7 @@ export interface FileRouteTypes {
     | '/robots.txt'
     | '/settings'
     | '/signup'
+    | '/tags'
     | '/transactions'
     | '/accounts/$accountId'
     | '/api-proxy/$'
@@ -320,6 +342,7 @@ export interface FileRouteTypes {
     | '/reports/category-trends'
     | '/reports/installments'
     | '/reports/recurring-expenses'
+    | '/reports/recurring-transactions'
     | '/transactions/import'
   id:
     | '__root__'
@@ -338,6 +361,7 @@ export interface FileRouteTypes {
     | '/robots.txt'
     | '/settings'
     | '/signup'
+    | '/tags'
     | '/transactions'
     | '/accounts_/$accountId'
     | '/api-proxy/$'
@@ -349,6 +373,7 @@ export interface FileRouteTypes {
     | '/reports/category-trends'
     | '/reports/installments'
     | '/reports/recurring-expenses'
+    | '/reports/recurring-transactions'
     | '/transactions_/import'
   fileRoutesById: FileRoutesById
 }
@@ -368,6 +393,7 @@ export interface RootRouteChildren {
   RobotsDottxtRoute: typeof RobotsDottxtRoute
   SettingsRoute: typeof SettingsRoute
   SignupRoute: typeof SignupRoute
+  TagsRoute: typeof TagsRoute
   TransactionsRoute: typeof TransactionsRoute
   AccountsAccountIdRoute: typeof AccountsAccountIdRoute
   ApiProxySplatRoute: typeof ApiProxySplatRoute
@@ -379,6 +405,7 @@ export interface RootRouteChildren {
   ReportsCategoryTrendsRoute: typeof ReportsCategoryTrendsRoute
   ReportsInstallmentsRoute: typeof ReportsInstallmentsRoute
   ReportsRecurringExpensesRoute: typeof ReportsRecurringExpensesRoute
+  ReportsRecurringTransactionsRoute: typeof ReportsRecurringTransactionsRoute
   TransactionsImportRoute: typeof TransactionsImportRoute
 }
 
@@ -489,6 +516,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SignupRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/tags': {
+      id: '/tags'
+      path: '/tags'
+      fullPath: '/tags'
+      preLoaderRoute: typeof TagsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/transactions': {
       id: '/transactions'
       path: '/transactions'
@@ -566,6 +600,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ReportsRecurringExpensesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/reports/recurring-transactions': {
+      id: '/reports/recurring-transactions'
+      path: '/reports/recurring-transactions'
+      fullPath: '/reports/recurring-transactions'
+      preLoaderRoute: typeof ReportsRecurringTransactionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/transactions_/import': {
       id: '/transactions_/import'
       path: '/transactions/import'
@@ -592,6 +633,7 @@ const rootRouteChildren: RootRouteChildren = {
   RobotsDottxtRoute: RobotsDottxtRoute,
   SettingsRoute: SettingsRoute,
   SignupRoute: SignupRoute,
+  TagsRoute: TagsRoute,
   TransactionsRoute: TransactionsRoute,
   AccountsAccountIdRoute: AccountsAccountIdRoute,
   ApiProxySplatRoute: ApiProxySplatRoute,
@@ -603,6 +645,7 @@ const rootRouteChildren: RootRouteChildren = {
   ReportsCategoryTrendsRoute: ReportsCategoryTrendsRoute,
   ReportsInstallmentsRoute: ReportsInstallmentsRoute,
   ReportsRecurringExpensesRoute: ReportsRecurringExpensesRoute,
+  ReportsRecurringTransactionsRoute: ReportsRecurringTransactionsRoute,
   TransactionsImportRoute: TransactionsImportRoute,
 }
 export const routeTree = rootRouteImport

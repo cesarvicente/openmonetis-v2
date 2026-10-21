@@ -1,11 +1,14 @@
-import { splitAmountIntoInstallments } from "@openmonetis/domain/transactions";
 import {
   dateOnlyToSafeInstant,
   formatDateInBrazil,
   getCurrentPeriodInBrazil,
   periodToSafeInstant,
 } from "@openmonetis/shared/date-time";
-import type { TransactionInput, TransactionOutput } from "@openmonetis/validators/transactions";
+import type {
+  InstallmentOptionOutput,
+  TransactionInput,
+  TransactionOutput,
+} from "@openmonetis/validators/transactions";
 import {
   Banknote,
   Barcode,
@@ -20,6 +23,20 @@ import {
 import { formatCurrency } from "../../lib/money-presentation";
 
 export { formatCurrency as formatTransactionFilterAmount } from "../../lib/money-presentation";
+
+export function downloadTransactionExport(file: {
+  contentBase64: string;
+  contentType: string;
+  fileName: string;
+}) {
+  const content = Uint8Array.from(atob(file.contentBase64), (character) => character.charCodeAt(0));
+  const url = URL.createObjectURL(new Blob([content], { type: file.contentType }));
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = file.fileName;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
 
 type TransactionType = TransactionInput["type"];
 type TransactionCondition = NonNullable<TransactionInput["condition"]>;
@@ -54,6 +71,8 @@ export type TransactionsSearch = {
   sort?: "recent" | "oldest" | "dueDate" | "amount";
   people?: string;
   categories?: string;
+  tags?: string;
+  withoutTags?: true;
   accounts?: string;
   cards?: string;
   minAmount?: number;
@@ -61,6 +80,7 @@ export type TransactionsSearch = {
   dateStart?: string;
   dateEnd?: string;
   hasAttachments?: true;
+  payables?: true;
   isDivided?: true;
   page?: number;
   pageSize?: 5 | 10 | 20 | 30 | 40 | 50 | 100;
@@ -68,6 +88,13 @@ export type TransactionsSearch = {
 
 const datePattern = /^\d{4}-(0[1-9]|1[0-2])-([0-2]\d|3[01])$/;
 const slugListPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*(?:,[a-z0-9]+(?:-[a-z0-9]+)*)*$/;
+const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function tagIdList(value: unknown) {
+  if (typeof value !== "string" || !value.split(",").every((id) => uuidPattern.test(id)))
+    return undefined;
+  return [...new Set(value.toLowerCase().split(","))].join(",");
+}
 
 function slugList(value: unknown) {
   if (typeof value !== "string" || !slugListPattern.test(value)) return undefined;
@@ -76,6 +103,7 @@ function slugList(value: unknown) {
 }
 
 export function validateTransactionsSearch(search: Record<string, unknown>): TransactionsSearch {
+  const withoutTags = search.withoutTags === true || search.withoutTags === "true";
   return {
     edit:
       typeof search.edit === "string" &&
@@ -118,6 +146,8 @@ export function validateTransactionsSearch(search: Record<string, unknown>): Tra
       : undefined,
     people: slugList(search.people),
     categories: slugList(search.categories),
+    tags: withoutTags ? undefined : tagIdList(search.tags),
+    withoutTags: withoutTags ? true : undefined,
     accounts: slugList(search.accounts),
     cards: slugList(search.cards),
     minAmount: numberSearchValue(search.minAmount),
@@ -132,6 +162,7 @@ export function validateTransactionsSearch(search: Record<string, unknown>): Tra
         : undefined,
     hasAttachments:
       search.hasAttachments === true || search.hasAttachments === "true" ? true : undefined,
+    payables: search.payables === true || search.payables === "true" ? true : undefined,
     isDivided: search.isDivided === true || search.isDivided === "true" ? true : undefined,
     page: positiveIntegerSearchValue(search.page),
     pageSize: pageSizeSearchValue(search.pageSize),
@@ -234,17 +265,12 @@ export function formatPeriod(period: string) {
   return `${label.charAt(0).toLocaleUpperCase("pt-BR")}${label.slice(1)}`;
 }
 
-export function formatInstallmentOption(amount: number, count: number) {
+export function formatInstallmentOption(count: number, option?: InstallmentOptionOutput) {
   if (!Number.isInteger(count) || count < 2) return "Selecione";
-  if (!Number.isFinite(amount) || amount <= 0) return `${count}x`;
-
-  const installments = splitAmountIntoInstallments(amount, count);
-  const smallest = Math.min(...installments);
-  const largest = Math.max(...installments);
-
-  return smallest === largest
-    ? `${count}x de ${formatCurrency(largest)}`
-    : `${count} parcelas · de ${formatCurrency(smallest)} a ${formatCurrency(largest)}`;
+  if (!option) return `${count}x`;
+  return option.minimumAmount === option.maximumAmount
+    ? `${count}x de ${formatCurrency(option.maximumAmount)}`
+    : `${count} parcelas · de ${formatCurrency(option.minimumAmount)} a ${formatCurrency(option.maximumAmount)}`;
 }
 
 export function getTransactionDateLabel(type: TransactionType, condition: TransactionCondition) {
@@ -315,6 +341,21 @@ export function serializeFilterSlugs(values: string[]) {
 }
 
 const transactionMutationErrorMessages: Record<string, string> = {
+  INVALID_RECURRING_TRANSITION:
+    "A recorrência mudou ou esta data não aceita a ação. Atualize a lista e confira a ocorrência.",
+  RECURRING_OCCURRENCE_SETTLED:
+    "Há uma baixa registrada nesta ocorrência ou nas próximas. Desfaça a baixa antes de pular, pausar ou encerrar.",
+  RECURRING_END_DATE_SCOPE_UNSUPPORTED:
+    "A data final deve ser aplicada às próximas ocorrências ou a toda a série.",
+  SETTLEMENT_USE_ACTION:
+    "Use a ação de pagar, receber ou desfazer a baixa na lista de lançamentos.",
+  SETTLEMENT_REQUIRES_UNDO:
+    "Desfaça a baixa antes de alterar os dados financeiros deste lançamento.",
+  SETTLEMENT_ALREADY_CONFIRMED: "Este lançamento já foi confirmado. Atualize a lista.",
+  SETTLEMENT_UNSUPPORTED: "Use o fluxo de pagamento correspondente a este lançamento.",
+  SETTLEMENT_ACCOUNT_NOT_FOUND: "Escolha uma conta ativa para registrar a baixa.",
+  INVALID_SETTLEMENT_AMOUNT: "Informe um valor maior que zero, com até duas casas decimais.",
+  RECURRING_NO_FUTURE_OCCURRENCE: "Não há próximas ocorrências dentro da data final configurada.",
   SETTLEMENT_DATE_FUTURE: "A data do pagamento não pode estar no futuro.",
   validation_error: "Revise os campos destacados e tente novamente.",
   CARD_LIMIT_EXCEEDED: "O valor ultrapassa o limite disponível do cartão.",
@@ -329,7 +370,11 @@ const transactionMutationErrorMessages: Record<string, string> = {
   CARD_NOT_FOUND: "O cartão selecionado não está mais disponível. Escolha outro.",
   TRANSFER_ACCOUNTS_REQUIRED: "Selecione as contas de origem e destino.",
   RECURRING_SCHEDULE_SCOPE_UNSUPPORTED:
-    "Não é possível alterar a data ou frequência desta recorrência após editar ocorrências separadamente.",
+    "Para alterar a data ou frequência, escolha esta e as próximas ocorrências.",
+  RECURRING_SCHEDULE_OVERLAPS_HISTORY:
+    "Escolha uma data posterior à ocorrência anterior para preservar o histórico.",
+  RECURRING_SCHEDULE_OUTSIDE_RANGE:
+    "Escolha uma data dentro do período ativo ou pausado da recorrência.",
   RECURRING_RULE_CHANGED: "Esta recorrência mudou. Atualize a página e tente novamente.",
   external_expense_state_conflict:
     "Este lançamento compartilhado mudou ou já foi importado. Atualize a página.",

@@ -1,9 +1,17 @@
 import { useNavigate, useSearch } from "@tanstack/react-router";
-import { Settings, ShieldCheck, SlidersHorizontal, Smartphone, TriangleAlert } from "lucide-react";
+import {
+  CalendarClock,
+  Settings,
+  ShieldCheck,
+  SlidersHorizontal,
+  Smartphone,
+  TriangleAlert,
+} from "lucide-react";
 import { ProtectedRoute } from "@/components/auth/protected-route";
 import { Navbar } from "@/components/navigation/navbar";
 import { PageHeader } from "@/components/page-header";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { DueDateRulesPage } from "@/features/due-date-rules/components/due-date-rules-page";
 import { PreferencesForm } from "@/features/preferences/components/preferences-form";
 import { type SettingsTab, settingsTabs } from "../settings.presentation";
 import { CompanionSettings } from "./companion-settings";
@@ -46,6 +54,10 @@ export function SettingsPage() {
                     <SlidersHorizontal aria-hidden="true" />
                     Preferências
                   </TabsTrigger>
+                  <TabsTrigger value="due-date-rules">
+                    <CalendarClock aria-hidden="true" />
+                    Regras de vencimento
+                  </TabsTrigger>
                   <TabsTrigger value="security">
                     <ShieldCheck aria-hidden="true" />
                     Segurança
@@ -70,6 +82,9 @@ export function SettingsPage() {
               <PreferencesForm />
             </TabsContent>
 
+            <TabsContent className="pt-5" value="due-date-rules">
+              <DueDateRulesPage />
+            </TabsContent>
             <TabsContent className="pt-5" value="companion">
               <CompanionSettings />
             </TabsContent>

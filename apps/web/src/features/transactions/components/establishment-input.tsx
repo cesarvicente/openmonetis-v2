@@ -119,6 +119,7 @@ export function EstablishmentInput({
           </PopoverTrigger>
         ) : establishments.length ? (
           <PopoverTrigger
+            nativeButton={false}
             render={
               <span
                 aria-hidden="true"

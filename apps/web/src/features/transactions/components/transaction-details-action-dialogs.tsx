@@ -29,10 +29,10 @@ export function TransactionDetailsActionDialogs({
   onOpenChange: TransactionDetailsSheetProps["onOpenChange"];
   deleteOpen: boolean;
   installmentDeleteOpen: boolean;
-  recurringAction: "pause" | "cancel" | null;
+  recurringAction: "pause" | "stop" | "skip" | null;
   setDeleteOpen: Dispatch<SetStateAction<boolean>>;
   setInstallmentDeleteOpen: Dispatch<SetStateAction<boolean>>;
-  setRecurringAction: Dispatch<SetStateAction<"pause" | "cancel" | null>>;
+  setRecurringAction: Dispatch<SetStateAction<"pause" | "stop" | "skip" | null>>;
 }) {
   return (
     <>
@@ -76,10 +76,12 @@ export function TransactionDetailsActionDialogs({
           <RecurringStatusDialog
             action={recurringAction}
             name={detail.name}
+            occurrenceDate={detail.purchaseDate}
             onConfirm={(action) =>
-              mobileActions.onRecurringStatus(
+              mobileActions.onRecurringAction(
                 detail.recurringRuleId as string,
-                action === "pause" ? "paused" : "cancelled",
+                action,
+                detail.purchaseDate,
               )
             }
             onOpenChange={(nextOpen) => {

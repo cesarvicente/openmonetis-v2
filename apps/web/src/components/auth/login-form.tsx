@@ -1,5 +1,6 @@
 import { LoginInputSchema } from "@openmonetis/validators/auth";
 import { useForm } from "@tanstack/react-form";
+import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { Fingerprint, LogIn } from "lucide-react";
 import { useId, useState } from "react";
@@ -8,11 +9,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PasswordInput } from "@/components/ui/password-input";
+import { authConfigQueryOptions } from "@/features/auth-config/auth-config.queries";
 import { usePasskeySupport } from "@/hooks/usePasskeySupport";
 import { authClient } from "@/lib/auth-client";
 import { GoogleAuthButton } from "./google-auth-button";
 
 export function LoginForm() {
+  const configuration = useQuery(authConfigQueryOptions());
   const navigate = useNavigate();
   const id = useId();
   const [error, setError] = useState<string | null>(null);
@@ -186,27 +189,24 @@ export function LoginForm() {
           {error}
         </p>
       ) : null}
-      <details className="text-sm">
-        <summary className="cursor-pointer text-muted-foreground">Não consegue acessar?</summary>
-        <p className="mt-2 text-muted-foreground">
-          Tente o Google ou uma chave de acesso já vinculados à sua conta. Se você usa somente
-          senha, contate quem administra esta instalação para recuperar o acesso.
-        </p>
-      </details>
-      <div className="relative flex items-center py-1" aria-hidden="true">
-        <div className="grow border-t border-border" />
-        <span className="px-3 text-muted-foreground text-xs uppercase">ou</span>
-        <div className="grow border-t border-border" />
-      </div>
-      <form.Subscribe selector={(state) => state.isSubmitting}>
-        {(isSubmitting) => (
-          <GoogleAuthButton
-            disabled={isSubmitting || isPasskeySubmitting}
-            isLoading={isGoogleSubmitting}
-            onClick={handleGoogleSignIn}
-          />
-        )}
-      </form.Subscribe>
+      {configuration.data?.googleEnabled ? (
+        <>
+          <div className="relative flex items-center py-1" aria-hidden="true">
+            <div className="grow border-t border-border" />
+            <span className="px-3 text-muted-foreground text-xs uppercase">ou</span>
+            <div className="grow border-t border-border" />
+          </div>
+          <form.Subscribe selector={(state) => state.isSubmitting}>
+            {(isSubmitting) => (
+              <GoogleAuthButton
+                disabled={isSubmitting || isPasskeySubmitting}
+                isLoading={isGoogleSubmitting}
+                onClick={handleGoogleSignIn}
+              />
+            )}
+          </form.Subscribe>
+        </>
+      ) : null}
       {passkeySupported ? (
         <form.Subscribe selector={(state) => state.isSubmitting}>
           {(isSubmitting) => (

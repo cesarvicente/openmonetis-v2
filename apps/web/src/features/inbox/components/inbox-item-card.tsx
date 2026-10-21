@@ -1,14 +1,14 @@
 import type { InboxItemSummaryOutput } from "@openmonetis/validators/inbox";
+import type { PersonOutput } from "@openmonetis/validators/people";
 
 import { useQuery } from "@tanstack/react-query";
 
 import { Workflow } from "lucide-react";
-
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-
 import { Card, CardContent } from "@/components/ui/card";
-
 import { inboxRuleSuggestionQueryOptions } from "@/features/inbox-rules/inbox-rules.queries";
+import { getInitials } from "@/lib/name-presentation";
 
 import {
   formatInboxAmount,
@@ -21,6 +21,7 @@ import { InboxSourceLogo } from "./inbox-source-logo";
 
 export function InboxItemCard({
   item,
+  peopleByRuleId,
   onDelete,
   onDetails,
   onDiscard,
@@ -30,6 +31,7 @@ export function InboxItemCard({
   sourceMatch,
 }: {
   item: InboxItemSummaryOutput;
+  peopleByRuleId: ReadonlyMap<string, PersonOutput>;
   onDelete: () => void;
   onDetails: () => void;
   onDiscard: () => void;
@@ -46,6 +48,22 @@ export function InboxItemCard({
   const sourceLabel = sourceMatch
     ? `${sourceMatch.kind === "card" ? "Cartão" : "Conta"} · ${sourceMatch.name}`
     : (item.sourceAppName ?? "App financeiro");
+
+  function rulePersonAvatar(ruleId: string) {
+    const person = peopleByRuleId.get(ruleId);
+    if (!person) return null;
+    return (
+      <Avatar
+        className="size-4 overflow-hidden"
+        role="img"
+        aria-label={`Pessoa da regra: ${person.name}`}
+        title={person.name}
+      >
+        {person.avatarUrl ? <AvatarImage src={person.avatarUrl} alt="" /> : null}
+        <AvatarFallback className="text-[9px]">{getInitials(person.name)}</AvatarFallback>
+      </Avatar>
+    );
+  }
 
   return (
     <Card className="min-w-0 gap-0 py-0">
@@ -73,6 +91,7 @@ export function InboxItemCard({
                 >
                   <Workflow aria-hidden="true" className="size-3 shrink-0" />
                   <span className="truncate">{rule.name}</span>
+                  {rulePersonAvatar(rule.id)}
                 </Badge>
               ))}
             </div>
@@ -116,6 +135,7 @@ export function InboxItemCard({
                   >
                     <Workflow aria-hidden="true" className="size-3 shrink-0" />
                     <span className="truncate">Regra · {rule.name}</span>
+                    {rulePersonAvatar(rule.id)}
                   </Badge>
                 ))
               : null}
@@ -124,7 +144,7 @@ export function InboxItemCard({
             {item.originalText}
           </p>
         </div>
-        <div className="flex shrink-0 items-center gap-3 self-center">
+        <div className="flex shrink-0 items-center gap-4 self-center">
           {amount ? <p className="font-semibold tabular-nums">{amount}</p> : null}
           <InboxItemActions
             onDelete={onDelete}

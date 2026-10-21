@@ -10,14 +10,11 @@ import {
   Users,
 } from "lucide-react";
 import type { Dispatch, SetStateAction } from "react";
-
 import { MoneyValue } from "@/components/money-value";
-
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-
 import { TransactionAttachments } from "@/features/attachments/components/transaction-attachments";
 import { CategoryIcon } from "@/features/categories/category-icons";
-
+import { TransactionTags } from "@/features/tags/components/transaction-tags";
 import {
   formatDate,
   formatDateTime,
@@ -31,6 +28,7 @@ import { TransactionDetailsActions } from "./transaction-details-actions";
 import { DetailRow, DetailsSection, SectionTitle } from "./transaction-details-section";
 import type { TransactionDetailsSheetProps } from "./transaction-details-sheet.types";
 import { TransactionSummary } from "./transaction-details-summary";
+import { TransactionDueDate } from "./transaction-due-date";
 import { FinancialRelation } from "./transaction-financial-relation";
 import { TransactionTypeBadge } from "./transaction-type-badge";
 export function TransactionDetailsContent({
@@ -50,7 +48,7 @@ export function TransactionDetailsContent({
   openRelatedAction: (action: () => void) => void;
   setDeleteOpen: Dispatch<SetStateAction<boolean>>;
   setInstallmentDeleteOpen: Dispatch<SetStateAction<boolean>>;
-  setRecurringAction: Dispatch<SetStateAction<"pause" | "cancel" | null>>;
+  setRecurringAction: Dispatch<SetStateAction<"pause" | "stop" | "skip" | null>>;
 }) {
   return (
     <div className="grid gap-6 p-5 pt-3 sm:gap-5 sm:p-4">
@@ -79,6 +77,30 @@ export function TransactionDetailsContent({
         <DetailRow label="Tipo" value={<TransactionTypeBadge type={detail.type} />} />
         <DetailRow label="Data da compra" value={formatDate(detail.purchaseDate)} />
         <DetailRow label="Competência" value={formatPeriod(detail.period)} />
+        {detail.plannedAmount != null ? (
+          <DetailRow
+            label="Valor previsto"
+            value={detail.plannedAmount.toLocaleString("pt-BR", {
+              style: "currency",
+              currency: "BRL",
+            })}
+          />
+        ) : null}
+        {detail.isSettled && detail.paymentMethod !== "credit_card" ? (
+          <>
+            <DetailRow
+              label={detail.type === "income" ? "Valor recebido" : "Valor pago"}
+              value={(detail.settledAmount ?? detail.displayAmount).toLocaleString("pt-BR", {
+                style: "currency",
+                currency: "BRL",
+              })}
+            />
+            <DetailRow
+              label="Data efetiva da baixa"
+              value={detail.settledDate ? formatDate(detail.settledDate) : "Não informada"}
+            />
+          </>
+        ) : null}
         <DetailRow label="Condição" value={transactionConditionLabels[detail.condition]} />
         <DetailRow
           label="Forma de pagamento"
@@ -87,6 +109,7 @@ export function TransactionDetailsContent({
         <DetailRow label="Origem" value={transactionOriginLabels[detail.origin]} />
       </DetailsSection>
 
+      <TransactionTags tagIds={detail.tagIds} />
       <DetailsSection icon={<Layers3 />} title="Classificação">
         <DetailRow
           label="Categoria"
@@ -193,13 +216,19 @@ export function TransactionDetailsContent({
             value={recurrenceFrequencyLabels[detail.recurrenceFrequency]}
           />
           <DetailRow label="Ocorrência" value={formatDate(detail.purchaseDate)} />
+          <DetailRow
+            label="Repetir até"
+            value={
+              detail.recurrenceEndDate ? formatDate(detail.recurrenceEndDate) : "Sem data final"
+            }
+          />
         </DetailsSection>
       ) : null}
 
-      {detail.paymentMethod === "boleto" && (detail.dueDate || detail.boletoPaymentDate) ? (
-        <DetailsSection icon={<Clock3 />} title="Boleto">
+      {detail.dueDate || detail.boletoPaymentDate ? (
+        <DetailsSection icon={<Clock3 />} title="Vencimento">
           {detail.dueDate ? (
-            <DetailRow label="Vencimento" value={formatDate(detail.dueDate)} />
+            <DetailRow label="Vencimento" value={<TransactionDueDate transaction={detail} />} />
           ) : null}
           {detail.boletoPaymentDate ? (
             <DetailRow label="Data do pagamento" value={formatDate(detail.boletoPaymentDate)} />

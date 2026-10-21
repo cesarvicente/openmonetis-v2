@@ -1,14 +1,12 @@
 import { Image } from "@unpic/react";
 import { MessageSquareMore, Paperclip, PartyPopper } from "lucide-react";
-
 import { TableCell } from "@/components/ui/table";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { CategoryIcon } from "@/features/categories/category-icons";
 import { EstablishmentLogo } from "@/features/establishments/components/establishment-logo";
-
+import { TransactionTags } from "@/features/tags/components/transaction-tags";
 import { formatCompactDate } from "../transactions.presentation";
-
 import { TransactionCategory } from "./transaction-category";
+import { TransactionDueDate } from "./transaction-due-date";
 import { TransactionPeople } from "./transaction-people";
 
 import type { TransactionRowProps } from "./transactions-table.types";
@@ -40,7 +38,7 @@ export function TransactionRowDescription({
 }) {
   return (
     <TableCell>
-      <div className="relative flex min-w-64 items-center gap-2.5">
+      <div className="relative isolate flex min-w-64 items-center gap-2.5">
         {splitConnector && splitConnector !== "end" ? (
           <span
             aria-hidden="true"
@@ -59,10 +57,7 @@ export function TransactionRowDescription({
               width={32}
             />
           ) : (
-            <EstablishmentLogo
-              fallback={<CategoryIcon className="size-4" name={transaction.categoryIcon} />}
-              name={transaction.name}
-            />
+            <EstablishmentLogo categoryIcon={transaction.categoryIcon} name={transaction.name} />
           )}
         </span>
         <span className="flex min-w-0 flex-col gap-1">
@@ -152,7 +147,7 @@ export function TransactionRowDescription({
             {transaction.dueDate ? (
               <span className="text-brand-strong">
                 {showPurchaseDate || transaction.categoryName ? "· " : null}
-                Venc. {formatCompactDate(transaction.dueDate)}
+                <TransactionDueDate transaction={transaction} />
               </span>
             ) : null}
             {!accountStatement &&
@@ -164,6 +159,7 @@ export function TransactionRowDescription({
               </span>
             ) : null}
           </span>
+          <TransactionTags tagIds={transaction.tagIds} />
         </span>
       </div>
     </TableCell>

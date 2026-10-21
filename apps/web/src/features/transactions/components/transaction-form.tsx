@@ -1,11 +1,11 @@
 import { invoicePaymentCategoryName } from "@openmonetis/domain/categories";
 import { MobileFormState } from "@/components/forms/mobile-form-state";
-import { formatInstallmentOption } from "../transactions.presentation";
+import { sortCategoryOptions } from "@/features/categories/categories.presentation";
 import { useTransactionForm } from "../useTransactionForm";
 import { TransactionAdvancedFields } from "./transaction-advanced-fields";
 import { TransactionAmountField } from "./transaction-amount-field";
 import { TransactionBasicFields } from "./transaction-basic-fields";
-import { TransactionBoletoFields } from "./transaction-boleto-fields";
+import { TransactionDueDateField } from "./transaction-due-date-field";
 import type { TransactionFormProps } from "./transaction-form.types";
 import { TransactionFormActions } from "./transaction-form-actions";
 import { TransactionFormScopeDialogs } from "./transaction-form-scope-dialogs";
@@ -129,19 +129,16 @@ export function TransactionForm({
               );
             const isCreditCard = values.paymentMethod === "credit_card";
             const isBoleto = values.paymentMethod === "boleto";
-            const showBoletoPaymentDate =
-              values.condition !== "recurring" && values.isSettled === "true";
-            const visibleCategories = categories.filter(
-              (category) =>
-                category.type === values.type && category.name !== invoicePaymentCategoryName,
+            const visibleCategories = sortCategoryOptions(
+              categories.filter(
+                (category) =>
+                  category.type === values.type &&
+                  !(category.isSystem && category.name === invoicePaymentCategoryName),
+              ),
             );
-            const installmentAmount = Number(values.amount);
             const installmentCount = Number(values.installmentCount);
             const startInstallment = Number(values.startInstallment);
             const showStartInstallment = values.condition === "installment" && mode !== "edit";
-
-            const getInstallmentLabel = (count: number) =>
-              formatInstallmentOption(installmentAmount, count);
 
             const amountField = (
               <TransactionAmountField form={form} isSubmitting={isSubmitting} values={values} />
@@ -197,11 +194,10 @@ export function TransactionForm({
                       isCreditCard={isCreditCard}
                     />
 
-                    <TransactionBoletoFields
+                    <TransactionDueDateField
                       form={form}
                       isSubmitting={isSubmitting}
-                      isBoleto={isBoleto}
-                      showBoletoPaymentDate={showBoletoPaymentDate}
+                      visible={values.type === "expense" && !isCreditCard}
                     />
 
                     <TransactionScheduleFields
@@ -214,7 +210,6 @@ export function TransactionForm({
                       isSubmitting={isSubmitting}
                       isTransfer={isTransfer}
                       isSeriesEdit={isSeriesEdit}
-                      getInstallmentLabel={getInstallmentLabel}
                     />
 
                     <TransactionSettlementField

@@ -16,6 +16,7 @@ import { DashboardWidgetEmptyState } from "@/features/dashboard/components/dashb
 import { dashboardWidgetFooterNavigationLinkClassName } from "@/features/dashboard/components/dashboard-widget-footer-link";
 import { DashboardWidgetListSheet } from "@/features/dashboard/components/dashboard-widget-list-sheet";
 import { DashboardWidgetRow } from "@/features/dashboard/components/dashboard-widget-row";
+import { DueDateIndicator } from "@/features/due-date-rules/components/due-date-indicator";
 import { cn } from "@/lib/utils";
 import { invoiceDueLabel, invoicePaidLabel } from "../invoices.presentation";
 import { invoicesQueryOptions } from "../invoices.queries";
@@ -154,11 +155,37 @@ function InvoiceRow({ invoice, onPay }: { invoice: DashboardInvoice; onPay: () =
               invoice.status === "overdue" && "font-medium text-destructive",
             )}
           >
-            {invoice.remainingAmount === 0
-              ? cardInvoiceStatusLabels[invoice.status]
-              : invoiceDueLabel(invoice.dueDate)}
+            {invoice.remainingAmount === 0 ? (
+              cardInvoiceStatusLabels[invoice.status]
+            ) : (
+              <DueDateIndicator
+                dueDate={invoice.dueDate}
+                originalDueDate={invoice.originalDueDate}
+                adjustment={invoice.dueDateAdjustment}
+                excluded={invoice.dueDateRuleExcluded}
+                editable={invoice.dueDateExceptionEditable}
+                target={{ target: "invoice", cardId: invoice.cardId, period: invoice.period }}
+              >
+                {invoiceDueLabel(invoice.dueDate)}
+              </DueDateIndicator>
+            )}
           </p>
         )}
+        {invoice.remainingAmount === 0 &&
+        (invoice.dueDateAdjustment || invoice.dueDateRuleExcluded) ? (
+          <div className="text-xs">
+            <DueDateIndicator
+              dueDate={invoice.dueDate}
+              originalDueDate={invoice.originalDueDate}
+              adjustment={invoice.dueDateAdjustment}
+              excluded={invoice.dueDateRuleExcluded}
+              editable={invoice.dueDateExceptionEditable}
+              target={{ target: "invoice", cardId: invoice.cardId, period: invoice.period }}
+            >
+              {invoiceDueLabel(invoice.dueDate)}
+            </DueDateIndicator>
+          </div>
+        ) : null}
       </div>
       <div className="flex shrink-0 flex-col items-end">
         <MoneyValue

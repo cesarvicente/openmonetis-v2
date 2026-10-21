@@ -3,6 +3,8 @@ import type { CardOutput } from "@openmonetis/validators/cards";
 import type { CategoryOutput } from "@openmonetis/validators/categories";
 import type { PersonOutput } from "@openmonetis/validators/people";
 import type {
+  ExportTransactionsQuery,
+  RecurringOccurrenceActionInput,
   TransactionActionScope,
   TransactionInput,
   TransactionOutput,
@@ -51,14 +53,17 @@ export type TransactionsScreenProps = {
     isSettled: boolean,
     settledDate?: string,
   ) => Promise<void> | void;
-  onRecurringStatus: (
+  onRecurringAction: (
     id: string,
-    status: "active" | "paused" | "cancelled",
+    action: RecurringOccurrenceActionInput["action"],
+    occurrenceDate: string,
   ) => Promise<void> | void;
   header?: TransactionsScreenHeader;
   hiddenFilters?: readonly TransactionsFilterKey[];
   allowCreate?: boolean;
   allowImport?: boolean;
+  onExport?: (format: ExportTransactionsQuery["format"]) => void;
+  isExporting?: boolean;
   createDefaults?: TransactionCreateDefaults;
   createTypes?: readonly TransactionCreateType[];
   defaultPageSize?: number;

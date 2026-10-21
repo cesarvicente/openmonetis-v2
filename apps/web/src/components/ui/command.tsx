@@ -1,7 +1,7 @@
 "use client";
 
 import { Command as CommandPrimitive } from "cmdk";
-import { Check } from "lucide-react";
+import { Check, Search } from "lucide-react";
 import type * as React from "react";
 import { cn } from "@/lib/utils";
 
@@ -25,6 +25,25 @@ function CommandList({ className, ...props }: React.ComponentProps<typeof Comman
       data-slot="command-list"
       {...props}
     />
+  );
+}
+
+function CommandInput({
+  className,
+  ...props
+}: React.ComponentProps<typeof CommandPrimitive.Input>) {
+  return (
+    <div className="flex items-center gap-2 border-b px-3" data-slot="command-input-wrapper">
+      <Search aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
+      <CommandPrimitive.Input
+        data-slot="command-input"
+        className={cn(
+          "h-11 w-full rounded-md bg-transparent py-3 text-sm outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50",
+          className,
+        )}
+        {...props}
+      />
+    </div>
   );
 }
 
@@ -80,4 +99,4 @@ function CommandItem({
   );
 }
 
-export { Command, CommandEmpty, CommandGroup, CommandItem, CommandList };
+export { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList };

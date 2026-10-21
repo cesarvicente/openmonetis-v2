@@ -15,6 +15,7 @@ import {
   ChartTooltipContent,
 } from "@/components/ui/chart";
 import { SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { getCategoryLabel } from "@/features/categories/categories.presentation";
 import { cn } from "@/lib/utils";
 import { formatTrendPeriod } from "../category-trends.presentation";
 
@@ -24,9 +25,14 @@ const chartColors = [
   "var(--chart-3)",
   "var(--chart-4)",
   "var(--chart-5)",
+  "color-mix(in oklch, var(--chart-1) 60%, var(--foreground))",
+  "color-mix(in oklch, var(--chart-2) 60%, var(--foreground))",
+  "color-mix(in oklch, var(--chart-3) 60%, var(--foreground))",
+  "color-mix(in oklch, var(--chart-4) 60%, var(--foreground))",
+  "color-mix(in oklch, var(--chart-5) 60%, var(--foreground))",
 ] as const;
 
-const limitOptions = [5, 10, 15] as const;
+const limitOptions = [5, 10] as const;
 
 type CategoryTrendsChartProps = {
   categories: CategoryTrendsOutput["categories"];
@@ -35,7 +41,7 @@ type CategoryTrendsChartProps = {
 
 export function CategoryTrendsChart({ categories, periods }: CategoryTrendsChartProps) {
   const { isPrivacyModeEnabled } = usePrivacyMode();
-  const [limit, setLimit] = useState("10");
+  const [limit, setLimit] = useState("5");
   const topCategories = useMemo(
     () =>
       [...categories]
@@ -56,8 +62,8 @@ export function CategoryTrendsChart({ categories, periods }: CategoryTrendsChart
     topCategories.map((category, index) => [
       category.categoryId,
       {
-        label: category.name,
-        color: chartColors[index % chartColors.length],
+        label: getCategoryLabel(category),
+        color: chartColors[index],
       },
     ]),
   ) satisfies ChartConfig;
@@ -72,31 +78,34 @@ export function CategoryTrendsChart({ categories, periods }: CategoryTrendsChart
 
   return (
     <Card className="pt-0">
-      <CardHeader className="flex-row items-center gap-3 border-b py-5">
+      <CardHeader className="flex-row flex-wrap items-center gap-3 border-b py-5">
         <div className="min-w-0 flex-1">
           <CardTitle>Evolução por categoria</CardTitle>
           <CardDescription>
             {periodLabel} · Categorias com maior valor acumulado no período
           </CardDescription>
         </div>
-        <Select onValueChange={(value) => value && setLimit(value)} value={limit}>
-          <SelectTrigger aria-label="Número de categorias" className="hidden w-28 sm:flex">
-            <SelectValue>Top {limit}</SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            {limitOptions.map((option) => (
-              <SelectItem key={option} value={String(option)}>
-                Top {option}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        {categories.length > 5 ? (
+          <Select onValueChange={(value) => value && setLimit(value)} value={limit}>
+            <SelectTrigger aria-label="Número de categorias" className="w-28">
+              <SelectValue>Top {limit}</SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {limitOptions.map((option) => (
+                <SelectItem key={option} value={String(option)}>
+                  Top {option}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : null}
       </CardHeader>
       <CardContent className="px-2 pt-4 sm:px-6 sm:pt-6">
         <ChartContainer
           aria-label="Evolução mensal por categoria"
           className={cn(
-            "h-80 w-full transition-[filter]",
+            "w-full transition-[filter]",
+            Number(limit) > 5 ? "h-96" : "h-80",
             isPrivacyModeEnabled && "pointer-events-none blur-sm select-none",
           )}
           config={chartConfig}
@@ -129,7 +138,7 @@ export function CategoryTrendsChart({ categories, periods }: CategoryTrendsChart
               }
               cursor={false}
             />
-            {topCategories.map((category) => (
+            {topCategories.map((category, index) => (
               <Area
                 dataKey={category.categoryId}
                 fill={`var(--color-${category.categoryId})`}
@@ -137,6 +146,7 @@ export function CategoryTrendsChart({ categories, periods }: CategoryTrendsChart
                 key={category.categoryId}
                 stackId="categories"
                 stroke={`var(--color-${category.categoryId})`}
+                strokeDasharray={index >= 5 ? "4 2" : undefined}
                 strokeWidth={1.5}
                 type="natural"
               />

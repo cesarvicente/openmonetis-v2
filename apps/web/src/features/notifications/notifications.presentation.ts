@@ -9,7 +9,7 @@ export function getNotificationCopy(notification: NotificationOutput) {
   if (notification.kind === "bill") {
     return {
       title: notification.name,
-      context: notification.status === "overdue" ? "Boleto vencido" : "Boleto a vencer",
+      context: notification.status === "overdue" ? "Conta vencida" : "Conta a vencer",
       detail: dueDateLabel(notification.dueDate),
     };
   }
@@ -94,7 +94,8 @@ export function getNotificationTarget(notification: NotificationOutput) {
       to: "/transactions",
       search: {
         period: notification.period,
-        paymentMethod: "boleto",
+        payables: true,
+        q: notification.name,
         settlement: "unpaid",
       },
     };

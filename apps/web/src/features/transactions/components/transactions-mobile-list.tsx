@@ -21,11 +21,12 @@ import { MoneyValue } from "@/components/money-value";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
-import { CategoryIcon } from "@/features/categories/category-icons";
 import { EstablishmentLogo } from "@/features/establishments/components/establishment-logo";
+import { TransactionTags } from "@/features/tags/components/transaction-tags";
 import { cn } from "@/lib/utils";
 import { formatCompactDate } from "../transactions.presentation";
 import { useTransactionSelection } from "../useTransactionSelection";
+import { TransactionDueDate } from "./transaction-due-date";
 import { TransactionSelectionSummary } from "./transaction-selection-summary";
 
 type TransactionsMobileListProps = {
@@ -230,95 +231,108 @@ function MobileTransactionRow({
           onCheckedChange={onSelectionChange}
         />
       ) : null}
-      <button
-        aria-label={
-          selectionMode
-            ? selectable
-              ? `${selected ? "Remover" : "Adicionar"} ${transaction.name} da seleção`
-              : `${transaction.name} não participa da conferência`
-            : `Ver detalhes de ${transaction.name}`
-        }
-        className="flex min-w-0 flex-1 items-center gap-3 text-left disabled:cursor-default"
-        disabled={selectionMode && !selectable}
-        onClick={() => {
-          if (selectionMode) {
-            if (selectable) onSelectionChange(!selected);
-            return;
+      <div className="min-w-0 flex-1">
+        <button
+          aria-label={
+            selectionMode
+              ? selectable
+                ? `${selected ? "Remover" : "Adicionar"} ${transaction.name} da seleção`
+                : `${transaction.name} não participa da conferência`
+              : `Ver detalhes de ${transaction.name}`
           }
-          onView(transaction);
-        }}
-        type="button"
-      >
-        <span className="shrink-0">
-          {featuredLogo ? (
-            <Image
-              alt=""
-              className="size-10 rounded-full object-contain"
-              height={40}
-              layout="fixed"
-              src={featuredLogo}
-              width={40}
+          className="flex w-full min-w-0 items-center gap-3 text-left disabled:cursor-default"
+          disabled={selectionMode && !selectable}
+          onClick={() => {
+            if (selectionMode) {
+              if (selectable) onSelectionChange(!selected);
+              return;
+            }
+            onView(transaction);
+          }}
+          type="button"
+        >
+          <span className="shrink-0">
+            {featuredLogo ? (
+              <Image
+                alt=""
+                className="size-10 rounded-full object-contain"
+                height={40}
+                layout="fixed"
+                src={featuredLogo}
+                width={40}
+              />
+            ) : (
+              <EstablishmentLogo
+                categoryIcon={transaction.categoryIcon}
+                editable={false}
+                name={transaction.name}
+                size={40}
+              />
+            )}
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="flex min-w-0 items-center gap-1">
+              <span className="truncate font-medium text-sm">{transaction.name}</span>
+              {transaction.currentInstallment && transaction.installmentCount ? (
+                <span className="shrink-0 text-muted-foreground text-[0.65rem]">
+                  {transaction.currentInstallment}/{transaction.installmentCount}
+                </span>
+              ) : null}
+            </span>
+            <span className="mt-1 flex min-w-0 items-center gap-1.5 text-muted-foreground text-xs">
+              {relationLogo ? (
+                <Image
+                  alt=""
+                  className="size-4 shrink-0 rounded-full object-contain"
+                  height={16}
+                  layout="fixed"
+                  src={relationLogo}
+                  width={16}
+                />
+              ) : transaction.cardId || transaction.invoicePaymentCardName ? (
+                <CreditCard aria-hidden="true" className="size-4 shrink-0" />
+              ) : transaction.accountId || transaction.type === "transfer" ? (
+                <Landmark aria-hidden="true" className="size-4 shrink-0" />
+              ) : null}
+              <span className="truncate">{transaction.categoryName ?? "Sem categoria"}</span>
+            </span>
+            {transaction.paymentMethod === "boleto" && transaction.boletoPaymentDate ? (
+              <span className="mt-1 block text-muted-foreground text-xs">
+                {accountStatement
+                  ? null
+                  : `Pago ${formatCompactDate(transaction.boletoPaymentDate)}`}
+              </span>
+            ) : null}
+            <TransactionTags tagIds={transaction.tagIds} />
+          </span>
+          <span className="shrink-0 text-right">
+            <MoneyValue
+              amount={visibleAmount}
+              className={cn(
+                "block font-medium text-sm",
+                transaction.type === "income" && "text-success",
+                transaction.type === "transfer" && "text-info",
+              )}
+              showPositiveSign={transaction.type === "income" || visibleAmount > 0}
             />
-          ) : (
-            <EstablishmentLogo
-              editable={false}
-              fallback={
-                transaction.categoryIcon ? (
-                  <CategoryIcon className="size-4" name={transaction.categoryIcon} />
-                ) : undefined
-              }
-              name={transaction.name}
-              size={40}
-            />
-          )}
-        </span>
-        <span className="min-w-0 flex-1">
-          <span className="flex min-w-0 items-center gap-1">
-            <span className="truncate font-medium text-sm">{transaction.name}</span>
-            {transaction.currentInstallment && transaction.installmentCount ? (
-              <span className="shrink-0 text-muted-foreground text-[0.65rem]">
-                {transaction.currentInstallment}/{transaction.installmentCount}
+            {transaction.settledAmount != null &&
+            transaction.plannedAmount != null &&
+            transaction.settledAmount !== transaction.plannedAmount ? (
+              <span
+                className="block text-muted-foreground text-xs"
+                title={`Previsto total: ${transaction.plannedAmount.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}`}
+              >
+                Valor ajustado
               </span>
             ) : null}
           </span>
-          <span className="mt-1 flex min-w-0 items-center gap-1.5 text-muted-foreground text-xs">
-            {relationLogo ? (
-              <Image
-                alt=""
-                className="size-4 shrink-0 rounded-full object-contain"
-                height={16}
-                layout="fixed"
-                src={relationLogo}
-                width={16}
-              />
-            ) : transaction.cardId || transaction.invoicePaymentCardName ? (
-              <CreditCard aria-hidden="true" className="size-4 shrink-0" />
-            ) : transaction.accountId || transaction.type === "transfer" ? (
-              <Landmark aria-hidden="true" className="size-4 shrink-0" />
-            ) : null}
-            <span className="truncate">{transaction.categoryName ?? "Sem categoria"}</span>
-          </span>
-          {transaction.paymentMethod === "boleto" && transaction.boletoPaymentDate ? (
-            <span className="mt-1 block text-muted-foreground text-xs">
-              Venc. {formatCompactDate(transaction.dueDate ?? transaction.purchaseDate)}
-              {accountStatement
-                ? null
-                : ` · Pago ${formatCompactDate(transaction.boletoPaymentDate)}`}
-            </span>
-          ) : null}
-        </span>
-        <span className="shrink-0 text-right">
-          <MoneyValue
-            amount={visibleAmount}
-            className={cn(
-              "block font-medium text-sm",
-              transaction.type === "income" && "text-success",
-              transaction.type === "transfer" && "text-info",
-            )}
-            showPositiveSign={transaction.type === "income" || visibleAmount > 0}
-          />
-        </span>
-      </button>
+        </button>
+        {transaction.dueDate ? (
+          <div className="mt-1 ml-11 text-xs">
+            <TransactionDueDate transaction={transaction} />
+          </div>
+        ) : null}
+      </div>
     </li>
   );
 }

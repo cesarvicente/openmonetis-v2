@@ -42,7 +42,7 @@ export function PreviewNavigationMenu({ isOpen, items, pathname }: PreviewNaviga
     <fieldset
       className={cn(
         "m-0 grid min-w-0 items-start gap-2 border-0 p-1",
-        preview ? "w-[43rem] grid-cols-[23rem_1fr]" : "w-[23rem] grid-cols-1",
+        preview ? "w-172 grid-cols-[23rem_1fr]" : "w-92 grid-cols-1",
       )}
       data-preview-open={preview ? "true" : "false"}
       data-preview-navigation-menu

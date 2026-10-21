@@ -1,24 +1,44 @@
 import type {
   CreateTransactionRefundInput,
+  ExportTransactionsQuery,
   TransactionActionScope,
   UpdateTransactionInput,
 } from "@openmonetis/validators/transactions";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { refreshFinancialQueries } from "@/lib/financial-query-invalidation";
 import {
-  changeRecurringRuleStatus,
+  applyRecurringRuleAction,
   createTransaction,
   deleteTransaction,
+  exportTransactions,
   getTransactionImportTemplate,
   importTransactions,
   previewTransactionImport,
   refundTransaction,
   settleRecurringOccurrence,
   settleTransactions,
+  type TransactionsApiSearch,
   undoTransactionImport,
   updateRecurringRule,
   updateTransaction,
 } from "./transactions.api";
+import { downloadTransactionExport } from "./transactions.presentation";
+
+export function useExportTransactionsMutation() {
+  return useMutation({
+    mutationFn: async ({
+      search,
+      format,
+    }: {
+      search: TransactionsApiSearch;
+      format: ExportTransactionsQuery["format"];
+    }) => {
+      const file = await exportTransactions(search, format);
+      downloadTransactionExport(file);
+      return { rowCount: file.rowCount };
+    },
+  });
+}
 
 export function useCreateTransactionMutation() {
   const queryClient = useQueryClient();
@@ -118,10 +138,10 @@ export function useSettleRecurringOccurrenceMutation() {
     onSuccess: () => refreshFinancialQueries(queryClient),
   });
 }
-export function useRecurringRuleStatusMutation() {
+export function useRecurringRuleActionMutation() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: changeRecurringRuleStatus,
+    mutationFn: applyRecurringRuleAction,
     onSuccess: () => refreshFinancialQueries(queryClient),
   });
 }

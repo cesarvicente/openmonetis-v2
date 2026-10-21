@@ -2,6 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { ArrowLeftRight, FileUp } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
+import { getCategoryLabel } from "@/features/categories/categories.presentation";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { cn } from "@/lib/utils";
 import {
@@ -15,6 +16,7 @@ import { transactionTypeIcons } from "./transaction-type-badge";
 import { TransactionsActiveFilters } from "./transactions-active-filters";
 import { TransactionsCreateActions } from "./transactions-create-actions";
 import { TransactionsDialogs } from "./transactions-dialogs";
+import { TransactionsExportMenu } from "./transactions-export-menu";
 import { TransactionsFilters } from "./transactions-filters";
 import { TransactionsLoading } from "./transactions-loading";
 import { TransactionsMobileList } from "./transactions-mobile-list";
@@ -51,13 +53,15 @@ export function TransactionsScreen({
   onDeleteTransaction,
   onSettleTransactions,
   onSettleRecurringOccurrence,
-  onRecurringStatus,
+  onRecurringAction,
   search: urlSearch,
   onSearchChange,
   header,
   hiddenFilters = [],
   allowCreate = true,
   allowImport = false,
+  onExport,
+  isExporting = false,
   createDefaults,
   createTypes = defaultCreateTypes,
   defaultPageSize = 30,
@@ -93,7 +97,9 @@ export function TransactionsScreen({
   const paymentMethodFilter = urlSearch.paymentMethod;
   const settlementFilter = urlSearch.settlement;
   const peopleSlugMap = buildFilterSlugMap(people);
-  const categoriesSlugMap = buildFilterSlugMap(categories);
+  const categoriesSlugMap = buildFilterSlugMap(
+    categories.map((category) => ({ ...category, name: getCategoryLabel(category) })),
+  );
   const accountsSlugMap = buildFilterSlugMap(accounts);
   const cardsSlugMap = buildFilterSlugMap(cards);
   const personSlugs = parseFilterSlugs(urlSearch.people);
@@ -115,6 +121,8 @@ export function TransactionsScreen({
   };
   const activeFilterCount = [
     Boolean(search),
+    Boolean(urlSearch.tags),
+    Boolean(urlSearch.withoutTags),
     !hiddenFilterSet.has("type") && Boolean(typeFilter),
     Boolean(conditionFilter),
     !hiddenFilterSet.has("paymentMethod") && Boolean(paymentMethodFilter),
@@ -126,6 +134,7 @@ export function TransactionsScreen({
     urlSearch.minAmount !== undefined || urlSearch.maxAmount !== undefined,
     Boolean(urlSearch.dateStart || urlSearch.dateEnd),
     Boolean(urlSearch.hasAttachments),
+    Boolean(urlSearch.payables),
     Boolean(urlSearch.isDivided),
   ].filter(Boolean).length;
   const periodNavigation = (
@@ -211,6 +220,8 @@ export function TransactionsScreen({
       settlement: undefined,
       people: undefined,
       categories: undefined,
+      tags: undefined,
+      withoutTags: undefined,
       accounts: undefined,
       cards: undefined,
       minAmount: undefined,
@@ -218,6 +229,7 @@ export function TransactionsScreen({
       dateStart: undefined,
       dateEnd: undefined,
       hasAttachments: undefined,
+      payables: undefined,
       isDivided: undefined,
       page: undefined,
     });
@@ -263,11 +275,11 @@ export function TransactionsScreen({
       {periodNavigationPlacement === "afterPageHeader" ? periodNavigation : null}
       {contextNavigationSection}
       <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2 md:flex md:flex-wrap">
-        {showInlineCreateButtons || allowImport ? (
+        {showInlineCreateButtons || allowImport || onExport ? (
           <div
             className={cn(
               "order-4 col-span-3 flex-wrap items-center gap-2 md:order-1 md:col-span-1 md:flex",
-              showInlineCreateButtons ? "flex" : "hidden",
+              showInlineCreateButtons || onExport ? "flex" : "hidden",
             )}
           >
             {showInlineCreateButtons
@@ -295,6 +307,13 @@ export function TransactionsScreen({
                   Importar extrato
                 </Link>
               </Button>
+            ) : null}
+            {onExport ? (
+              <TransactionsExportMenu
+                onExport={onExport}
+                pending={isExporting}
+                disabled={isLoading || hasLoadError || isUpdating === true || totalItems === 0}
+              />
             ) : null}
           </div>
         ) : null}
@@ -418,7 +437,7 @@ export function TransactionsScreen({
               page: undefined,
             })
           }
-          onRecurringStatus={onRecurringStatus}
+          onRecurringAction={onRecurringAction}
           onSettle={onSettleTransactions}
           onSettleRecurringOccurrence={onSettleRecurringOccurrence}
           pendingTransactionId={pendingTransactionId}
@@ -441,7 +460,7 @@ export function TransactionsScreen({
         onDeleteTransaction={onDeleteTransaction}
         onSettleTransactions={onSettleTransactions}
         onSettleRecurringOccurrence={onSettleRecurringOccurrence}
-        onRecurringStatus={onRecurringStatus}
+        onRecurringAction={onRecurringAction}
         createDefaults={createDefaults}
         isDialogOpen={isDialogOpen}
         setIsDialogOpen={setIsDialogOpen}

@@ -79,6 +79,10 @@ export function TransactionFormScopeDialogs({
         }}
         open={Boolean(pendingRecurringUpdate)}
         pending={updateRecurringRule.isPending}
+        endDateChanged={
+          pendingRecurringUpdate?.recurrenceEndDate !== undefined &&
+          pendingRecurringUpdate.recurrenceEndDate !== (transaction?.recurrenceEndDate ?? null)
+        }
         scheduleChanged={Boolean(
           pendingRecurringUpdate &&
             (pendingRecurringUpdate.purchaseDate !== transaction?.purchaseDate ||

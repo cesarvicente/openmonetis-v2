@@ -121,7 +121,9 @@
       [data-slot="input"],
       [data-slot="select-trigger"],
       [data-slot="date-picker-trigger"],
-      [data-slot="period-picker-trigger"]
+      [data-slot="period-picker-trigger"],
+      [data-slot="tags-picker-trigger"],
+      [data-slot="category-picker-trigger"]
     ) {
     min-height: 3rem;
     font-size: 1rem;
@@ -213,12 +215,20 @@
       [data-slot="select-trigger"],
       [data-slot="input"],
       [data-slot="date-picker-trigger"],
+      [data-slot="tags-picker-trigger"],
+      [data-slot="category-picker-trigger"],
       label:has([data-slot="checkbox"])
     ) {
     min-height: 2.75rem;
   }
 
-  .mobile-sheet-content :is([data-slot="input"], [data-slot="select-trigger"]) {
+  .mobile-sheet-content
+    :is(
+      [data-slot="input"],
+      [data-slot="select-trigger"],
+      [data-slot="tags-picker-trigger"],
+      [data-slot="category-picker-trigger"]
+    ) {
     font-size: 1rem;
   }
 

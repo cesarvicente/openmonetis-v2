@@ -136,7 +136,10 @@ export function InboxRulesDialog({
           </div>
         </DialogHeader>
 
-        <div data-mobile-form-body className="min-h-0 flex-1 overflow-y-auto pr-1">
+        <div
+          data-mobile-form-body
+          className="min-h-0 flex-1 overflow-y-auto pr-3 scrollbar-gutter-stable"
+        >
           {view.kind === "form" ? (
             <InboxRuleForm
               categories={categories}
@@ -190,7 +193,7 @@ export function InboxRulesDialog({
                     <CardContent className="grid gap-2.5 p-3">
                       <div className="flex items-center gap-2">
                         <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2 gap-y-0.5">
-                          <p className="break-words font-medium text-sm">{rule.name}</p>
+                          <p className="wrap-break-word font-medium text-sm">{rule.name}</p>
                           <span className="text-muted-foreground text-[11px]">
                             Prioridade {rule.priority}
                           </span>
@@ -268,7 +271,7 @@ export function InboxRulesDialog({
                             <span className="font-medium text-[10px] text-muted-foreground uppercase tracking-wider">
                               Se
                             </span>
-                            <p className="min-w-0 break-words">
+                            <p className="min-w-0 wrap-break-word">
                               <span className="text-muted-foreground">
                                 {rule.matchMode === "all" ? "Todas: " : "Qualquer uma: "}
                               </span>
@@ -279,7 +282,7 @@ export function InboxRulesDialog({
                             <span className="font-medium text-[10px] text-muted-foreground uppercase tracking-wider">
                               Então
                             </span>
-                            <p className="min-w-0 break-words">
+                            <p className="min-w-0 wrap-break-word">
                               Preencher {describeInboxRuleActions(rule)}
                             </p>
                           </div>

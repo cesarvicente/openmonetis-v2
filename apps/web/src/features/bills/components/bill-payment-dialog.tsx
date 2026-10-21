@@ -16,6 +16,7 @@ import { MobileSelect as Select } from "@/components/forms/mobile-select";
 import { MobileSelectContent as SelectContent } from "@/components/forms/mobile-select-content";
 import { PaymentSuccess } from "@/components/payment-success";
 import { Button } from "@/components/ui/button";
+import { CurrencyInput } from "@/components/ui/currency-input";
 import { DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -45,13 +46,18 @@ export function BillPaymentDialog({
     defaultValues: {
       accountId: preferredAccount?.id ?? "",
       paidAt: currentLocalDate(),
+      amount: String(bill?.amount ?? ""),
     },
     onSubmit: async ({ value }) => {
       if (!bill) return;
-      const parsed = CreateBillPaymentInputSchema.safeParse({ ...value, billId: bill.id });
+      const parsed = CreateBillPaymentInputSchema.safeParse({
+        ...value,
+        amount: Number(value.amount),
+        billId: bill.id,
+      });
       if (!parsed.success) {
         toast.error("Revise os dados do pagamento", {
-          description: "Selecione uma conta e uma data válidas.",
+          description: "Informe uma conta, uma data válida e um valor maior que zero.",
         });
         return;
       }
@@ -60,7 +66,7 @@ export function BillPaymentDialog({
         setPaymentCompleted(true);
       } catch {
         toast.error("Não foi possível registrar o pagamento", {
-          description: "O boleto permanece em aberto. Tente novamente.",
+          description: "O lançamento permanece em aberto. Tente novamente.",
         });
       }
     },
@@ -79,7 +85,7 @@ export function BillPaymentDialog({
         {paymentCompleted ? (
           <PaymentSuccess
             celebrate
-            description="O pagamento foi registrado. O boleto aparece como pago no histórico."
+            description="O pagamento foi registrado. O lançamento aparece como pago no histórico."
             onClose={() => {
               setPaymentCompleted(false);
               onOpenChange(false);
@@ -90,9 +96,11 @@ export function BillPaymentDialog({
           <>
             <DialogHeader>
               <div className="flex items-center gap-3">
-                {bill ? <EstablishmentLogo name={bill.name} size={40} /> : null}
+                {bill ? (
+                  <EstablishmentLogo categoryIcon={bill.categoryIcon} name={bill.name} size={40} />
+                ) : null}
                 <div className="min-w-0">
-                  <DialogTitle>Registrar pagamento do boleto</DialogTitle>
+                  <DialogTitle>Registrar pagamento</DialogTitle>
                   <DialogDescription className="mt-0.5">
                     {bill
                       ? `${bill.name}. Informe a conta e a data do pagamento já realizado.`
@@ -105,7 +113,7 @@ export function BillPaymentDialog({
             {bill ? (
               <div className="flex items-center justify-between gap-4 rounded-lg border bg-muted/35 px-4 py-3">
                 <div>
-                  <p className="text-muted-foreground text-xs">Valor do boleto</p>
+                  <p className="text-muted-foreground text-xs">Valor previsto</p>
                   <p className="mt-0.5 font-semibold text-lg">{formatCurrency(bill.amount)}</p>
                 </div>
                 <p className="text-right text-muted-foreground text-sm">
@@ -167,6 +175,23 @@ export function BillPaymentDialog({
                 )}
               </form.Field>
 
+              <form.Field name="amount">
+                {(field) => (
+                  <div className="grid gap-2">
+                    <Label htmlFor={`${id}-amount`}>Valor pago</Label>
+                    <CurrencyInput
+                      id={`${id}-amount`}
+                      value={field.state.value}
+                      onValueChange={field.handleChange}
+                    />
+                    {bill && bill.people.length > 1 ? (
+                      <p className="text-muted-foreground text-xs">
+                        Diferenças serão distribuídas proporcionalmente entre as pessoas.
+                      </p>
+                    ) : null}
+                  </div>
+                )}
+              </form.Field>
               <form.Field name="paidAt">
                 {(field) => (
                   <div className="grid gap-2">

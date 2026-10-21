@@ -6,16 +6,22 @@ import { MoneyValue } from "@/components/money-value";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DashboardItemLinkArrow } from "@/features/dashboard/components/dashboard-item-link-arrow";
 import { DashboardWidget } from "@/features/dashboard/components/dashboard-widget";
 import { DashboardWidgetEmptyState } from "@/features/dashboard/components/dashboard-widget-empty-state";
 import { dashboardWidgetFooterNavigationLinkClassName } from "@/features/dashboard/components/dashboard-widget-footer-link";
 import { getInitials } from "@/lib/name-presentation";
+import { cn } from "@/lib/utils";
+import {
+  formatPendingPeopleCount,
+  getSettlementProgressPercentage,
+} from "../person-settlements.presentation";
 import { personSettlementsSummaryQueryOptions } from "../person-settlements.queries";
 
-const maximumVisiblePeople = 4;
-const skeletonKeys = ["first", "second", "third", "fourth"] as const;
+const maximumVisiblePeople = 2;
+const skeletonKeys = ["first", "second"] as const;
 
 export function PersonSettlementsWidget({ period }: { period: string }) {
   const query = useQuery(personSettlementsSummaryQueryOptions(period));
@@ -25,13 +31,11 @@ export function PersonSettlementsWidget({ period }: { period: string }) {
   return (
     <DashboardWidget
       action={
-        items.length ? (
-          <Badge variant="secondary">
-            {items.length} {items.length === 1 ? "pessoa" : "pessoas"}
-          </Badge>
+        summary?.pendingCount ? (
+          <Badge variant="secondary">{formatPendingPeopleCount(summary.pendingCount)}</Badge>
         ) : null
       }
-      description="Valores a receber e créditos do mês"
+      description="Repasses recebidos e pendentes"
       footer={
         items.length ? (
           <Link className={dashboardWidgetFooterNavigationLinkClassName} to="/people">
@@ -62,30 +66,17 @@ export function PersonSettlementsWidget({ period }: { period: string }) {
       {summary && !query.isError ? (
         items.length ? (
           <div aria-busy={query.isFetching} className="flex flex-1 flex-col">
-            <div className="grid grid-cols-2 gap-2 py-3">
-              <SettlementTotal label="A receber" value={summary.totalReceivableAmount} />
-              <SettlementTotal label="Créditos" value={summary.totalCreditAmount} />
-            </div>
             <PersonSettlementList items={items.slice(0, maximumVisiblePeople)} period={period} />
           </div>
         ) : (
           <DashboardWidgetEmptyState
-            description="Não há valores a receber nem créditos neste mês."
+            description="Nenhum valor foi atribuído a outras pessoas neste mês."
             icon={<HandCoins aria-hidden="true" />}
-            title="Tudo acertado"
+            title="Nada para acertar"
           />
         )
       ) : null}
     </DashboardWidget>
-  );
-}
-
-function SettlementTotal({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="rounded-lg border bg-muted/20 p-3">
-      <p className="text-muted-foreground text-xs">{label}</p>
-      <MoneyValue amount={value} className="mt-1 font-semibold text-sm" />
-    </div>
   );
 }
 
@@ -99,59 +90,97 @@ function PersonSettlementList({
   return (
     <ol className="divide-y">
       {items.map((item) => (
-        <li className="flex min-h-14 items-center gap-3 py-2" key={item.personId}>
-          <Avatar className="size-9 overflow-hidden">
-            {item.personAvatarUrl ? (
-              <AvatarImage
-                alt={`Avatar de ${item.personName}`}
-                className="scale-[1.06]"
-                src={item.personAvatarUrl}
-              />
-            ) : null}
-            <AvatarFallback>{getInitials(item.personName)}</AvatarFallback>
-          </Avatar>
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-1.5">
-              <Link
-                className="group inline-flex min-w-0 items-center gap-1 rounded-sm font-medium text-sm transition-transform duration-200 ease-out hover:translate-x-1 focus-visible:translate-x-1 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 motion-reduce:transition-none"
-                params={{ personId: item.personId }}
-                search={{ period, view: "panel" }}
-                to="/people/$personId"
-              >
-                <span className="truncate">{item.personName}</span>
-                <DashboardItemLinkArrow />
-              </Link>
-              {item.personStatus === "inactive" ? (
-                <span className="shrink-0 text-muted-foreground text-[0.65rem]">Inativa</span>
-              ) : null}
-            </div>
-            <p className="text-muted-foreground text-xs">
-              {item.balance.status === "credit" ? "Crédito da pessoa" : "A receber"}
-            </p>
-          </div>
-          <MoneyValue
-            amount={
-              item.balance.status === "credit"
-                ? item.balance.creditAmount
-                : item.balance.receivableAmount
-            }
-            className="shrink-0 font-medium text-sm"
-          />
-        </li>
+        <PersonSettlementItem item={item} key={item.personId} period={period} />
       ))}
     </ol>
+  );
+}
+
+function PersonSettlementItem({
+  item,
+  period,
+}: {
+  item: PersonSettlementSummaryItemOutput;
+  period: string;
+}) {
+  const { balance } = item;
+  const isSettled = balance.status === "settled";
+  const isCredit = balance.status === "credit";
+  const percentage = getSettlementProgressPercentage(balance.coveredAmount, balance.dueAmount);
+
+  return (
+    <li className="grid gap-3 py-4">
+      <div className="flex items-center gap-3">
+        <Avatar className={cn("size-9 overflow-hidden", isSettled && "opacity-70")}>
+          {item.personAvatarUrl ? (
+            <AvatarImage
+              alt={`Avatar de ${item.personName}`}
+              className="scale-[1.06]"
+              src={item.personAvatarUrl}
+            />
+          ) : null}
+          <AvatarFallback>{getInitials(item.personName)}</AvatarFallback>
+        </Avatar>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1.5">
+            <Link
+              className="group inline-flex min-w-0 items-center gap-1 rounded-sm font-medium text-sm transition-transform duration-200 ease-out hover:translate-x-1 focus-visible:translate-x-1 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 motion-reduce:transition-none"
+              params={{ personId: item.personId }}
+              search={{ period, view: "panel" }}
+              to="/people/$personId"
+            >
+              <span className="truncate">{item.personName}</span>
+              <DashboardItemLinkArrow />
+            </Link>
+            {item.personStatus === "inactive" ? (
+              <span className="shrink-0 text-muted-foreground text-[0.65rem]">Inativa</span>
+            ) : null}
+          </div>
+          <p className="mt-0.5 text-muted-foreground text-xs">
+            {isSettled ? "Acertado" : `${percentage}% recebido`}
+          </p>
+        </div>
+        <MoneyValue amount={balance.dueAmount} className="shrink-0 font-medium text-sm" />
+      </div>
+
+      <Progress
+        aria-label={`${item.personName}: ${percentage}% recebido em repasses`}
+        indicatorClassName="bg-success"
+        trackClassName="bg-warning/25"
+        value={percentage}
+      />
+
+      <div className="grid grid-cols-2 gap-3 text-xs">
+        <div className="min-w-0">
+          <span className="flex items-center gap-1.5 text-muted-foreground">
+            <span aria-hidden="true" className="size-2 rounded-full bg-success" />
+            Recebido
+          </span>
+          <MoneyValue amount={balance.coveredAmount} className="mt-1 font-medium text-sm" />
+        </div>
+        <div className="min-w-0 text-right">
+          <span className="flex items-center justify-end gap-1.5 text-muted-foreground">
+            <span
+              aria-hidden="true"
+              className={cn("size-2 rounded-full", isCredit ? "bg-success" : "bg-warning")}
+            />
+            {isCredit ? "Crédito" : "Falta receber"}
+          </span>
+          <MoneyValue
+            amount={isCredit ? balance.creditAmount : balance.receivableAmount}
+            className="mt-1 font-medium text-sm"
+          />
+        </div>
+      </div>
+    </li>
   );
 }
 
 function PersonSettlementsLoading() {
   return (
     <div aria-label="Carregando acertos por pessoas" className="grid gap-3 py-3" role="status">
-      <div className="grid grid-cols-2 gap-2">
-        <Skeleton className="h-16 w-full" />
-        <Skeleton className="h-16 w-full" />
-      </div>
       {skeletonKeys.map((key) => (
-        <Skeleton className="h-14 w-full" key={key} />
+        <Skeleton className="h-32 w-full" key={key} />
       ))}
     </div>
   );

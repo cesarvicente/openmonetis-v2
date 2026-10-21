@@ -10,11 +10,11 @@ import {
   Search,
   Users,
 } from "lucide-react";
-
 import { Button } from "@/components/ui/button";
+import { getCategoryLabel } from "@/features/categories/categories.presentation";
 
 import { CategoryIcon } from "@/features/categories/category-icons";
-
+import { TagsFilter } from "@/features/tags/components/tags-filter";
 import {
   type buildFilterSlugMap,
   formatTransactionFilterAmount,
@@ -115,6 +115,7 @@ export function TransactionsActiveFilters({
             </Button>
           </div>
           <div className="flex min-w-0 flex-wrap gap-2">
+            <TagsFilter search={urlSearch} onChange={onSearchChange} chips />
             {search ? (
               <FilterChip icon={Search} label={`Busca: ${search}`} onRemove={() => setSearch("")} />
             ) : null}
@@ -183,7 +184,7 @@ export function TransactionsActiveFilters({
                       }
                     />
                   }
-                  label={`Categoria: ${categories.find((category) => categoriesSlugMap.idToSlug.get(category.id) === slug)?.name ?? "Categoria"}`}
+                  label={`Categoria: ${getCategoryLabel(categories.find((category) => categoriesSlugMap.idToSlug.get(category.id) === slug) ?? { name: "Categoria" })}`}
                   onRemove={() =>
                     setMultipleFilter(
                       "categories",
@@ -250,6 +251,13 @@ export function TransactionsActiveFilters({
                 icon={Paperclip}
                 label="Com anexo"
                 onRemove={() => onSearchChange({ hasAttachments: undefined, page: undefined })}
+              />
+            ) : null}
+            {urlSearch.payables ? (
+              <FilterChip
+                icon={CalendarClock}
+                label="Contas a pagar"
+                onRemove={() => onSearchChange({ payables: undefined, page: undefined })}
               />
             ) : null}
             {urlSearch.isDivided ? (

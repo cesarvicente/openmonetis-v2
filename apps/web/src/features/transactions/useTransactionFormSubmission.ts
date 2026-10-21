@@ -78,7 +78,12 @@ export function useTransactionFormSubmission({
       });
 
       if (mode === "edit" && transaction?.isRecurring && transaction.recurringRuleId) {
-        setPendingRecurringUpdate(data);
+        setPendingRecurringUpdate({
+          ...data,
+          recurrenceEndDate: getChangedTransactionInput(data, value, defaultValues)
+            .recurrenceEndDate,
+          tagIds: getChangedTransactionInput(data, value, defaultValues).tagIds,
+        });
         return;
       }
       if (mode === "edit" && transaction?.recordId) {

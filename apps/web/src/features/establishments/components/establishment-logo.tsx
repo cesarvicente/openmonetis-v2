@@ -1,28 +1,28 @@
 import { useQuery } from "@tanstack/react-query";
 import { Image } from "@unpic/react";
 import { Pencil } from "lucide-react";
-import { type ReactNode, useState } from "react";
+import { useState } from "react";
+import { CategoryIcon } from "@/features/categories/category-icons";
 import { cn } from "@/lib/utils";
-import { getEstablishmentInitials } from "../establishments.presentation";
 import { establishmentLogoQueryOptions } from "../establishments.queries";
 import { EstablishmentLogoPicker } from "./establishment-logo-picker";
 
 type EstablishmentLogoProps = {
   name: string;
+  categoryIcon: string | null;
   size?: number;
   className?: string;
   editable?: boolean;
   fallbackLogoUrl?: string | null;
-  fallback?: ReactNode;
 };
 
 export function EstablishmentLogo({
   name,
+  categoryIcon,
   size = 32,
   className,
   editable = true,
   fallbackLogoUrl = null,
-  fallback,
 }: EstablishmentLogoProps) {
   const { data } = useQuery(establishmentLogoQueryOptions(name));
   const [failedUrl, setFailedUrl] = useState<string | null>(null);
@@ -40,19 +40,16 @@ export function EstablishmentLogo({
   ) : (
     <span
       aria-hidden
-      className={cn(
-        "grid shrink-0 place-items-center rounded-full font-semibold",
-        fallback ? "bg-muted text-muted-foreground" : "bg-brand/10 text-brand-strong",
-      )}
-      style={{ width: size, height: size, fontSize: Math.max(10, Math.round(size * 0.34)) }}
+      className="grid shrink-0 place-items-center rounded-full bg-muted text-muted-foreground"
+      style={{ width: size, height: size }}
     >
-      {fallback ?? getEstablishmentInitials(name)}
+      <CategoryIcon className="size-4" name={categoryIcon} />
     </span>
   );
   if (!editable || !data?.enabled)
     return <span className={cn("inline-flex shrink-0", className)}>{avatar}</span>;
   return (
-    <EstablishmentLogoPicker name={name} selectedDomain={data.domain}>
+    <EstablishmentLogoPicker categoryIcon={categoryIcon} name={name} selectedDomain={data.domain}>
       <button
         aria-label={`Alterar logo de ${name}`}
         className={cn(

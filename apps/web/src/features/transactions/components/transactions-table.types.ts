@@ -1,4 +1,5 @@
 import type {
+  RecurringOccurrenceActionInput,
   TransactionActionScope,
   TransactionOutput,
 } from "@openmonetis/validators/transactions";
@@ -22,9 +23,10 @@ export type TransactionsTableProps = {
     purchaseDate: string,
     isSettled: boolean,
   ) => void;
-  onRecurringStatus: (
+  onRecurringAction: (
     id: string,
-    status: "active" | "paused" | "cancelled",
+    action: RecurringOccurrenceActionInput["action"],
+    occurrenceDate: string,
   ) => Promise<void> | void;
   currentPage: number;
   pageCount: number;
@@ -52,9 +54,10 @@ export type TransactionRowProps = {
   onAnticipate: (transaction: TransactionOutput) => void;
   onUndoAnticipation: (transaction: TransactionOutput) => void;
   onRefund: (transaction: TransactionOutput) => void;
-  onRecurringStatus: (
+  onRecurringAction: (
     id: string,
-    status: "active" | "paused" | "cancelled",
+    action: RecurringOccurrenceActionInput["action"],
+    occurrenceDate: string,
   ) => Promise<void> | void;
   onSettle: (ids: string[], isSettled: boolean) => void;
   onSettleRecurringOccurrence: (

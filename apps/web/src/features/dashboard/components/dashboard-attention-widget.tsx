@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { Barcode, CheckCircle2, ChevronRight, Inbox, RefreshCw } from "lucide-react";
+import { CheckCircle2, ChevronRight, Inbox, ReceiptText, RefreshCw } from "lucide-react";
 import { MoneyValue } from "@/components/money-value";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -51,20 +51,20 @@ export function DashboardAttentionWidget({ period }: { period: string }) {
               <DashboardWidgetRow>
                 <Link
                   className="group flex min-w-0 flex-1 items-center gap-3 rounded-sm focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-                  search={{ paymentMethod: "boleto", period, settlement: "unpaid" }}
+                  search={{ payables: true, period, settlement: "unpaid", sort: "dueDate" }}
                   to="/transactions"
                 >
                   <span className="grid size-9 shrink-0 place-items-center rounded-full bg-warning/10 text-warning">
-                    <Barcode aria-hidden="true" className="size-4" />
+                    <ReceiptText aria-hidden="true" className="size-4" />
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="block truncate font-medium text-sm">
                       {openBillsCount}{" "}
-                      {openBillsCount === 1 ? "boleto em aberto" : "boletos em aberto"}
+                      {openBillsCount === 1 ? "conta em aberto" : "contas em aberto"}
                     </span>
                     <span className="block truncate text-muted-foreground text-xs">
                       {billsQuery.data.overdueCount > 0
-                        ? `${billsQuery.data.overdueCount} ${billsQuery.data.overdueCount === 1 ? "vencido" : "vencidos"}`
+                        ? `${billsQuery.data.overdueCount} ${billsQuery.data.overdueCount === 1 ? "vencida" : "vencidas"}`
                         : "Com vencimento no período"}
                     </span>
                   </span>

@@ -15,6 +15,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { formatPeriod } from "@/features/transactions/transactions.presentation";
 import { cn } from "@/lib/utils";
@@ -176,19 +177,14 @@ export function CardCard({ card, onArchive, onDelete, onEdit, pending = false }:
         </div>
         <p className="text-muted-foreground text-xs">Parcelas futuras também ocupam o limite.</p>
         <div className="flex flex-col gap-2">
-          <div
+          <Progress
             aria-label={`${card.invoiceSummary.usagePercentage.toLocaleString("pt-BR")}% do limite utilizado`}
-            className="h-2.5 overflow-hidden rounded-full bg-muted"
-            role="img"
-          >
-            <div
-              className={cn(
-                "h-full rounded-full bg-brand transition-[width]",
-                card.invoiceSummary.usagePercentage > 100 && "bg-destructive",
-              )}
-              style={{ width: `${Math.min(100, card.invoiceSummary.usagePercentage)}%` }}
-            />
-          </div>
+            indicatorClassName={cn(
+              "bg-brand",
+              card.invoiceSummary.usagePercentage > 100 && "bg-destructive",
+            )}
+            value={Math.min(100, card.invoiceSummary.usagePercentage)}
+          />
           <span className="text-muted-foreground text-xs">
             {card.invoiceSummary.usagePercentage.toLocaleString("pt-BR")} % do limite utilizado
           </span>

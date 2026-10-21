@@ -2,11 +2,17 @@ import type { ReplaceCategoryInput } from "@openmonetis/validators/categories";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { refreshFinancialQueries } from "@/lib/financial-query-invalidation";
 import { createCategory, deleteCategory, replaceCategory } from "./categories.api";
+import { categoriesQueryOptions } from "./categories.queries";
 export function useCreateCategoryMutation() {
   const client = useQueryClient();
   return useMutation({
     mutationFn: createCategory,
-    onSuccess: () => refreshFinancialQueries(client),
+    onSuccess: (category) => {
+      client.setQueryData(categoriesQueryOptions().queryKey, (current) =>
+        current ? [...current.filter((item) => item.id !== category.id), category] : [category],
+      );
+      return refreshFinancialQueries(client);
+    },
   });
 }
 export function useReplaceCategoryMutation() {

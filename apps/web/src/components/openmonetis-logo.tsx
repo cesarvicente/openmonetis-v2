@@ -38,7 +38,7 @@ export function OpenMonetisLogo({
         height={21}
         layout="fixed"
         src="/images/openmonetis-wordmark.svg"
-        width={134}
+        width={133}
       />
     </span>
   );

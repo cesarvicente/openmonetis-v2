@@ -16,6 +16,7 @@ import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { getCategoryLabel } from "@/features/categories/categories.presentation";
 import { categoriesQueryOptions } from "@/features/categories/categories.queries";
 import { buildFilterSlugMap } from "@/features/transactions/transactions.presentation";
 import {
@@ -56,7 +57,12 @@ export function BudgetsPage({ onPeriodChange, period }: BudgetsPageProps) {
   const availableCategories = expenseCategories.filter(
     (category) => !budgetedCategoryIds.has(category.id),
   );
-  const categorySlugs = buildFilterSlugMap(categoriesQuery.data ?? []);
+  const categorySlugs = buildFilterSlugMap(
+    (categoriesQuery.data ?? []).map((category) => ({
+      ...category,
+      name: getCategoryLabel(category),
+    })),
+  );
   const loading = budgetsQuery.isLoading || categoriesQuery.isLoading;
   const failed = budgetsQuery.isError || categoriesQuery.isError;
 

@@ -13,6 +13,10 @@ import { PeriodPicker } from "@/components/period-picker";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import {
+  getCategoryLabel,
+  sortCategoryOptions,
+} from "@/features/categories/categories.presentation";
 import { CategoryIcon } from "@/features/categories/category-icons";
 import { getCategoryTrendsPeriodRange, getCurrentPeriod } from "../category-trends.presentation";
 
@@ -33,8 +37,8 @@ export function CategoryTrendsFilters({
   const [categorySearch, setCategorySearch] = useState("");
   const [draftCategoryIds, setDraftCategoryIds] = useState(filters.categoryIds);
   const normalizedSearch = categorySearch.trim().toLocaleLowerCase("pt-BR");
-  const visibleCategories = categories.filter((category) =>
-    category.name.toLocaleLowerCase("pt-BR").includes(normalizedSearch),
+  const visibleCategories = sortCategoryOptions(categories).filter((category) =>
+    getCategoryLabel(category).toLocaleLowerCase("pt-BR").includes(normalizedSearch),
   );
   const selectedIds = new Set(filters.categoryIds);
   const draftSelectedIds = new Set(draftCategoryIds);
@@ -43,7 +47,9 @@ export function CategoryTrendsFilters({
     selectedCategories.length === 0
       ? "Todas as categorias"
       : selectedCategories.length === 1
-        ? selectedCategories[0]?.name
+        ? selectedCategories[0]
+          ? getCategoryLabel(selectedCategories[0])
+          : "Todas as categorias"
         : `${selectedCategories.length} selecionadas`;
   const currentPeriod = getCurrentPeriod();
   const defaultPeriodRange = getCategoryTrendsPeriodRange("end", currentPeriod);
@@ -159,6 +165,9 @@ export function CategoryTrendsFilters({
                 />
               </div>
             </div>
+            <p className="px-3 pt-3 text-muted-foreground text-xs">
+              Selecionar uma categoria principal inclui todas as suas subcategorias.
+            </p>
             <div className="max-h-72 overflow-y-auto p-2">
               <button
                 className="flex w-full items-center gap-3 rounded-md px-2 py-2 text-left text-sm hover:bg-accent"
@@ -172,11 +181,15 @@ export function CategoryTrendsFilters({
               </button>
               {visibleCategories.map((category) => (
                 <div
-                  className="flex items-center gap-3 rounded-md px-2 py-2 text-sm hover:bg-accent"
+                  className={`flex items-center gap-3 rounded-md px-2 py-2 text-sm hover:bg-accent ${category.parentId ? "ml-4" : ""}`}
                   key={category.categoryId}
                 >
                   <Checkbox
-                    checked={draftSelectedIds.has(category.categoryId)}
+                    checked={
+                      draftSelectedIds.has(category.categoryId) ||
+                      Boolean(category.parentId && draftSelectedIds.has(category.parentId))
+                    }
+                    disabled={Boolean(category.parentId && draftSelectedIds.has(category.parentId))}
                     id={`category-filter-${category.categoryId}`}
                     onCheckedChange={() => toggleCategory(category.categoryId)}
                   />
@@ -185,7 +198,7 @@ export function CategoryTrendsFilters({
                     htmlFor={`category-filter-${category.categoryId}`}
                   >
                     <CategoryIcon className="size-4 text-muted-foreground" name={category.icon} />
-                    <span className="min-w-0 flex-1 truncate">{category.name}</span>
+                    <span className="min-w-0 flex-1 truncate">{getCategoryLabel(category)}</span>
                     <span className="text-muted-foreground text-xs">
                       {category.type === "expense" ? "Despesa" : "Receita"}
                     </span>

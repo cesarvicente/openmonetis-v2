@@ -31,7 +31,7 @@ export function TransactionDetailsSheet({
 }: TransactionDetailsSheetProps) {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [installmentDeleteOpen, setInstallmentDeleteOpen] = useState(false);
-  const [recurringAction, setRecurringAction] = useState<"pause" | "cancel" | null>(null);
+  const [recurringAction, setRecurringAction] = useState<"pause" | "stop" | "skip" | null>(null);
   const recordId = transaction?.recordId ?? "";
   const detailQuery = useQuery({
     ...transactionDetailQueryOptions(recordId),
@@ -76,7 +76,10 @@ export function TransactionDetailsSheet({
         </Button>
         <SheetHeader className="shrink-0 px-14 pt-8 pb-0 sm:border-b sm:p-4 sm:pr-14">
           <div className="flex flex-col items-center gap-3 sm:flex-row sm:items-start">
-            <EstablishmentLogo name={detail?.name ?? "Lançamento"} />
+            <EstablishmentLogo
+              categoryIcon={detail?.categoryIcon ?? null}
+              name={detail?.name ?? "Lançamento"}
+            />
             <div className="min-w-0 w-full text-center sm:flex-1 sm:text-left">
               <SheetTitle className="break-words text-base">
                 {detail?.name ?? "Detalhes do lançamento"}

@@ -2,14 +2,17 @@ import type { DashboardExpenseDistributionOutput } from "@openmonetis/validators
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { ArrowRight, Layers3 } from "lucide-react";
+import { useState } from "react";
 import {
   transactionConditionIcons,
   transactionConditionLabels,
 } from "@/features/transactions/transactions.presentation";
 import { dashboardExpenseDistributionQueryOptions } from "../dashboard.queries";
 import { useAdminPersonSlug } from "../useAdminPersonSlug";
+import { DashboardDistributionChart } from "./dashboard-distribution-chart";
 import { DashboardWidget } from "./dashboard-widget";
 import { dashboardWidgetFooterNavigationLinkClassName } from "./dashboard-widget-footer-link";
+import { DashboardWidgetViewToggle } from "./dashboard-widget-view-toggle";
 import {
   ExpenseDistributionList,
   type ExpenseDistributionListItem,
@@ -21,12 +24,21 @@ import {
 } from "./expense-distribution-states";
 
 export function PaymentConditionsWidget({ period }: { period: string }) {
+  const [activeView, setActiveView] = useState<"list" | "chart">("list");
   const query = useQuery(dashboardExpenseDistributionQueryOptions(period));
   const adminPersonSlug = useAdminPersonSlug();
   const items = query.data ? buildItems(query.data.conditions, period, adminPersonSlug) : [];
 
   return (
     <DashboardWidget
+      action={
+        query.data && !query.isError && items.length > 0 ? (
+          <DashboardWidgetViewToggle
+            view={activeView}
+            onToggle={() => setActiveView((view) => (view === "list" ? "chart" : "list"))}
+          />
+        ) : undefined
+      }
       description="Despesas à vista, parceladas e recorrentes"
       footer={
         items.length > 0 && adminPersonSlug ? (
@@ -47,6 +59,13 @@ export function PaymentConditionsWidget({ period }: { period: string }) {
       {query.data && !query.isError ? (
         items.length === 0 ? (
           <DistributionEmpty />
+        ) : activeView === "chart" ? (
+          <div aria-busy={query.isFetching} className="flex flex-1 items-center">
+            <DashboardDistributionChart
+              items={items}
+              label="Distribuição por condição de pagamento"
+            />
+          </div>
         ) : (
           <div aria-busy={query.isFetching} className="flex flex-1 flex-col">
             <ExpenseDistributionList items={items} />

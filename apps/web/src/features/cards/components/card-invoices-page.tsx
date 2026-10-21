@@ -39,6 +39,7 @@ import {
 import { SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { accountsQueryOptions } from "@/features/accounts/accounts.queries";
 import { cardQueryOptions } from "@/features/cards/cards.queries";
+import { DueDateIndicator } from "@/features/due-date-rules/components/due-date-indicator";
 import { AdjustInvoiceDialog } from "@/features/invoices/components/adjust-invoice-dialog";
 import { InvoiceDatesDialog } from "@/features/invoices/components/invoice-dates-dialog";
 import {
@@ -247,7 +248,10 @@ function CardInvoiceSummary({
                 Ajustar fatura
               </FinancialSummaryAction>
             ) : null}
-            <FinancialSummaryAction onClick={() => setDatesOpen(true)}>
+            <FinancialSummaryAction
+              disabled={payments.length > 0 || invoice?.status === "paid"}
+              onClick={() => setDatesOpen(true)}
+            >
               <CalendarClock aria-hidden="true" className="size-4" />
               Ajustar datas
             </FinancialSummaryAction>
@@ -379,7 +383,18 @@ function CardInvoiceSummary({
           {
             icon: <CalendarDays aria-hidden="true" className="size-3.5" />,
             label: "Vence",
-            value: formatInvoiceDate(card.invoiceSummary.dueDate),
+            value: (
+              <DueDateIndicator
+                dueDate={card.invoiceSummary.dueDate}
+                originalDueDate={card.invoiceSummary.originalDueDate}
+                adjustment={card.invoiceSummary.dueDateAdjustment}
+                excluded={card.invoiceSummary.dueDateRuleExcluded}
+                editable={card.invoiceSummary.dueDateExceptionEditable}
+                target={{ target: "invoice", cardId: card.id, period }}
+              >
+                {formatInvoiceDate(card.invoiceSummary.dueDate)}
+              </DueDateIndicator>
+            ),
           },
         ]}
         primaryLabel="Valor da fatura"

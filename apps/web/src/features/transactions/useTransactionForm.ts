@@ -185,5 +185,3 @@ export function useTransactionForm({
     handleCardChange,
   };
 }
-
-export type TransactionFormApi = ReturnType<typeof useTransactionForm>["form"];

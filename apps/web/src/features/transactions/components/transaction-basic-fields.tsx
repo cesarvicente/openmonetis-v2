@@ -1,24 +1,20 @@
 import type { CategoryOutput } from "@openmonetis/validators/categories";
-
-import { Plus } from "lucide-react";
 import type { ReactNode } from "react";
 import { MobileDatePicker as DatePicker } from "@/components/forms/mobile-date-picker";
-import { MobileRecordSelect } from "@/components/forms/mobile-record-select";
 import { MobileSelect as Select } from "@/components/forms/mobile-select";
 import { MobileSelectContent as SelectContent } from "@/components/forms/mobile-select-content";
-import { SelectItem, SelectSeparator, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { CategoryPicker } from "@/features/categories/components/category-picker";
 import { cn } from "@/lib/utils";
 import { getTransactionDateLabel, transactionTypeLabels } from "../transactions.presentation";
 import type { useTransactionForm } from "../useTransactionForm";
 import { EstablishmentInput } from "./establishment-input";
-import { CategoryOption } from "./transaction-category-option";
 import { FieldShell } from "./transaction-field-shell";
 import {
   getTransactionFormErrorMessage,
   type TransactionFormValues,
   validateTransactionName,
 } from "./transaction-form.validation";
-import { createValue, noneValue } from "./transaction-form-options";
 import { TransactionTypeOption } from "./transaction-type-option";
 export function TransactionBasicFields({
   mobile,
@@ -147,54 +143,14 @@ export function TransactionBasicFields({
                   error={getTransactionFormErrorMessage("categoryId", field.state.meta.errors)}
                   label="Categoria"
                 >
-                  <MobileRecordSelect
-                    title="Categoria"
-                    options={[
-                      { value: noneValue, label: "Sem categoria" },
-                      ...visibleCategories.map((item) => ({
-                        value: item.id,
-                        label: item.name,
-                        content: <CategoryOption category={item} />,
-                      })),
-                    ]}
-                    createOption={{ value: createValue, label: "Criar categoria…" }}
-                    invalid={field.state.meta.errors.length > 0}
+                  <CategoryPicker
+                    categories={visibleCategories}
+                    value={field.state.value}
+                    onChange={field.handleChange}
+                    onCreate={() => setRelatedRecord("category")}
                     disabled={isSubmitting}
-                    onValueChange={(value) => {
-                      if (value === createValue) {
-                        setRelatedRecord("category");
-                        return;
-                      }
-                      field.handleChange(value === noneValue || value === null ? "" : value);
-                    }}
-                    value={field.state.value || noneValue}
-                  >
-                    <SelectTrigger
-                      className="w-full"
-                      aria-invalid={field.state.meta.errors.length > 0}
-                    >
-                      <SelectValue placeholder="Selecione">
-                        <CategoryOption
-                          category={visibleCategories.find(
-                            (category) => category.id === field.state.value,
-                          )}
-                        />
-                      </SelectValue>
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={noneValue}>Selecione</SelectItem>
-                      {visibleCategories.map((category) => (
-                        <SelectItem key={category.id} value={category.id}>
-                          <CategoryOption category={category} />
-                        </SelectItem>
-                      ))}
-                      <SelectSeparator />
-                      <SelectItem value={createValue}>
-                        <Plus aria-hidden="true" className="size-4" />
-                        Criar categoria…
-                      </SelectItem>
-                    </SelectContent>
-                  </MobileRecordSelect>
+                    invalid={field.state.meta.errors.length > 0}
+                  />
                 </FieldShell>
               )}
             </form.Field>

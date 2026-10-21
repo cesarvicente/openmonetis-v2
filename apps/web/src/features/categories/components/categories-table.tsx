@@ -1,7 +1,13 @@
-import type { CategoryOutput } from "@openmonetis/validators/categories";
+import type { CategoryOutput, CreateCategoryInput } from "@openmonetis/validators/categories";
 import { Link } from "@tanstack/react-router";
-import { ChevronRight, LockKeyhole, Pencil, Trash2 } from "lucide-react";
+import { LockKeyhole, Pencil, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -13,157 +19,178 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { getCategoryGroups, getCategoryLabel } from "../categories.presentation";
 import { CategoryIcon } from "../category-icons";
+import { SubcategoryForm } from "./subcategory-form";
 
 export function CategoriesTable({
   categories,
+  search = "",
   onEdit,
   onRemove,
+  onCreateSubcategory,
   pendingId,
 }: {
   categories: CategoryOutput[];
+  search?: string;
   onEdit: (category: CategoryOutput) => void;
   onRemove: (category: CategoryOutput) => Promise<void>;
+  onCreateSubcategory: (input: CreateCategoryInput) => Promise<void>;
   pendingId?: string | null;
 }) {
+  const [addingParentId, setAddingParentId] = useState<string | null>(null);
+  const [expandedIds, setExpandedIds] = useState<string[]>([]);
+  const [searchExpansion, setSearchExpansion] = useState<{ query: string; ids: string[] } | null>(
+    null,
+  );
+  const query = search.trim();
+  const groups = getCategoryGroups(categories, search);
+  const visibleIds = query
+    ? searchExpansion?.query === query
+      ? searchExpansion.ids
+      : groups.map(({ parent }) => parent.id)
+    : expandedIds;
+  const openIds = addingParentId ? [...new Set([...visibleIds, addingParentId])] : visibleIds;
   return (
-    <>
-      <ul className="divide-y sm:hidden">
-        {categories.map((category) => (
-          <li className="flex min-w-0 items-center gap-3 py-2.5" key={category.id}>
+    <Accordion
+      multiple
+      value={openIds}
+      onValueChange={(ids: string[]) => {
+        if (query) setSearchExpansion({ query, ids });
+        else setExpandedIds(ids);
+      }}
+    >
+      {groups.map(({ parent, children }) => (
+        <AccordionItem className="py-3 first:pt-0 last:pb-0" key={parent.id} value={parent.id}>
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
             <span className="grid size-9 shrink-0 place-items-center rounded-full bg-muted text-muted-foreground">
-              <CategoryIcon className="size-4" name={category.icon} />
+              <CategoryIcon className="size-4" name={parent.icon} />
             </span>
-            <Link
-              className="min-w-0 flex-1 truncate font-medium"
-              params={{ categoryId: category.id }}
-              to="/categories/$categoryId"
-            >
-              {category.name}
-            </Link>
-            {category.isSystem ? (
-              <Tooltip>
-                <TooltipTrigger
-                  aria-label={`Por que ${category.name} é automática?`}
-                  render={
-                    <Button
-                      className="shrink-0 text-muted-foreground"
-                      size="icon-sm"
-                      variant="ghost"
+            <div className="min-w-0 flex-1">
+              <Link
+                className="block truncate font-medium hover:text-brand-strong"
+                params={{ categoryId: parent.id }}
+                to="/categories/$categoryId"
+              >
+                {parent.name}
+              </Link>
+              {children.length > 0 ? (
+                <AccordionTrigger
+                  className="min-h-6 w-fit flex-none items-center justify-start gap-1.5 p-0 text-muted-foreground text-xs font-normal hover:text-foreground hover:no-underline [&_[data-slot=accordion-trigger-icon]]:ml-0"
+                  aria-label={`${openIds.includes(parent.id) ? "Recolher" : "Expandir"} subcategorias de ${parent.name}`}
+                >
+                  {children.length} {children.length === 1 ? "subcategoria" : "subcategorias"}
+                  {query ? " na busca" : ""}
+                </AccordionTrigger>
+              ) : null}
+            </div>
+            <CategoryActions
+              category={parent}
+              onEdit={onEdit}
+              onRemove={onRemove}
+              pending={pendingId === parent.id}
+            />
+            {!parent.isSystem ? (
+              <Button
+                className="min-h-11 basis-full sm:min-h-8 sm:basis-auto"
+                variant="outline"
+                size="sm"
+                aria-label={`Adicionar subcategoria em ${parent.name}`}
+                aria-expanded={addingParentId === parent.id}
+                onClick={() => {
+                  setExpandedIds((ids) => [...new Set([...ids, parent.id])]);
+                  setAddingParentId(addingParentId === parent.id ? null : parent.id);
+                }}
+              >
+                <Plus aria-hidden="true" className="size-4" />
+                Subcategoria
+              </Button>
+            ) : null}
+          </div>
+          <AccordionContent className="pb-0 [&_a]:no-underline">
+            {children.length ? (
+              <ul aria-label={`Subcategorias de ${parent.name}`} className="mt-2 ml-4 pl-3 sm:pl-5">
+                {children.map((child) => (
+                  <li
+                    className="flex min-w-0 items-center gap-2 rounded-md px-2 hover:bg-muted/50 focus-within:bg-muted/50"
+                    key={child.id}
+                  >
+                    <Link
+                      className="flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-md py-2 text-sm hover:text-brand-strong outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      params={{ categoryId: child.id }}
+                      to="/categories/$categoryId"
+                      aria-label={getCategoryLabel(child)}
+                    >
+                      <span className="grid size-7 shrink-0 place-items-center rounded-full bg-muted-foreground text-muted">
+                        <CategoryIcon className="size-4" name={parent.icon} />
+                      </span>
+                      <span className="min-w-0 break-words">{child.name}</span>
+                    </Link>
+                    <CategoryActions
+                      category={child}
+                      onEdit={onEdit}
+                      onRemove={onRemove}
+                      pending={pendingId === child.id}
                     />
-                  }
-                >
-                  <LockKeyhole aria-hidden="true" />
-                </TooltipTrigger>
-                <TooltipContent className="max-w-xs">
-                  Criada pelo sistema para operações automáticas. Esta categoria não pode ser
-                  editada ou removida.
-                </TooltipContent>
-              </Tooltip>
-            ) : (
-              <div className="flex shrink-0 items-center gap-1">
-                <Button
-                  aria-label={`Editar ${category.name}`}
-                  onClick={() => onEdit(category)}
-                  size="icon-sm"
-                  variant="ghost"
-                >
-                  <Pencil aria-hidden="true" />
-                </Button>
-                <RemoveAction
-                  category={category}
-                  onRemove={onRemove}
-                  pending={pendingId === category.id}
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+            {addingParentId === parent.id ? (
+              <div className="mt-3 sm:ml-11">
+                <SubcategoryForm
+                  key={parent.id}
+                  parent={parent}
+                  onCancel={() => setAddingParentId(null)}
+                  onSubmit={onCreateSubcategory}
                 />
               </div>
-            )}
-          </li>
-        ))}
-      </ul>
-      <div className="hidden sm:block">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-14">
-                <span className="sr-only">Ícone</span>
-              </TableHead>
-              <TableHead>Nome</TableHead>
-              <TableHead className="text-right">Ações</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {categories.map((category) => (
-              <TableRow key={category.id}>
-                <TableCell>
-                  <span className="grid size-9 place-items-center rounded-full bg-muted text-muted-foreground">
-                    <CategoryIcon className="size-4" name={category.icon} />
-                  </span>
-                </TableCell>
-                <TableCell>
-                  <Link
-                    className="inline-flex items-center gap-1 font-medium hover:text-brand-strong"
-                    params={{ categoryId: category.id }}
-                    to="/categories/$categoryId"
-                  >
-                    {category.name}
-                    <ChevronRight className="size-3 text-muted-foreground" />
-                  </Link>
-                </TableCell>
-                <TableCell>
-                  <div className="flex justify-end gap-1">
-                    {category.isSystem ? (
-                      <Tooltip>
-                        <TooltipTrigger
-                          render={
-                            <button
-                              type="button"
-                              className="inline-flex items-center gap-1.5 rounded px-2 text-muted-foreground text-xs focus-visible:ring-2 focus-visible:ring-ring"
-                            />
-                          }
-                          aria-label={`Por que ${category.name} é automática?`}
-                        >
-                          <LockKeyhole aria-hidden="true" className="size-3.5" />
-                          Automática
-                        </TooltipTrigger>
-                        <TooltipContent className="max-w-xs">
-                          Criada pelo sistema para operações automáticas. Esta categoria não pode
-                          ser editada ou removida.
-                        </TooltipContent>
-                      </Tooltip>
-                    ) : (
-                      <>
-                        <Button
-                          aria-label={`Editar ${category.name}`}
-                          onClick={() => onEdit(category)}
-                          size="icon"
-                          variant="ghost"
-                        >
-                          <Pencil className="size-4" />
-                        </Button>
-                        <RemoveAction
-                          category={category}
-                          onRemove={onRemove}
-                          pending={pendingId === category.id}
-                        />
-                      </>
-                    )}
-                  </div>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
-    </>
+            ) : null}
+          </AccordionContent>
+        </AccordionItem>
+      ))}
+    </Accordion>
+  );
+}
+
+function CategoryActions({
+  category,
+  onEdit,
+  onRemove,
+  pending,
+}: {
+  category: CategoryOutput;
+  onEdit: (category: CategoryOutput) => void;
+  onRemove: (category: CategoryOutput) => Promise<void>;
+  pending: boolean;
+}) {
+  if (category.isSystem)
+    return (
+      <Tooltip>
+        <TooltipTrigger
+          aria-label={`Por que ${category.name} é automática?`}
+          render={<Button variant="ghost" size="icon" />}
+        >
+          <LockKeyhole aria-hidden="true" className="size-4 text-muted-foreground" />
+        </TooltipTrigger>
+        <TooltipContent>
+          Criada pelo sistema. Esta categoria não pode ser editada ou removida.
+        </TooltipContent>
+      </Tooltip>
+    );
+  return (
+    <div className="flex shrink-0 items-center gap-1">
+      <Button
+        aria-label={`Editar ${getCategoryLabel(category)}`}
+        onClick={() => onEdit(category)}
+        size="icon"
+        variant="ghost"
+      >
+        <Pencil aria-hidden="true" className="size-4" />
+      </Button>
+      <RemoveAction category={category} onRemove={onRemove} pending={pending} />
+    </div>
   );
 }
 function RemoveAction({
@@ -189,11 +216,14 @@ function RemoveAction({
       </Button>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Remover categoria?</AlertDialogTitle>
+          <AlertDialogTitle>
+            {category.parentId ? "Remover subcategoria?" : "Remover categoria?"}
+          </AlertDialogTitle>
           <AlertDialogDescription>
             A categoria &quot;{category.name}&quot; será removida. Se ela estiver vinculada a
             lançamentos ou recorrências, altere a categoria desses registros antes de excluir.
-            Orçamentos vinculados também precisam ser removidos primeiro.
+            Orçamentos vinculados também precisam ser removidos primeiro. Categorias com
+            subcategorias só podem ser removidas depois de mover ou excluir suas filhas.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>

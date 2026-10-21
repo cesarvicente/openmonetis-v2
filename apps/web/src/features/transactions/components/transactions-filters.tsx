@@ -1,12 +1,8 @@
 import { Circle, CircleCheck, CreditCard, Filter } from "lucide-react";
 import { MobileDatePicker as DatePicker } from "@/components/forms/mobile-date-picker";
-
 import { MobileSheetContent as SheetContent } from "@/components/forms/mobile-sheet-content";
-
 import { Button } from "@/components/ui/button";
-
 import { Input } from "@/components/ui/input";
-
 import {
   Sheet,
   SheetClose,
@@ -16,7 +12,11 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
-
+import {
+  getCategoryLabel,
+  sortCategoryOptions,
+} from "@/features/categories/categories.presentation";
+import { TagsFilter } from "@/features/tags/components/tags-filter";
 import {
   type buildFilterSlugMap,
   paymentMethodIcons,
@@ -93,7 +93,7 @@ export function TransactionsFilters({
   ) => void;
 }) {
   return (
-    <div className="order-3 md:order-2">
+    <div className="order-3 shrink-0 md:order-5">
       <Sheet>
         <SheetTrigger
           aria-label="Abrir filtros"
@@ -212,13 +212,13 @@ export function TransactionsFilters({
                   <MultiFilterSelect
                     label="Categoria"
                     onChange={(values) => setMultipleFilter("categories", values)}
-                    options={categories.flatMap((category) => {
+                    options={sortCategoryOptions(categories).flatMap((category) => {
                       const value = categoriesSlugMap.idToSlug.get(category.id);
                       return value
                         ? [
                             {
                               value,
-                              label: category.name,
+                              label: getCategoryLabel(category),
                               group: category.type === "income" ? "Receitas" : "Despesas",
                               categoryIcon: category.icon,
                             },
@@ -228,6 +228,7 @@ export function TransactionsFilters({
                     selected={categorySlugs}
                   />
                 ) : null}
+                <TagsFilter search={urlSearch} onChange={onSearchChange} />
                 {!hiddenFilterSet.has("accountCard") ? (
                   <MultiFilterSelect
                     className="sm:col-span-2"
@@ -344,6 +345,13 @@ export function TransactionsFilters({
                 </div>
               </div>
               <div className="grid gap-3 rounded-md border border-dashed p-3">
+                <FilterToggle
+                  checked={Boolean(urlSearch.payables)}
+                  label="Contas a pagar (com vencimento)"
+                  onChange={(checked) =>
+                    onSearchChange({ payables: checked ? true : undefined, page: undefined })
+                  }
+                />
                 <FilterToggle
                   checked={Boolean(urlSearch.hasAttachments)}
                   label="Com anexo"

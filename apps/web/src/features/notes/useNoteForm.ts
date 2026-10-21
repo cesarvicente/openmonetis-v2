@@ -97,5 +97,3 @@ export function useNoteForm({ note, onSubmit, ref }: NoteFormProps) {
 
   return { newItemText, setNewItemText, submissionError, isEditing, form, fieldId, addItem };
 }
-
-export type NoteFormApi = ReturnType<typeof useNoteForm>["form"];

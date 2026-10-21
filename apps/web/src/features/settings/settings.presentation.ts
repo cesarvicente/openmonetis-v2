@@ -1,6 +1,12 @@
 import { SettingsApiError } from "./settings.api";
 
-export const settingsTabs = ["preferences", "security", "companion", "danger-zone"] as const;
+export const settingsTabs = [
+  "preferences",
+  "due-date-rules",
+  "security",
+  "companion",
+  "danger-zone",
+] as const;
 export type SettingsTab = (typeof settingsTabs)[number];
 type SettingsSearch = { tab?: SettingsTab };
 

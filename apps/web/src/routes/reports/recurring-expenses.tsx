@@ -1,24 +1,9 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { RecurringExpensesReportPage } from "@/features/recurring-expenses/components/recurring-expenses-report-page";
-import {
-  resolveRecurringExpensesReportPeriod,
-  validateRecurringExpensesReportSearch,
-} from "@/features/recurring-expenses/recurring-expenses.presentation";
+import { createFileRoute, redirect } from "@tanstack/react-router";
+import { validateRecurringTransactionsSearch } from "@/features/recurring-transactions/recurring-transactions.presentation";
 
 export const Route = createFileRoute("/reports/recurring-expenses")({
-  head: () => ({ meta: [{ title: "Recorrências · OpenMonetis" }] }),
-  component: RecurringExpensesReportRoute,
-  validateSearch: validateRecurringExpensesReportSearch,
+  validateSearch: validateRecurringTransactionsSearch,
+  beforeLoad: ({ search }) => {
+    throw redirect({ to: "/reports/recurring-transactions", search, replace: true });
+  },
 });
-
-function RecurringExpensesReportRoute() {
-  const search = Route.useSearch();
-  const navigate = Route.useNavigate();
-
-  return (
-    <RecurringExpensesReportPage
-      onPeriodChange={(period) => navigate({ replace: true, search: { period } })}
-      period={resolveRecurringExpensesReportPeriod(search)}
-    />
-  );
-}

@@ -95,6 +95,21 @@ export function ChangelogPage() {
                       </CardHeader>
                       <CardContent>
                         <div className="grid gap-5 border-border border-t pt-5">
+                          {release.upgradeNotes?.length ? (
+                            <section
+                              className="grid gap-2"
+                              aria-label={`Notas de atualização da versão ${release.version}`}
+                            >
+                              <h2 className="font-medium text-sm">Notas de atualização</h2>
+                              <ul className="grid gap-2 pl-5 text-muted-foreground text-sm leading-relaxed">
+                                {release.upgradeNotes.map((note) => (
+                                  <li className="list-disc" key={note}>
+                                    {note}
+                                  </li>
+                                ))}
+                              </ul>
+                            </section>
+                          ) : null}
                           <details>
                             <summary className="cursor-pointer font-medium text-sm">
                               Ver todas as mudanças desta versão

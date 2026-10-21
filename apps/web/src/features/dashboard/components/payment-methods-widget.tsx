@@ -16,9 +16,11 @@ import { useState } from "react";
 import { paymentMethodLabels } from "@/features/transactions/transactions.presentation";
 import { dashboardExpenseDistributionQueryOptions } from "../dashboard.queries";
 import { useAdminPersonSlug } from "../useAdminPersonSlug";
+import { DashboardDistributionChart } from "./dashboard-distribution-chart";
 import { DashboardWidget } from "./dashboard-widget";
 import { dashboardWidgetFooterNavigationLinkClassName } from "./dashboard-widget-footer-link";
 import { DashboardWidgetListSheet } from "./dashboard-widget-list-sheet";
+import { DashboardWidgetViewToggle } from "./dashboard-widget-view-toggle";
 import {
   ExpenseDistributionList,
   type ExpenseDistributionListItem,
@@ -44,6 +46,7 @@ const paymentMethodIcons: Record<PaymentMethod, LucideIcon> = {
 
 export function PaymentMethodsWidget({ period }: { period: string }) {
   const [isListOpen, setIsListOpen] = useState(false);
+  const [activeView, setActiveView] = useState<"list" | "chart">("list");
   const query = useQuery(dashboardExpenseDistributionQueryOptions(period));
   const adminPersonSlug = useAdminPersonSlug();
   const items = query.data ? buildItems(query.data.paymentMethods, period, adminPersonSlug) : [];
@@ -52,6 +55,14 @@ export function PaymentMethodsWidget({ period }: { period: string }) {
 
   return (
     <DashboardWidget
+      action={
+        query.data && !query.isError && items.length > 0 ? (
+          <DashboardWidgetViewToggle
+            view={activeView}
+            onToggle={() => setActiveView((view) => (view === "list" ? "chart" : "list"))}
+          />
+        ) : undefined
+      }
       description="Meios usados nas despesas do mês"
       footer={
         items.length > 0 ? (
@@ -89,6 +100,10 @@ export function PaymentMethodsWidget({ period }: { period: string }) {
       {query.data && !query.isError ? (
         items.length === 0 ? (
           <DistributionEmpty />
+        ) : activeView === "chart" ? (
+          <div aria-busy={query.isFetching} className="flex flex-1 items-center">
+            <DashboardDistributionChart items={items} label="Distribuição por forma de pagamento" />
+          </div>
         ) : (
           <div aria-busy={query.isFetching} className="flex flex-1 flex-col">
             <ExpenseDistributionList items={visibleItems} />

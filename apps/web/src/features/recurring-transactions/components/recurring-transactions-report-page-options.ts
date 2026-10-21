@@ -8,7 +8,7 @@ import {
   Ticket,
 } from "lucide-react";
 
-import type { ReportItem } from "./recurring-expenses-report-page.types";
+import type { ReportItem } from "./recurring-transactions-report-page.types";
 
 export const recurringPaymentMethodIcons = {
   credit_card: CreditCard,

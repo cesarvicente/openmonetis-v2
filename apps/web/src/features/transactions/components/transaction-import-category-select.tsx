@@ -1,9 +1,8 @@
 import type { CategoryOutput } from "@openmonetis/validators/categories";
-
 import { MobileSelect as Select } from "@/components/forms/mobile-select";
 import { MobileSelectContent as SelectContent } from "@/components/forms/mobile-select-content";
-
 import { SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { sortCategoryOptions } from "@/features/categories/categories.presentation";
 import { CategoryOption, Field } from "./transaction-import-options";
 
 export function BulkCategorySelect({
@@ -46,7 +45,7 @@ export function BulkCategorySelect({
           </SelectValue>
         </SelectTrigger>
         <SelectContent>
-          {categories.map((category) => (
+          {sortCategoryOptions(categories).map((category) => (
             <SelectItem key={category.id} value={category.id}>
               <CategoryOption category={category} />
             </SelectItem>
@@ -76,7 +75,7 @@ export function RowCategorySelect({
         </SelectValue>
       </SelectTrigger>
       <SelectContent>
-        {categories.map((category) => (
+        {sortCategoryOptions(categories).map((category) => (
           <SelectItem key={category.id} value={category.id}>
             <CategoryOption category={category} compact />
           </SelectItem>
