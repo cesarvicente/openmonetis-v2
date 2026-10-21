@@ -1,6 +1,7 @@
 import type { CardClosingRule } from "./cards";
-import { invoicePaymentCategoryName } from "./categories";
+import { expandCategoryIds, invoicePaymentCategoryName } from "./categories";
 import { getRecurringDueDate } from "./recurring-expenses";
+import { getOccurrenceAmount, type SettlementAwareRule } from "./settlements";
 import {
   addMonthsToPeriod,
   calculateExpenseImpact,
@@ -19,6 +20,9 @@ export type CategoryTrendChangeKind = (typeof categoryTrendChangeKinds)[number];
 
 export type CategoryTrendCategory = {
   categoryId: string;
+  parentId?: string | null;
+  parentName?: string | null;
+  isSystem?: boolean;
   name: string;
   icon: string | null;
   type: CategoryTrendType;
@@ -33,7 +37,7 @@ export type CategoryTrendActualEntry = {
   amount: string | number;
 };
 
-export type CategoryTrendRecurringRule = {
+export type CategoryTrendRecurringRule = SettlementAwareRule & {
   categoryId: string;
   type: CategoryTrendType;
   amount: string | number;
@@ -71,6 +75,8 @@ export type CategoryTrendCategoryOutput = CategoryTrendCategory & {
   totalAmount: number;
   averageAmount: number;
   values: CategoryTrendValueOutput[];
+  subcategories?: CategoryTrendCategoryOutput[];
+  directCategory?: CategoryTrendCategoryOutput;
 };
 
 export type CategoryTrendsSummary = {
@@ -114,10 +120,27 @@ export function calculateCategoryTrends(input: {
 }): CategoryTrendsReport {
   const periods = listPeriods(input.startPeriod, input.endPeriod);
   const lookbackPeriod = addMonthsToPeriod(input.startPeriod, -1);
-  const selectedCategoryIds = input.categoryIds?.length ? new Set(input.categoryIds) : null;
-  const visibleCategories = input.categories.filter(
-    (category) => category.name !== invoicePaymentCategoryName,
-  );
+  const selectedCategoryIds = input.categoryIds?.length
+    ? new Set(
+        expandCategoryIds(
+          input.categories.map((category) => ({
+            id: category.categoryId,
+            parentId: category.parentId,
+          })),
+          input.categoryIds,
+        ),
+      )
+    : null;
+  const visibleCategories = input.categories
+    .filter(
+      (category) => category.name !== invoicePaymentCategoryName || category.isSystem === false,
+    )
+    .map((category) => ({
+      ...category,
+      parentId: category.parentId ?? null,
+      parentName:
+        input.categories.find((parent) => parent.categoryId === category.parentId)?.name ?? null,
+    }));
   const availableCategories = visibleCategories
     .filter((category) => !selectedCategoryIds || selectedCategoryIds.has(category.categoryId))
     .sort(compareAvailableCategories);
@@ -159,9 +182,13 @@ export function calculateCategoryTrends(input: {
 
     for (const purchasePeriod of listPeriods(
       addMonthsToPeriod(lookbackPeriod, -2),
-      input.endPeriod,
+      addMonthsToPeriod(input.endPeriod, 1),
     )) {
       for (const purchaseDate of listRecurrenceDatesInPeriod({
+        dueDate: rule.dueDate,
+
+        recurrenceEndDate: rule.configuredEndDate,
+
         anchorDate: rule.anchorDate,
         startDate: rule.startDate,
         endDate: rule.endDate,
@@ -181,13 +208,13 @@ export function calculateCategoryTrends(input: {
           rule.categoryId,
           transactionPeriod,
           "recurringCents",
-          rule.amount,
+          getOccurrenceAmount(rule, purchaseDate, rule.amount),
         );
       }
     }
   }
 
-  const categoryOutputs = availableCategories
+  const directOutputs = availableCategories
     .map((category) =>
       buildCategoryOutput(
         category,
@@ -199,6 +226,51 @@ export function calculateCategoryTrends(input: {
     .filter(
       (category) =>
         category.totalAmount !== 0 || category.values.some((value) => value.previousAmount !== 0),
+    )
+    .sort(compareCategoryOutputs);
+  const selectedRoots = new Set(input.categoryIds ?? []);
+  const categoryOutputs = availableCategories
+    .filter(
+      (category) =>
+        !category.parentId ||
+        (selectedRoots.has(category.categoryId) && !selectedRoots.has(category.parentId)),
+    )
+    .map((category) => {
+      const children = availableCategories.filter(
+        (child) => child.parentId === category.categoryId,
+      );
+      if (!children.length)
+        return buildCategoryOutput(
+          category,
+          periods,
+          lookbackPeriod,
+          amountsByCategory.get(category.categoryId),
+        );
+      const combined = new Map<string, CategoryPeriodAmounts>();
+      for (const id of [category.categoryId, ...children.map((child) => child.categoryId)]) {
+        for (const [period, amounts] of amountsByCategory.get(id) ?? []) {
+          const total = combined.get(period) ?? emptyCategoryPeriodAmounts();
+          total.actualCents += amounts.actualCents;
+          total.recurringCents += amounts.recurringCents;
+          combined.set(period, total);
+        }
+      }
+      return {
+        ...buildCategoryOutput(category, periods, lookbackPeriod, combined),
+        subcategories: directOutputs.filter((child) => child.parentId === category.categoryId),
+        directCategory: buildCategoryOutput(
+          category,
+          periods,
+          lookbackPeriod,
+          amountsByCategory.get(category.categoryId),
+        ),
+      };
+    })
+    .filter(
+      (category) =>
+        category.totalAmount !== 0 ||
+        category.values.some((value) => value.previousAmount !== 0) ||
+        category.subcategories?.length,
     )
     .sort(compareCategoryOutputs);
   const periodAmounts = new Map(periods.map((period) => [period, emptyPeriodAmounts()] as const));

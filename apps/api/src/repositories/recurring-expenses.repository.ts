@@ -1,119 +1,39 @@
 import {
-  cards,
-  categories,
   db,
-  financialAccounts,
   people,
   recurringTransactionOccurrences,
   recurringTransactionRules,
   recurringTransactionSeries,
   recurringTransactionSplits,
 } from "@openmonetis/db";
-import { and, eq, gte, inArray, isNull, lte, or, sql } from "drizzle-orm";
+import { and, eq, getTableColumns, inArray, sql } from "drizzle-orm";
 import type { RecurringExpensesRepository } from "../services/recurring-expenses.service";
+import {
+  effectiveRecurringEndDateSql,
+  listRecurringRulesForReport,
+  listRecurringSplitPeopleForReport,
+  transitionRecurringRuleForUser,
+} from "./recurring-transactions.repository";
+
+import { readRecurringRuleTagIds, replaceRecurringRuleTags } from "./tags.repository";
 
 export const recurringExpensesRepository = {
   async listForPeriod(userId, periodStart, periodEnd) {
-    return db
-      .select({
-        id: recurringTransactionRules.id,
-        userId: recurringTransactionRules.userId,
-        seriesId: recurringTransactionRules.seriesId,
-        anchorDate: recurringTransactionRules.anchorDate,
-        personId: recurringTransactionRules.personId,
-        type: recurringTransactionRules.type,
-        paymentMethod: recurringTransactionRules.paymentMethod,
-        name: recurringTransactionRules.name,
-        amount: recurringTransactionRules.amount,
-        startDate: recurringTransactionRules.startDate,
-        endDate: recurringTransactionRules.endDate,
-        frequency: recurringTransactionRules.frequency,
-        accountId: recurringTransactionRules.accountId,
-        cardId: recurringTransactionRules.cardId,
-        categoryId: recurringTransactionRules.categoryId,
-        sourceAccountId: recurringTransactionRules.sourceAccountId,
-        destinationAccountId: recurringTransactionRules.destinationAccountId,
-        dueDate: recurringTransactionRules.dueDate,
-        isSettled: recurringTransactionRules.isSettled,
-        note: recurringTransactionRules.note,
-        status: recurringTransactionRules.status,
-        personName: people.name,
-        personAvatarUrl: people.avatarUrl,
-        personRole: people.role,
-        accountName: financialAccounts.name,
-        accountLogo: financialAccounts.logo,
-        categoryName: categories.name,
-        categoryIcon: categories.icon,
-        cardName: cards.name,
-        cardLogo: cards.logo,
-        cardClosingDay: cards.closingDay,
-        cardClosingRuleType: cards.closingRuleType,
-        cardClosingOffsetDays: cards.closingOffsetDays,
-        cardClosingOffsetMode: cards.closingOffsetMode,
-        cardClosingDayPurchasesNextInvoice: cards.closingDayPurchasesNextInvoice,
-        cardDueDay: cards.dueDay,
-        hasSplits: sql<boolean>`exists (
-          select 1 from ${recurringTransactionSplits}
-          where ${recurringTransactionSplits.userId} = ${userId}
-            and ${recurringTransactionSplits.recurringRuleId} = ${recurringTransactionRules.id}
-        )`.as("has_splits"),
-        adminAmount: sql<string | null>`case
-          when exists (
-            select 1 from ${recurringTransactionSplits}
-            where ${recurringTransactionSplits.userId} = ${userId}
-              and ${recurringTransactionSplits.recurringRuleId} = ${recurringTransactionRules.id}
-          ) then (
-            select ${recurringTransactionSplits.amount}
-            from ${recurringTransactionSplits}
-            inner join ${people}
-              on ${people.id} = ${recurringTransactionSplits.personId}
-              and ${people.userId} = ${userId}
-              and ${people.role} = 'admin'
-            where ${recurringTransactionSplits.userId} = ${userId}
-              and ${recurringTransactionSplits.recurringRuleId} = ${recurringTransactionRules.id}
-            limit 1
-          )
-          when ${people.role} = 'admin' then ${recurringTransactionRules.amount}
-          else null
-        end`.as("admin_amount"),
-      })
-      .from(recurringTransactionRules)
-      .innerJoin(
-        people,
-        and(eq(recurringTransactionRules.personId, people.id), eq(people.userId, userId)),
-      )
-      .leftJoin(
-        financialAccounts,
-        and(
-          eq(recurringTransactionRules.accountId, financialAccounts.id),
-          eq(financialAccounts.userId, userId),
-        ),
-      )
-      .leftJoin(
-        categories,
-        and(eq(recurringTransactionRules.categoryId, categories.id), eq(categories.userId, userId)),
-      )
-      .leftJoin(
-        cards,
-        and(eq(recurringTransactionRules.cardId, cards.id), eq(cards.userId, userId)),
-      )
-      .where(
-        and(
-          eq(recurringTransactionRules.userId, userId),
-          eq(recurringTransactionRules.type, "expense"),
-          inArray(recurringTransactionRules.status, ["active", "paused"]),
-          lte(recurringTransactionRules.startDate, periodEnd),
-          or(
-            isNull(recurringTransactionRules.endDate),
-            gte(recurringTransactionRules.endDate, periodStart),
-          ),
-        ),
-      );
+    return listRecurringRulesForReport(userId, { type: "expense", periodStart, periodEnd });
   },
 
   async findForUser(id, userId) {
     const [rule] = await db
-      .select()
+      .select({
+        ...getTableColumns(recurringTransactionRules),
+        endDate: effectiveRecurringEndDateSql,
+
+        configuredEndDate: sql<
+          string | null
+        >`to_char(${recurringTransactionRules.recurrenceEndDate}, 'YYYY-MM-DD')`.as(
+          "configured_end_date",
+        ),
+      })
       .from(recurringTransactionRules)
       .where(
         and(eq(recurringTransactionRules.id, id), eq(recurringTransactionRules.userId, userId)),
@@ -164,30 +84,17 @@ export const recurringExpensesRepository = {
       );
   },
 
-  async listSplitPeople(userId, ruleIds) {
-    if (!ruleIds.length) return [];
-    return db
-      .select({
-        recurringRuleId: recurringTransactionSplits.recurringRuleId,
-        personId: recurringTransactionSplits.personId,
-        personName: people.name,
-        personAvatarUrl: people.avatarUrl,
-        amount: recurringTransactionSplits.amount,
-      })
-      .from(recurringTransactionSplits)
-      .innerJoin(
-        people,
-        and(eq(recurringTransactionSplits.personId, people.id), eq(people.userId, userId)),
-      )
-      .where(
-        and(
-          eq(recurringTransactionSplits.userId, userId),
-          inArray(recurringTransactionSplits.recurringRuleId, ruleIds),
-        ),
-      );
-  },
+  listSplitPeople: listRecurringSplitPeopleForReport,
 
   async versionForUser(input) {
+    if (["pause", "resume", "skip", "stop"].includes(input.mode)) {
+      return transitionRecurringRuleForUser(
+        input.id,
+        input.userId,
+        input.mode as "pause" | "resume" | "skip" | "stop",
+        input.effectiveDate,
+      );
+    }
     return db.transaction(async (transaction) => {
       const [initial] = await transaction
         .select({ seriesId: recurringTransactionRules.seriesId })
@@ -221,13 +128,7 @@ export const recurringExpensesRepository = {
         .limit(1)
         .for("update");
       if (!rule) return false;
-      if (input.mode === "resume" && (rule.status !== "paused" || rule.endDate !== null)) {
-        return false;
-      }
-      if (input.mode !== "resume" && input.mode !== "stop" && rule.status !== "active") {
-        return false;
-      }
-      if (input.mode === "stop" && !["active", "paused"].includes(rule.status)) return false;
+      if (rule.status !== "active") return false;
       const splits = await transaction
         .select({
           personId: recurringTransactionSplits.personId,
@@ -259,6 +160,7 @@ export const recurringExpensesRepository = {
           ),
         );
 
+      const originalTagIds = await readRecurringRuleTagIds(transaction, rule.id, input.userId);
       const clone = async (
         startDate: string,
         endDate: string | null,
@@ -267,7 +169,6 @@ export const recurringExpensesRepository = {
           amount: string;
           splitShares?: Array<{ personId: string; amount: string }>;
         },
-        status: "active" | "paused" = "active",
       ) => {
         const [createdRecord] = await transaction
           .insert(recurringTransactionRules)
@@ -283,6 +184,7 @@ export const recurringExpensesRepository = {
             startDate: new Date(`${startDate}T00:00:00.000Z`),
             endDate: endDate ? new Date(`${endDate}T00:00:00.000Z`) : null,
             frequency: rule.frequency,
+            recurrenceEndDate: rule.recurrenceEndDate,
             accountId: rule.accountId,
             cardId: rule.cardId,
             categoryId: rule.categoryId,
@@ -291,10 +193,11 @@ export const recurringExpensesRepository = {
             dueDate: rule.dueDate,
             isSettled: rule.isSettled,
             note: rule.note,
-            status,
+            status: "active",
           })
           .returning({ id: recurringTransactionRules.id });
         const created = createdRecord as { id: string };
+        await replaceRecurringRuleTags(transaction, created.id, input.userId, originalTagIds);
         const clonedSplits = changes?.splitShares ?? splits;
         if (clonedSplits.length) {
           await transaction.insert(recurringTransactionSplits).values(
@@ -323,24 +226,6 @@ export const recurringExpensesRepository = {
           await clone(input.nextDate, rule.endDate?.toISOString().slice(0, 10) ?? null);
         }
       }
-      if (input.mode === "skip" && input.nextDate) {
-        await clone(input.nextDate, rule.endDate?.toISOString().slice(0, 10) ?? null);
-      }
-      if (input.mode === "pause") {
-        await clone(
-          input.effectiveDate,
-          rule.endDate?.toISOString().slice(0, 10) ?? null,
-          undefined,
-          "paused",
-        );
-      }
-      if (input.mode === "resume") {
-        effectiveVersionId = await clone(
-          input.effectiveDate,
-          rule.endDate?.toISOString().slice(0, 10) ?? null,
-        );
-      }
-
       if (!effectiveVersionId) {
         await transaction
           .delete(recurringTransactionOccurrences)

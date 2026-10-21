@@ -19,6 +19,7 @@ export const BillNotificationOutputSchema = NotificationStateOutputSchema.extend
   kind: z.literal("bill"),
   billId: z.string().min(1),
   name: z.string(),
+  categoryIcon: z.string().nullable(),
   amount: z.number().nonnegative(),
   dueDate: z.iso.date(),
   period: periodSchema,

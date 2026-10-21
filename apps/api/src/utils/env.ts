@@ -17,6 +17,14 @@ export function parseCsvEnv(value: string | undefined) {
     .filter(Boolean);
 }
 
+export function parseBooleanEnv(name: string, fallback = false) {
+  const value = process.env[name]?.trim().toLowerCase();
+  if (value === undefined || value === "") return fallback;
+  if (value === "true") return true;
+  if (value === "false") return false;
+  throw new Error(`${name} must be true or false`);
+}
+
 export function getRequiredProductionEnv(name: string, fallback: string) {
   return requireProductionEnv(name) ?? fallback;
 }

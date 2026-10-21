@@ -1,3 +1,4 @@
+import { getOccurrenceAmount, type SettlementAwareRule } from "./settlements";
 import {
   addMonthsToPeriod,
   listRecurrenceDatesInPeriod,
@@ -14,17 +15,19 @@ export type RecurringOccurrenceAllocation = {
   amount: number;
 };
 
-export type RecurringAllocationRule = {
-  id: string;
-  seriesId: string;
-  anchorDate: string;
-  personId: string;
-  amount: string | number;
-  startDate: string;
-  endDate: string | null;
-  frequency: RecurrenceFrequency;
-  splits: Array<{ personId: string; amount: string | number }>;
-};
+export type RecurringAllocationRule = SettlementAwareRule &
+  DatedRecurringRule & {
+    dueDate?: string | null;
+    id: string;
+    seriesId: string;
+    anchorDate: string;
+    personId: string;
+    amount: string | number;
+    startDate: string;
+    endDate: string | null;
+    frequency: RecurrenceFrequency;
+    splits: Array<{ personId: string; amount: string | number }>;
+  };
 
 export function projectRecurringMonthAllocations(input: {
   period: string;
@@ -35,6 +38,10 @@ export function projectRecurringMonthAllocations(input: {
       ? rule.splits
       : [{ personId: rule.personId, amount: rule.amount }];
     const dates = listRecurrenceDatesInPeriod({
+      dueDate: rule.dueDate,
+
+      recurrenceEndDate: rule.configuredEndDate,
+
       anchorDate: rule.anchorDate,
       startDate: rule.startDate,
       endDate: rule.endDate,
@@ -49,18 +56,14 @@ export function projectRecurringMonthAllocations(input: {
         occurrenceDate,
         period: input.period,
         personId: allocation.personId,
-        amount: fromCents(toCents(allocation.amount)),
+        amount: getOccurrenceAmount(rule, occurrenceDate, allocation.amount, allocation.personId),
       })),
     );
   });
 }
 
 export function getRecurringDueDate(ruleDueDate: string | null, occurrenceDate: string) {
-  if (!ruleDueDate) return null;
-  const day = Number(ruleDueDate.slice(8, 10));
-  const [year, month] = occurrenceDate.split("-").map(Number);
-  const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
-  return `${occurrenceDate.slice(0, 7)}-${String(Math.min(day, lastDay)).padStart(2, "0")}`;
+  return resolveRecurringDueDate(occurrenceDate, ruleDueDate);
 }
 
 export function getRecurringOccurrenceDeliveryDate(input: {
@@ -140,12 +143,16 @@ export function projectRecurringExpenseOccurrences(input: {
   );
 }
 
-function toCents(value: string | number) {
-  const amount = Number(value);
-  if (!Number.isFinite(amount)) throw new RangeError("invalid_recurring_allocation_amount");
-  return Math.round(amount * 100);
-}
-
-function fromCents(value: number) {
-  return value / 100;
+export type DatedRecurringRule = { configuredEndDate?: string | null };
+export function resolveRecurringDueDate(
+  referenceDate: string,
+  originalDueDate: string | null,
+): string | null {
+  if (!originalDueDate) return null;
+  const [year, month] = referenceDate.split("-").map(Number);
+  const day = Math.min(
+    Number(originalDueDate.slice(8, 10)),
+    new Date(Date.UTC(year, month, 0)).getUTCDate(),
+  );
+  return `${referenceDate.slice(0, 7)}-${String(day).padStart(2, "0")}`;
 }

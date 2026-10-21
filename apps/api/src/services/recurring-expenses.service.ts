@@ -5,12 +5,11 @@ import {
   isValidRecurringExpenseOccurrence,
   projectRecurringExpenseOccurrences,
 } from "@openmonetis/domain/recurring-expenses";
+import { RecurringTransitionError } from "@openmonetis/domain/recurring-transactions";
 import {
   addMonthsToPeriod,
   deriveTransactionPeriod,
   listRecurrenceDatesInPeriod,
-  type PaymentMethod,
-  type RecurrenceFrequency,
   validateTransactionSplits,
 } from "@openmonetis/domain/transactions";
 import { getCurrentDateInBrazil } from "@openmonetis/shared/date-time";
@@ -20,47 +19,9 @@ import type {
   UpdateRecurringExpenseInput,
 } from "@openmonetis/validators/recurring-expenses";
 import { badRequest, notFound } from "../utils/errors";
+import type { RecurringRuleReportRecord } from "./recurring-transactions.service";
 
-export type RecurringExpenseRuleRecord = {
-  id: string;
-  userId: string;
-  seriesId: string;
-  anchorDate: Date;
-  personId: string;
-  type: "income" | "expense" | "transfer";
-  paymentMethod: PaymentMethod;
-  name: string;
-  amount: string;
-  adminAmount: string | null;
-  startDate: Date;
-  endDate: Date | null;
-  frequency: RecurrenceFrequency;
-  accountId: string | null;
-  cardId: string | null;
-  categoryId: string | null;
-  sourceAccountId: string | null;
-  destinationAccountId: string | null;
-  dueDate: Date | null;
-  isSettled: boolean | null;
-  note: string | null;
-  status: "active" | "paused" | "cancelled";
-  personName: string;
-  personAvatarUrl: string | null;
-  personRole: "admin" | "external";
-  accountName: string | null;
-  accountLogo: string | null;
-  categoryName: string | null;
-  categoryIcon: string | null;
-  cardName: string | null;
-  cardLogo: string | null;
-  cardClosingDay: number | null;
-  cardClosingRuleType: "fixedDay" | "daysBeforeDue" | null;
-  cardClosingOffsetDays: number | null;
-  cardClosingOffsetMode: "calendarDays" | "weekdays" | null;
-  cardClosingDayPurchasesNextInvoice: boolean | null;
-  cardDueDay: number | null;
-  hasSplits: boolean;
-};
+export type RecurringExpenseRuleRecord = RecurringRuleReportRecord;
 
 type OwnedRecurringExpenseRule = Omit<
   RecurringExpenseRuleRecord,
@@ -132,6 +93,15 @@ export function createRecurringExpensesService(
     synchronize(ownerUserId: string, period: string): Promise<unknown>;
   } = { synchronize: async () => undefined },
 ) {
+  async function applyVersion(input: Parameters<RecurringExpensesRepository["versionForUser"]>[0]) {
+    try {
+      return await repository.versionForUser(input);
+    } catch (error) {
+      if (error instanceof RecurringTransitionError)
+        throw badRequest("Invalid recurring action or occurrence", error.code);
+      throw error;
+    }
+  }
   async function synchronizeExternalExpenses(ownerUserId: string, occurrenceDate: string) {
     const startPeriod = occurrenceDate.slice(0, 7);
     const currentPeriod = getToday().slice(0, 7);
@@ -215,7 +185,7 @@ export function createRecurringExpensesService(
         const card = getCard(rule);
 
         if (rule.status === "paused") {
-          if (endDate && endDate.slice(0, 7) <= period) return [];
+          if (endDate && endDate < `${period}-01`) return [];
           return [
             {
               id: rule.id,
@@ -224,6 +194,7 @@ export function createRecurringExpensesService(
               totalAmount: Math.abs(Number(rule.amount)),
               paymentMethod: rule.paymentMethod,
               frequency: rule.frequency,
+              recurrenceEndDate: rule.recurrenceEndDate ? dateString(rule.recurrenceEndDate) : null,
               purchaseDate: occurrenceDateInPeriod(startDate, period),
               personName: rule.personName,
               personAvatarUrl: rule.personAvatarUrl,
@@ -269,6 +240,9 @@ export function createRecurringExpensesService(
                 totalAmount: Math.abs(Number(rule.amount)),
                 paymentMethod: rule.paymentMethod,
                 frequency: rule.frequency,
+                recurrenceEndDate: rule.recurrenceEndDate
+                  ? dateString(rule.recurrenceEndDate)
+                  : null,
                 purchaseDate,
                 personName: rule.personName,
                 personAvatarUrl: rule.personAvatarUrl,
@@ -319,7 +293,13 @@ export function createRecurringExpensesService(
       );
       const splitPeopleByRule = groupSplitPeople(splitPeople);
       const projectionRules = rules.filter((rule) => rule.adminAmount !== null);
-      const currentAdminRules = projectionRules.filter((rule) => rule.endDate === null);
+      const currentAdminRules = projectionRules.filter(
+        (rule) =>
+          (rule.versionEndDate === undefined
+            ? rule.endDate === null
+            : rule.versionEndDate === null) &&
+          (!rule.endDate || dateString(rule.endDate) >= today),
+      );
       const totals = new Map(projectionPeriods.map((projectionPeriod) => [projectionPeriod, 0]));
 
       for (const rule of projectionRules) {
@@ -345,7 +325,7 @@ export function createRecurringExpensesService(
         const actionDate = getNextRecurringOccurrenceDate({
           anchorDate: dateString(rule.anchorDate),
           currentDate: today,
-          endDate: null,
+          endDate: rule.endDate ? dateString(rule.endDate) : null,
           frequency: rule.frequency,
           startDate,
         });
@@ -358,6 +338,7 @@ export function createRecurringExpensesService(
           totalAmount: Math.abs(Number(rule.amount)),
           paymentMethod: rule.paymentMethod,
           frequency: rule.frequency,
+          recurrenceEndDate: rule.recurrenceEndDate ? dateString(rule.recurrenceEndDate) : null,
           purchaseDate: actionDate ?? occurrenceDateInPeriod(startDate, period),
           personName: rule.personName,
           personAvatarUrl: rule.personAvatarUrl,
@@ -421,7 +402,7 @@ export function createRecurringExpensesService(
       } else if (input.splitShares) {
         throw badRequest("Recurring expense is not divided", "RECURRING_EXPENSE_NOT_DIVIDED");
       }
-      const updated = await repository.versionForUser({
+      const updated = await applyVersion({
         id,
         userId,
         effectiveDate: purchaseDate,
@@ -447,7 +428,7 @@ export function createRecurringExpensesService(
 
     async skip(id: string, purchaseDate: string, userId: string) {
       const { nextDate } = await getOwnedOccurrence(id, purchaseDate, userId);
-      const updated = await repository.versionForUser({
+      const updated = await applyVersion({
         id,
         userId,
         effectiveDate: purchaseDate,
@@ -461,7 +442,7 @@ export function createRecurringExpensesService(
 
     async pause(id: string, purchaseDate: string, userId: string) {
       await getOwnedOccurrence(id, purchaseDate, userId);
-      const updated = await repository.versionForUser({
+      const updated = await applyVersion({
         id,
         userId,
         effectiveDate: purchaseDate,
@@ -478,7 +459,7 @@ export function createRecurringExpensesService(
       if (rule.status !== "paused") {
         throw badRequest("Recurring expense is not paused", "RECURRING_EXPENSE_NOT_PAUSED");
       }
-      const updated = await repository.versionForUser({
+      const updated = await applyVersion({
         id,
         userId,
         effectiveDate: purchaseDate,
@@ -493,7 +474,7 @@ export function createRecurringExpensesService(
     async stop(id: string, purchaseDate: string, userId: string) {
       const rule = await getOwnedRule(id, userId);
       if (rule.status === "active") await getOwnedOccurrence(id, purchaseDate, userId);
-      const updated = await repository.versionForUser({
+      const updated = await applyVersion({
         id,
         userId,
         effectiveDate: purchaseDate,

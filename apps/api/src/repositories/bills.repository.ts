@@ -1,10 +1,16 @@
+import { isPayable } from "@openmonetis/domain/bills";
+import type { PaymentMethod } from "@openmonetis/domain/transactions";
+import { addMonthsToPeriod } from "@openmonetis/domain/transactions";
+import { getPeriodEndDateString } from "@openmonetis/shared/date-time";
 import type { BillsRepository } from "../services/bills.service";
+import { settlePersistedTransactions } from "./settlements.repository";
 import {
   listRecurringOccurrencesForUser,
   listRecurringRulesForPeriod,
   listRecurringSplitsForUser,
   listTransactionSplitsForUser,
-  listTransactionsByPeriod,
+  listTransactionsByDueDateRange,
+  settleRecurringOccurrenceForUser,
 } from "./transactions.repository";
 
 function date(value: Date) {
@@ -13,12 +19,15 @@ function date(value: Date) {
 
 export const billsRepository: BillsRepository = {
   async listPersisted(userId, period) {
-    const rows = await listTransactionsByPeriod(userId, period, {
-      type: "expense",
-      paymentMethod: "boleto",
-      hasDueDate: true,
-    });
-    const billRows = rows.filter((row) => row.dueDate !== null);
+    const rows = await listTransactionsByDueDateRange(
+      userId,
+      `${addMonthsToPeriod(period, -13)}-01`,
+      getPeriodEndDateString(addMonthsToPeriod(period, 13)),
+    );
+    const billRows = rows.filter(
+      (row): row is typeof row & { paymentMethod: PaymentMethod; dueDate: Date } =>
+        isPayable({ ...row, dueDate: row.dueDate ? date(row.dueDate) : null }),
+    );
     const splits = await listTransactionSplitsForUser(
       billRows.map((row) => row.id),
       userId,
@@ -27,9 +36,14 @@ export const billsRepository: BillsRepository = {
       id: row.id,
       purchaseDate: date(row.purchaseDate),
       name: row.name,
+      paymentMethod: row.paymentMethod,
       amount: row.amount,
-      dueDate: date(row.dueDate as Date),
+      dueDate: date(row.dueDate),
+      dueDateRuleExcluded: row.dueDateRuleExcluded,
+      frozenDueDate: row.frozenDueDate ? date(row.frozenDueDate) : null,
+      dueDateAdjustment: row.dueDateAdjustment,
       boletoPaymentDate: row.boletoPaymentDate ? date(row.boletoPaymentDate) : null,
+      settledDate: row.settledDate ? date(row.settledDate) : null,
       isSettled: row.isSettled ?? false,
       condition: row.condition,
       currentInstallment: row.currentInstallment,
@@ -47,8 +61,8 @@ export const billsRepository: BillsRepository = {
   },
   async listRecurring(userId, periodEnd) {
     const rows = await listRecurringRulesForPeriod(userId, periodEnd);
-    const billRows = rows.filter(
-      (row) => row.type === "expense" && row.paymentMethod === "boleto" && row.dueDate !== null,
+    const billRows = rows.filter((row) =>
+      isPayable({ ...row, dueDate: row.dueDate ? date(row.dueDate) : null }),
     );
     const splits = await listRecurringSplitsForUser(
       billRows.map((row) => row.id),
@@ -60,9 +74,14 @@ export const billsRepository: BillsRepository = {
       anchorDate: date(row.anchorDate),
       startDate: date(row.startDate),
       endDate: row.endDate ? date(row.endDate) : null,
-      dueDate: date(row.dueDate as Date),
+      dueDate: row.dueDate ? date(row.dueDate) : null,
+      dueDateRuleExcluded: row.dueDateRuleExcluded,
+
+      configuredEndDate: row.configuredEndDate,
+      occurrenceOverrides: row.occurrenceOverrides,
       frequency: row.frequency,
       name: row.name,
+      paymentMethod: row.paymentMethod,
       amount: row.amount,
       isSettled: row.isSettled ?? false,
       accountId: row.accountId,
@@ -89,8 +108,12 @@ export const billsRepository: BillsRepository = {
       recurringSeriesId: row.recurringSeriesId,
       purchaseDate: date(row.purchaseDate),
       isSettled: row.isSettled,
+      dueDateRuleExcluded: row.dueDateRuleExcluded,
+      frozenDueDate: row.frozenDueDate ? date(row.frozenDueDate) : null,
+      dueDateAdjustment: row.dueDateAdjustment,
       accountId: row.accountId,
       boletoPaymentDate: row.boletoPaymentDate ? date(row.boletoPaymentDate) : null,
+      settledDate: row.settledDate ? date(row.settledDate) : null,
     }));
   },
   listAccounts(userId) {
@@ -104,73 +127,34 @@ export const billsRepository: BillsRepository = {
       .where(and(eq(financialAccounts.userId, userId), eq(financialAccounts.isArchived, false)))
       .orderBy(asc(financialAccounts.name));
   },
-  async payPersisted(userId, billId, accountId, paidAt) {
-    const [updated] = await db
-      .update(transactions)
-      .set({
-        accountId,
-        boletoPaymentDate: new Date(`${paidAt}T00:00:00.000Z`),
-        isSettled: true,
-        updatedAt: new Date(),
-      })
-      .where(
-        and(
-          eq(transactions.id, billId),
-          eq(transactions.userId, userId),
-          eq(transactions.type, "expense"),
-          eq(transactions.paymentMethod, "boleto"),
-          eq(transactions.isSettled, false),
-        ),
-      )
-      .returning({ id: transactions.id });
-    return Boolean(updated);
-  },
-  async payRecurring(userId, recurringRuleId, purchaseDate, accountId, paidAt) {
-    const [rule] = await db
-      .select({ seriesId: recurringTransactionRules.seriesId })
-      .from(recurringTransactionRules)
-      .where(
-        and(
-          eq(recurringTransactionRules.id, recurringRuleId),
-          eq(recurringTransactionRules.userId, userId),
-        ),
-      )
-      .limit(1);
-    if (!rule) return false;
-    const [updated] = await db
-      .insert(recurringTransactionOccurrences)
-      .values({
-        userId,
-        recurringRuleId,
-        recurringSeriesId: rule.seriesId,
-        purchaseDate: new Date(`${purchaseDate}T00:00:00.000Z`),
-        isSettled: true,
-        accountId,
-        boletoPaymentDate: new Date(`${paidAt}T00:00:00.000Z`),
-      })
-      .onConflictDoUpdate({
-        target: [
-          recurringTransactionOccurrences.recurringSeriesId,
-          recurringTransactionOccurrences.purchaseDate,
-        ],
-        set: {
-          recurringRuleId,
+  async payPersisted(userId, billId, accountId, paidAt, amount) {
+    return Boolean(
+      (
+        await settlePersistedTransactions({
+          ids: [billId],
+          userId,
           isSettled: true,
+          date: new Date(`${paidAt}T00:00:00.000Z`),
+          amount,
           accountId,
-          boletoPaymentDate: new Date(`${paidAt}T00:00:00.000Z`),
-          updatedAt: new Date(),
-        },
-      })
-      .returning({ id: recurringTransactionOccurrences.id });
-    return Boolean(updated);
+        })
+      ).length,
+    );
+  },
+  async payRecurring(userId, recurringRuleId, purchaseDate, accountId, paidAt, amount) {
+    return Boolean(
+      await settleRecurringOccurrenceForUser(
+        recurringRuleId,
+        new Date(`${purchaseDate}T00:00:00.000Z`),
+        userId,
+        true,
+        new Date(`${paidAt}T00:00:00.000Z`),
+        accountId,
+        amount,
+      ),
+    );
   },
 };
 
-import {
-  db,
-  financialAccounts,
-  recurringTransactionOccurrences,
-  recurringTransactionRules,
-  transactions,
-} from "@openmonetis/db";
+import { db, financialAccounts } from "@openmonetis/db";
 import { and, asc, eq } from "drizzle-orm";

@@ -1,6 +1,11 @@
 import { z } from "@hono/zod-openapi";
 import { billStatuses } from "@openmonetis/domain/bills";
-import { recurrenceFrequencies, transactionConditions } from "@openmonetis/domain/transactions";
+import {
+  paymentMethods,
+  recurrenceFrequencies,
+  transactionConditions,
+} from "@openmonetis/domain/transactions";
+import { DueDateAdjustmentDetailsSchema } from "./due-date-rules";
 
 const periodSchema = z.string().regex(/^[1-9]\d{3}-(0[1-9]|1[0-2])$/);
 
@@ -17,6 +22,7 @@ export const CreateBillPaymentInputSchema = z
     billId: z.string().min(1),
     accountId: z.uuid(),
     paidAt: z.iso.date(),
+    amount: z.number().positive().max(999_999_999.99).multipleOf(0.01).optional(),
   })
   .openapi("CreateBillPaymentInput");
 
@@ -31,12 +37,20 @@ export const DashboardBillSchema = z.object({
   id: z.string(),
   recordId: z.uuid().nullable(),
   recurringRuleId: z.uuid().nullable(),
+  recurringSeriesId: z.uuid().nullable().optional(),
   purchaseDate: z.iso.date(),
   period: periodSchema,
   name: z.string(),
+  paymentMethod: z.enum(paymentMethods),
   amount: z.number().positive(),
   dueDate: z.iso.date(),
+  originalDueDate: z.iso.date().nullable().optional(),
+
+  dueDateAdjustment: DueDateAdjustmentDetailsSchema.nullable().optional(),
+  dueDateExceptionEditable: z.boolean().optional(),
+  dueDateRuleExcluded: z.boolean().optional(),
   boletoPaymentDate: z.iso.date().nullable(),
+  settledDate: z.iso.date().nullable(),
   isSettled: z.boolean(),
   status: z.enum(billStatuses),
   condition: z.enum(transactionConditions),

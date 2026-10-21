@@ -16,6 +16,7 @@ import { calculateInstallmentAllocationTotal } from "@openmonetis/domain/install
 import { and, asc, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import type { InstallmentsRepository } from "../services/installments.service";
+import { categoryLabelSql } from "./categories.repository";
 
 const transactionAccounts = alias(financialAccounts, "installment_transaction_accounts");
 const cardAccounts = alias(financialAccounts, "installment_card_accounts");
@@ -76,7 +77,7 @@ export const installmentsRepository = {
         personName: people.name,
         personAvatarUrl: people.avatarUrl,
         categoryId: categories.id,
-        categoryName: categories.name,
+        categoryName: categoryLabelSql(categories),
         categoryIcon: categories.icon,
         cardId: cards.id,
         cardName: cards.name,

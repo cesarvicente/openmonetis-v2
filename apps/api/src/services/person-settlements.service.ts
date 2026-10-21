@@ -1,11 +1,12 @@
 import {
   calculatePersonBalance,
+  comparePersonBalancePriority,
+  hasPersonBalanceActivity,
   type PersonBalanceEntry,
+  type PersonRecurringBalanceRule,
+  projectPersonRecurringBalanceAllocations,
+  summarizePersonBalances,
 } from "@openmonetis/domain/person-settlements";
-import {
-  projectRecurringMonthAllocations,
-  type RecurringAllocationRule,
-} from "@openmonetis/domain/recurring-expenses";
 import { getCurrentDateInBrazil } from "@openmonetis/shared/date-time";
 import type {
   CreatePersonSettlementInput,
@@ -59,7 +60,7 @@ export type PersonSettlementsRepository = {
   listRecurringBalanceRulesForPeriod(
     userId: string,
     period: string,
-  ): Promise<RecurringAllocationRule[]>;
+  ): Promise<PersonRecurringBalanceRule[]>;
   createSettlement(input: {
     userId: string;
     personId: string;
@@ -118,7 +119,7 @@ export function createPersonSettlementsService(repository: PersonSettlementsRepo
         repository.listExternalPeopleForUser(userId),
         repository.listRecurringBalanceRulesForPeriod(userId, period),
       ]);
-      const recurringAllocations = projectRecurringMonthAllocations({
+      const recurringAllocations = projectPersonRecurringBalanceAllocations({
         period,
         rules: recurringRules,
       });
@@ -143,21 +144,18 @@ export function createPersonSettlementsService(repository: PersonSettlementsRepo
           };
         }),
       );
-      const outstandingItems = items
-        .filter((item) => item.balance.status !== "settled")
+      const settlementItems = items
+        .filter((item) => hasPersonBalanceActivity(item.balance))
         .sort(
           (left, right) =>
-            Math.abs(right.balance.balanceAmount) - Math.abs(left.balance.balanceAmount) ||
+            comparePersonBalancePriority(left.balance, right.balance) ||
             left.personName.localeCompare(right.personName, "pt-BR"),
         );
 
       return {
         period,
-        totalReceivableAmount: sumCurrency(
-          outstandingItems.map((item) => item.balance.receivableAmount),
-        ),
-        totalCreditAmount: sumCurrency(outstandingItems.map((item) => item.balance.creditAmount)),
-        items: outstandingItems,
+        ...summarizePersonBalances(settlementItems.map((item) => item.balance)),
+        items: settlementItems,
       };
     },
 
@@ -173,7 +171,7 @@ export function createPersonSettlementsService(repository: PersonSettlementsRepo
         repository.listRecurringBalanceRulesForPeriod(userId, period),
         repository.listSettlementsForPerson(personId, userId, period),
       ]);
-      const recurringEntries = projectRecurringMonthAllocations({
+      const recurringEntries = projectPersonRecurringBalanceAllocations({
         period,
         rules: recurringRules,
       }).flatMap((allocation) =>
@@ -227,10 +225,6 @@ export function createPersonSettlementsService(repository: PersonSettlementsRepo
       return { id: deleted.id };
     },
   };
-}
-
-function sumCurrency(amounts: number[]) {
-  return amounts.reduce((total, amount) => total + Math.round(amount * 100), 0) / 100;
 }
 
 export type PersonSettlementsService = ReturnType<typeof createPersonSettlementsService>;

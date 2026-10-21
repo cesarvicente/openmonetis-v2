@@ -55,6 +55,7 @@ export type ExternalExpenseRecord = {
   installmentCount: number | null;
   currentInstallment: number | null;
   sourceLabel: string | null;
+  categoryIcon: string | null;
   establishmentLogoDomain: string | null;
   sourceLogoUrl: string | null;
   sourceCardBrand: "visa" | "mastercard" | "elo" | "amex" | "hipercard" | "other" | null;
@@ -443,6 +444,7 @@ function toExpenseOutput(
       currentInstallment: record.currentInstallment,
       sourceLabel: record.sourceLabel,
     },
+    categoryIcon: record.categoryIcon,
     establishmentLogoUrl: buildEstablishmentLogoUrl(record.establishmentLogoDomain),
     sourceLogoUrl: record.sourceLogoUrl,
     sourceCardBrand: record.sourceCardBrand,

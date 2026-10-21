@@ -1,5 +1,6 @@
 import type { CardClosingRule } from "./cards";
 import { getRecurringDueDate } from "./recurring-expenses";
+import { getOccurrenceAmount, type SettlementAwareRule } from "./settlements";
 import {
   addMonthsToPeriod,
   calculateExpenseImpact,
@@ -30,7 +31,7 @@ export type BudgetSpendingEntry = {
   amount: string | number;
 };
 
-export type BudgetRecurringRule = {
+export type BudgetRecurringRule = SettlementAwareRule & {
   categoryId: string | null;
   type: TransactionType;
   amount: string | number;
@@ -144,8 +145,13 @@ export function calculateBudgetSpending(
       addMonthsToPeriod(period, -2),
       addMonthsToPeriod(period, -1),
       period,
+      addMonthsToPeriod(period, 1),
     ]) {
       for (const purchaseDate of listRecurrenceDatesInPeriod({
+        dueDate: rule.dueDate,
+
+        recurrenceEndDate: rule.configuredEndDate,
+
         anchorDate: rule.anchorDate,
         startDate: rule.startDate,
         endDate: rule.endDate,
@@ -161,8 +167,16 @@ export function calculateBudgetSpending(
         });
 
         if (transactionPeriod === period) {
-          if (rule.categoryId) addAmount(projectedByCategory, rule.categoryId, rule.amount);
-          else uncategorizedProjectedAmount += normalizedAmount(rule.amount);
+          if (rule.categoryId)
+            addAmount(
+              projectedByCategory,
+              rule.categoryId,
+              getOccurrenceAmount(rule, purchaseDate, rule.amount),
+            );
+          else
+            uncategorizedProjectedAmount += normalizedAmount(
+              getOccurrenceAmount(rule, purchaseDate, rule.amount),
+            );
         }
       }
     }

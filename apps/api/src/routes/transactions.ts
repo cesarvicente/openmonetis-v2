@@ -2,16 +2,22 @@ import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { ok } from "@openmonetis/shared/api";
 import {
   CreateTransactionRefundInputSchema,
+  ExportTransactionsQuerySchema,
   ImportTransactionsInputSchema,
+  InstallmentOptionsOutputSchema,
+  InstallmentOptionsQuerySchema,
   ListTransactionsQuerySchema,
   PaginatedTransactionsOutputSchema,
   PreviewTransactionImportInputSchema,
   RecentEstablishmentsOutputSchema,
+  RecurringOccurrenceActionInputSchema,
   RecurringRuleActionInputSchema,
+  RecurringRuleOccurrenceQuerySchema,
   SettleRecurringOccurrenceInputSchema,
   SettleTransactionsInputSchema,
   TransactionActionInputSchema,
   TransactionActionQuerySchema,
+  TransactionExportOutputSchema,
   TransactionImportBatchParamsSchema,
   TransactionImportPreviewOutputSchema,
   TransactionImportResultSchema,
@@ -66,6 +72,7 @@ const importResultResponseSchema = z.object({
 export function createTransactionsRoute(service: TransactionsService) {
   const {
     changeRecurringRuleStatus,
+    applyRecurringRuleAction,
     copyRecurringRule,
     copyTransaction,
     createTransaction,
@@ -73,6 +80,7 @@ export function createTransactionsRoute(service: TransactionsService) {
     deleteTransaction,
     generateTransactionImportTemplate,
     getTransactionById,
+    getRecurringRuleOccurrence,
     importTransactions,
     listRecentEstablishments,
     listTransactions,
@@ -86,6 +94,67 @@ export function createTransactionsRoute(service: TransactionsService) {
   const transactionsRoute = new OpenAPIHono<{ Variables: ApiVariables }>({
     defaultHook: validationHook,
   });
+
+  transactionsRoute.openapi(
+    createRoute({
+      method: "get",
+      path: "/export",
+      tags: ["Transactions"],
+      request: { query: ExportTransactionsQuerySchema },
+      responses: {
+        200: {
+          description: "Export all matching transactions, preserving filters and sort order",
+          content: {
+            "application/json": {
+              schema: z.object({ data: TransactionExportOutputSchema, error: z.null() }),
+            },
+          },
+        },
+        400: {
+          description: "Invalid export filters or format",
+          content: { "application/json": { schema: errorSchema } },
+        },
+        401: {
+          description: "Authentication required",
+          content: { "application/json": { schema: errorSchema } },
+        },
+      },
+    }),
+    async (c) =>
+      c.json(ok(await service.exportTransactions(c.get("userId"), c.req.valid("query"))), 200),
+  );
+
+  transactionsRoute.openapi(
+    createRoute({
+      method: "get",
+      path: "/installments/preview",
+      tags: ["Transactions"],
+      request: { query: InstallmentOptionsQuerySchema },
+      responses: {
+        200: {
+          description: "Installment options with cent redistribution calculated by the domain",
+          content: {
+            "application/json": {
+              schema: z.object({ data: InstallmentOptionsOutputSchema, error: z.null() }),
+            },
+          },
+        },
+        400: {
+          description: "Invalid amount",
+          content: { "application/json": { schema: errorSchema } },
+        },
+        401: {
+          description: "Authentication required",
+          content: { "application/json": { schema: errorSchema } },
+        },
+      },
+    }),
+    (context) =>
+      context.json(
+        ok(service.previewInstallmentOptions(context.req.valid("query"), context.get("userId"))),
+        200,
+      ),
+  );
 
   transactionsRoute.openapi(
     createRoute({
@@ -326,6 +395,8 @@ export function createTransactionsRoute(service: TransactionsService) {
             c.get("userId"),
             input.isSettled,
             input.settledDate,
+            input.settledAmount,
+            input.accountId,
           ),
         ),
         200,
@@ -393,6 +464,44 @@ export function createTransactionsRoute(service: TransactionsService) {
       },
     }),
     async (c) => c.json(ok(await copyRecurringRule(c.req.valid("param").id, c.get("userId"))), 201),
+  );
+
+  transactionsRoute.openapi(
+    createRoute({
+      method: "get",
+      path: "/recurring-rules/{id}/occurrence",
+      tags: ["Transactions"],
+      request: { params: TransactionParamsSchema, query: RecurringRuleOccurrenceQuerySchema },
+      responses: {
+        200: {
+          description: "Recurring occurrence with full editable fields",
+          content: { "application/json": { schema: transactionResponseSchema } },
+        },
+        400: {
+          description: "Invalid recurring occurrence",
+          content: { "application/json": { schema: errorSchema } },
+        },
+        401: {
+          description: "Authentication required",
+          content: { "application/json": { schema: errorSchema } },
+        },
+        404: {
+          description: "Recurring rule not found",
+          content: { "application/json": { schema: errorSchema } },
+        },
+      },
+    }),
+    async (c) =>
+      c.json(
+        ok(
+          await getRecurringRuleOccurrence(
+            c.req.valid("param").id,
+            c.req.valid("query").occurrenceDate,
+            c.get("userId"),
+          ),
+        ),
+        200,
+      ),
   );
 
   transactionsRoute.openapi(
@@ -486,7 +595,14 @@ export function createTransactionsRoute(service: TransactionsService) {
       const input = c.req.valid("json");
       return c.json(
         ok(
-          await settleTransactions(input.ids, c.get("userId"), input.isSettled, input.settledDate),
+          await settleTransactions(
+            input.ids,
+            c.get("userId"),
+            input.isSettled,
+            input.settledDate,
+            input.settledAmount,
+            input.accountId,
+          ),
         ),
         200,
       );
@@ -673,6 +789,58 @@ export function createTransactionsRoute(service: TransactionsService) {
             c.req.valid("param").id,
             c.get("userId"),
             c.req.valid("json").status,
+            c.req.valid("json").occurrenceDate,
+          ),
+        ),
+        200,
+      ),
+  );
+
+  transactionsRoute.openapi(
+    createRoute({
+      method: "post",
+      path: "/recurring-rules/{id}/actions",
+      tags: ["Transactions"],
+      request: {
+        params: TransactionParamsSchema,
+        body: {
+          required: true,
+          content: { "application/json": { schema: RecurringOccurrenceActionInputSchema } },
+        },
+      },
+      responses: {
+        200: {
+          description: "Applied recurring action, preserving earlier occurrences",
+          content: {
+            "application/json": {
+              schema: z.object({
+                data: RecurringOccurrenceActionInputSchema.extend({ id: z.uuid() }),
+                error: z.null(),
+              }),
+            },
+          },
+        },
+        400: {
+          description: "Invalid action or occurrence",
+          content: { "application/json": { schema: errorSchema } },
+        },
+        401: {
+          description: "Authentication required",
+          content: { "application/json": { schema: errorSchema } },
+        },
+        404: {
+          description: "Recurring rule not found",
+          content: { "application/json": { schema: errorSchema } },
+        },
+      },
+    }),
+    async (c) =>
+      c.json(
+        ok(
+          await applyRecurringRuleAction(
+            c.req.valid("param").id,
+            c.get("userId"),
+            c.req.valid("json"),
           ),
         ),
         200,

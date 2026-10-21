@@ -46,6 +46,7 @@ export const RecurringExpenseOutputSchema = z
     totalAmount: z.number().finite().positive(),
     paymentMethod: z.enum(paymentMethods),
     frequency: z.enum(recurrenceFrequencies),
+    recurrenceEndDate: dateSchema.nullable().optional(),
     purchaseDate: dateSchema,
     personName: z.string(),
     personAvatarUrl: z.string().nullable(),

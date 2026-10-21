@@ -6,6 +6,7 @@
   "exports": {
     "./accounts": "./src/accounts.ts",
     "./auth": "./src/auth.ts",
+    "./auth-config": "./src/auth-config.ts",
     "./cards": "./src/cards.ts",
     "./categories": "./src/categories.ts",
     "./category-trends": "./src/category-trends.ts",
@@ -30,7 +31,11 @@
     "./external-expenses": "./src/external-expenses.ts",
     "./inbox": "./src/inbox.ts",
     "./inbox-rules": "./src/inbox-rules.ts",
-    "./device-tokens": "./src/device-tokens.ts"
+    "./device-tokens": "./src/device-tokens.ts",
+    "./tags": "./src/tags.ts",
+    "./recurring-transactions": "./src/recurring-transactions.ts",
+    "./business-calendars": "./src/business-calendars.ts",
+    "./due-date-rules": "./src/due-date-rules.ts"
   },
   "scripts": {
     "build": "tsc --noEmit",
@@ -42,6 +47,7 @@
     "zod": "^4.6.5"
   },
   "devDependencies": {
+    "@types/node": "^26.6.1",
     "typescript": "^6"
   }
 }

@@ -1,4 +1,5 @@
 import { type CardClosingRule, getInvoiceDates } from "./cards";
+import { resolveRecurringDueDate } from "./recurring-expenses";
 
 export const transactionTypes = ["income", "expense", "transfer"] as const;
 export const transactionOrigins = [
@@ -10,6 +11,8 @@ export const transactionOrigins = [
   "personSettlement",
 ] as const;
 export const transactionConditions = ["single", "installment", "recurring"] as const;
+export const minimumInstallmentCount = 2;
+export const maximumInstallmentCount = 60;
 export const paymentMethods = [
   "credit_card",
   "debit_card",
@@ -447,6 +450,32 @@ export function calculateInstallmentEndPeriod(input: {
   );
 }
 
+type TransactionPeriodSchedule = {
+  condition: TransactionCondition;
+  paymentMethod: PaymentMethod;
+  purchaseDate: string;
+  dueDate?: string | null;
+  cardId?: string | null;
+};
+
+export function resolveEditedTransactionPeriod(input: {
+  current: TransactionPeriodSchedule & { period: string };
+  updated: TransactionPeriodSchedule;
+  invoicePeriod?: string | null;
+  derivedPeriod: string;
+}) {
+  if (input.updated.paymentMethod === "credit_card" && input.invoicePeriod !== undefined)
+    return input.derivedPeriod;
+  const { current, updated } = input;
+  const sameSchedule =
+    current.condition === updated.condition &&
+    current.paymentMethod === updated.paymentMethod &&
+    current.purchaseDate === updated.purchaseDate &&
+    (current.dueDate ?? null) === (updated.dueDate ?? null) &&
+    (current.cardId ?? null) === (updated.cardId ?? null);
+  return sameSchedule ? current.period : input.derivedPeriod;
+}
+
 export function deriveTransactionPeriod(input: {
   paymentMethod: PaymentMethod;
   purchaseDate: string;
@@ -467,7 +496,8 @@ export function deriveTransactionPeriod(input: {
     }
     return addMonthsToPeriod(purchasePeriod, 2);
   }
-  if (input.paymentMethod === "boleto" && input.dueDate) return getPeriodFromDate(input.dueDate);
+  if (input.paymentMethod !== "credit_card" && input.dueDate)
+    return getPeriodFromDate(input.dueDate);
   return getPeriodFromDate(input.purchaseDate);
 }
 
@@ -475,7 +505,9 @@ export function deriveTransactionPostingPeriod(input: {
   period: string;
   paymentMethod: PaymentMethod | null;
   boletoPaymentDate?: string | null;
+  settledDate?: string | null;
 }) {
+  if (input.settledDate) return getPeriodFromDate(input.settledDate);
   if (input.paymentMethod === "boleto" && input.boletoPaymentDate) {
     return getPeriodFromDate(input.boletoPaymentDate);
   }
@@ -488,9 +520,11 @@ export function deriveTransactionPostingDate(input: {
   purchaseDate: string;
   dueDate?: string | null;
   boletoPaymentDate?: string | null;
+  settledDate?: string | null;
   isSettled: boolean | null;
 }) {
   if (input.isSettled !== true) return null;
+  if (input.settledDate) return input.settledDate;
   if (input.paymentMethod === "boleto") {
     return input.boletoPaymentDate ?? input.dueDate ?? input.purchaseDate;
   }
@@ -757,6 +791,21 @@ export function splitAmountIntoInstallments(amount: number, count: number) {
   return splitAmountEqually(amount, count);
 }
 
+export function previewInstallmentOptions(amount: number) {
+  return Array.from(
+    { length: maximumInstallmentCount - minimumInstallmentCount + 1 },
+    (_, index) => {
+      const count = index + minimumInstallmentCount;
+      const installments = splitAmountIntoInstallments(amount, count);
+      return {
+        count,
+        minimumAmount: Math.min(...installments),
+        maximumAmount: Math.max(...installments),
+      };
+    },
+  );
+}
+
 /**
  * Builds only the part of an installment series that will be tracked by the API.
  * The amount is always split across the complete series first, so starting midway
@@ -900,6 +949,8 @@ export function analyzeTransactionSplitAllocation(input: {
 }
 
 export function listRecurrenceDatesInPeriod(input: {
+  recurrenceEndDate?: string | null;
+  dueDate?: string | null;
   anchorDate?: string;
   endDate?: string | null;
   startDate: string;
@@ -922,7 +973,11 @@ export function listRecurrenceDatesInPeriod(input: {
     }
     while (current <= periodEnd) {
       const date = toDateString(current);
-      if (input.endDate === null || input.endDate === undefined || date <= input.endDate) {
+      if (
+        (input.endDate == null || date <= input.endDate) &&
+        (!input.recurrenceEndDate ||
+          (resolveRecurringDueDate(date, input.dueDate ?? null) ?? date) <= input.recurrenceEndDate)
+      ) {
         dates.push(date);
       }
       current = addDays(current, step);
@@ -938,7 +993,11 @@ export function listRecurrenceDatesInPeriod(input: {
   }
   while (current <= periodEnd) {
     const date = toDateString(current);
-    if (input.endDate === null || input.endDate === undefined || date <= input.endDate) {
+    if (
+      (input.endDate == null || date <= input.endDate) &&
+      (!input.recurrenceEndDate ||
+        (resolveRecurringDueDate(date, input.dueDate ?? null) ?? date) <= input.recurrenceEndDate)
+    ) {
       dates.push(date);
     }
     occurrence += 1;

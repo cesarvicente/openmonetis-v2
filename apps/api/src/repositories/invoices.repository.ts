@@ -19,6 +19,12 @@ import {
 import { and, asc, desc, eq, inArray, isNotNull, isNull, lte, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import type { InvoicesRepository } from "../services/invoices.service";
+import { effectiveRecurringEndDateSql } from "./recurring-transactions.repository";
+import {
+  effectiveSplitAmountSql,
+  effectiveTransactionAmountSql,
+  recurringOccurrenceOverridesSql,
+} from "./settlements.repository";
 
 const transactionPeople = alias(people, "invoice_transaction_people");
 const splitPeople = alias(people, "invoice_split_people");
@@ -78,7 +84,7 @@ export const invoicesRepository = {
           "person_role",
         ),
         amount:
-          sql<string>`case when ${transactionSplits.id} is not null then ${transactionSplits.amount} else ${transactions.amount} end`.as(
+          sql<string>`case when ${transactionSplits.id} is not null then ${effectiveSplitAmountSql} else ${effectiveTransactionAmountSql} end`.as(
             "amount",
           ),
       })
@@ -135,7 +141,18 @@ export const invoicesRepository = {
           ),
         anchorDate: recurringTransactionRules.anchorDate,
         startDate: recurringTransactionRules.startDate,
-        endDate: recurringTransactionRules.endDate,
+        endDate: effectiveRecurringEndDateSql,
+
+        configuredEndDate: sql<
+          string | null
+        >`to_char(${recurringTransactionRules.recurrenceEndDate}, 'YYYY-MM-DD')`.as(
+          "configured_end_date",
+        ),
+        occurrenceOverrides: recurringOccurrenceOverridesSql,
+        allocationPersonId:
+          sql<string>`coalesce(${recurringTransactionSplits.personId}, ${recurringTransactionRules.personId})`.as(
+            "allocation_person_id",
+          ),
         frequency: recurringTransactionRules.frequency,
         paymentMethod: recurringTransactionRules.paymentMethod,
         dueDate: recurringTransactionRules.dueDate,
@@ -227,6 +244,9 @@ export const invoicesRepository = {
         cardId: invoices.cardId,
         closingDate: invoices.closingDate,
         dueDate: invoices.dueDate,
+        originalDueDate: invoices.originalDueDate,
+        dueDateRuleExcluded: invoices.dueDateRuleExcluded,
+        dueDateAdjustment: invoices.dueDateAdjustment,
         datesCustomized: invoices.datesCustomized,
       })
       .from(invoices)
@@ -235,7 +255,10 @@ export const invoicesRepository = {
       cardId: row.cardId,
       closingDate: row.closingDate?.toISOString().slice(0, 10) ?? null,
       dueDate: row.dueDate?.toISOString().slice(0, 10) ?? null,
+      originalDueDate: row.originalDueDate?.toISOString().slice(0, 10) ?? null,
       datesCustomized: row.datesCustomized,
+      dueDateRuleExcluded: row.dueDateRuleExcluded,
+      dueDateAdjustment: row.dueDateAdjustment,
     }));
   },
   async findOwnedContext(userId, cardId, accountId, personIds) {
@@ -272,6 +295,7 @@ export const invoicesRepository = {
           and(
             eq(categories.userId, userId),
             eq(categories.name, invoicePaymentCategoryName),
+            eq(categories.isSystem, true),
             eq(categories.type, "expense"),
           ),
         )
@@ -301,6 +325,17 @@ export const invoicesRepository = {
           ),
         );
       if (Number((current as { total: string }).total) !== data.expectedPaidAmount) return null;
+      const [invoiceState] = await tx
+        .select({ excluded: invoices.dueDateRuleExcluded })
+        .from(invoices)
+        .where(
+          and(
+            eq(invoices.userId, data.userId),
+            eq(invoices.cardId, data.cardId),
+            eq(invoices.period, data.period),
+          ),
+        );
+      if ((invoiceState?.excluded ?? false) !== data.expectedDueDateRuleExcluded) return null;
       let transactionId: string | null = null;
       if (data.adminAmount > 0 && data.accountId && data.paymentCategoryId) {
         const [movementRecord] = await tx
@@ -386,6 +421,8 @@ export const invoicesRepository = {
           paymentAccountId: data.remainingAmount === 0 ? paymentAccountId : null,
           closingDate: new Date(`${data.closingDate}T00:00:00.000Z`),
           dueDate: new Date(`${data.dueDate}T00:00:00.000Z`),
+          originalDueDate: new Date(`${data.originalDueDate ?? data.dueDate}T00:00:00.000Z`),
+          dueDateAdjustment: data.dueDateAdjustment ?? null,
         })
         .onConflictDoUpdate({
           target: [invoices.userId, invoices.cardId, invoices.period],
@@ -395,6 +432,8 @@ export const invoicesRepository = {
             paymentAccountId: data.remainingAmount === 0 ? paymentAccountId : null,
             closingDate: new Date(`${data.closingDate}T00:00:00.000Z`),
             dueDate: new Date(`${data.dueDate}T00:00:00.000Z`),
+            originalDueDate: new Date(`${data.originalDueDate ?? data.dueDate}T00:00:00.000Z`),
+            dueDateAdjustment: data.dueDateAdjustment ?? null,
             updatedAt: new Date(),
           },
         });
@@ -626,32 +665,59 @@ export const invoicesRepository = {
       return deleted ? ("deleted" as const) : ("not_found" as const);
     });
   },
-  async upsertDates(data) {
-    const [ownedCard] = await db
-      .select({ id: cards.id })
-      .from(cards)
-      .where(and(eq(cards.id, data.cardId), eq(cards.userId, data.userId)))
-      .limit(1);
-    if (!ownedCard) return false;
-    await db
-      .insert(invoices)
-      .values({
-        userId: data.userId,
-        cardId: data.cardId,
-        period: data.period,
+  async upsertDates(data, assertEditable) {
+    return db.transaction(async (tx) => {
+      await tx.execute(
+        sql`select pg_advisory_xact_lock(hashtextextended(${`${data.userId}:${data.cardId}:${data.period}`}, 0))`,
+      );
+      const [ownedCard] = await tx
+        .select({ id: cards.id })
+        .from(cards)
+        .where(and(eq(cards.id, data.cardId), eq(cards.userId, data.userId)))
+        .limit(1);
+      if (!ownedCard) return false;
+      const [invoice] = await tx
+        .select({ paymentStatus: invoices.paymentStatus })
+        .from(invoices)
+        .where(
+          and(
+            eq(invoices.userId, data.userId),
+            eq(invoices.cardId, data.cardId),
+            eq(invoices.period, data.period),
+          ),
+        );
+      const [payment] = await tx
+        .select({ id: invoicePayments.id })
+        .from(invoicePayments)
+        .where(
+          and(
+            eq(invoicePayments.userId, data.userId),
+            eq(invoicePayments.cardId, data.cardId),
+            eq(invoicePayments.period, data.period),
+          ),
+        )
+        .limit(1);
+      assertEditable({
+        target: "invoice",
+        isSettled: invoice?.paymentStatus === "paid",
+        hasPayments: Boolean(payment),
+      });
+      const dates = {
         closingDate: new Date(`${data.closingDate}T00:00:00.000Z`),
         dueDate: new Date(`${data.dueDate}T00:00:00.000Z`),
+        originalDueDate: new Date(`${data.dueDate}T00:00:00.000Z`),
+        dueDateAdjustment: null,
+        dueDateRuleExcluded: false,
         datesCustomized: true,
-      })
-      .onConflictDoUpdate({
-        target: [invoices.userId, invoices.cardId, invoices.period],
-        set: {
-          closingDate: new Date(`${data.closingDate}T00:00:00.000Z`),
-          dueDate: new Date(`${data.dueDate}T00:00:00.000Z`),
-          datesCustomized: true,
-          updatedAt: new Date(),
-        },
-      });
-    return true;
+      };
+      await tx
+        .insert(invoices)
+        .values({ userId: data.userId, cardId: data.cardId, period: data.period, ...dates })
+        .onConflictDoUpdate({
+          target: [invoices.userId, invoices.cardId, invoices.period],
+          set: { ...dates, updatedAt: new Date() },
+        });
+      return true;
+    });
   },
 } satisfies InvoicesRepository;

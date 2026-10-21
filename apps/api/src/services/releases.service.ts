@@ -11,6 +11,7 @@ export type ReleaseCatalogEntry = {
   date: string;
   summary: string;
   sections: Array<{ type: ReleaseSectionType; items: string[] }>;
+  upgradeNotes?: string[];
 };
 
 export type PublishedRelease = {
@@ -48,6 +49,7 @@ export function createReleasesService(
       .sort((first, second) => compareSemanticVersions(second.version, first.version))
       .map((release) => ({
         ...release,
+        upgradeNotes: release.upgradeNotes ?? [],
         isCurrent: release.version === repository.currentVersion,
       }));
 

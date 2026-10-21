@@ -1,3 +1,4 @@
+import { expandCategoryIds } from "@openmonetis/domain/categories";
 import {
   type CategoryTrendActualEntry,
   type CategoryTrendCategory,
@@ -32,19 +33,23 @@ export function createCategoryTrendsService(repository: CategoryTrendsRepository
     async list(userId: string, query: ListCategoryTrendsQuery): Promise<CategoryTrendsOutput> {
       const lookbackPeriod = addMonthsToPeriod(query.startPeriod, -1);
       const periodEnd = getPeriodEndDate(query.endPeriod);
-      const [categories, actualEntries, recurringRules] = await Promise.all([
-        repository.listCategoriesForUser(userId),
+      const categories = await repository.listCategoriesForUser(userId);
+      const categoryIds = expandCategoryIds(
+        categories.map((category) => ({ id: category.categoryId, parentId: category.parentId })),
+        query.categoryIds,
+      );
+      const [actualEntries, recurringRules] = await Promise.all([
         repository.listActualEntriesForUser(
           userId,
           lookbackPeriod,
           query.endPeriod,
-          query.categoryIds,
+          categoryIds,
           query.personScope ?? "admin",
         ),
         repository.listRecurringRulesForUser(
           userId,
           periodEnd,
-          query.categoryIds,
+          categoryIds,
           query.personScope ?? "admin",
         ),
       ]);

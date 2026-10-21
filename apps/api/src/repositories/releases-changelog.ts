@@ -21,6 +21,8 @@ export function parseChangelog(contents: string): ReleaseCatalogEntry[] {
   let current: ReleaseCatalogEntry | null = null;
   let currentSection: ReleaseCatalogEntry["sections"][number] | null = null;
   let summaryLines: string[] = [];
+  let readingUpgradeNotes = false;
+  let readingSummary = true;
 
   function finishSection() {
     if (current && currentSection && currentSection.items.length > 0) {
@@ -37,6 +39,8 @@ export function parseChangelog(contents: string): ReleaseCatalogEntry[] {
     releases.push(current);
     current = null;
     summaryLines = [];
+    readingUpgradeNotes = false;
+    readingSummary = true;
   }
 
   for (const line of contents.split(/\r?\n/)) {
@@ -49,6 +53,7 @@ export function parseChangelog(contents: string): ReleaseCatalogEntry[] {
         date: releaseMatch[2] as string,
         summary: "",
         sections: [],
+        upgradeNotes: [],
       };
       continue;
     }
@@ -58,18 +63,31 @@ export function parseChangelog(contents: string): ReleaseCatalogEntry[] {
     const sectionMatch = /^### (.+)$/.exec(line);
     if (sectionMatch) {
       finishSection();
+      readingSummary = false;
+      readingUpgradeNotes = ["Notas de atualização", "Upgrade notes"].includes(
+        sectionMatch[1] as string,
+      );
       const type = sectionTypesByHeading[sectionMatch[1] as string];
       currentSection = type ? { type, items: [] } : null;
       continue;
     }
 
     const itemMatch = /^- (.+)$/.exec(line);
+    if (itemMatch && readingUpgradeNotes) {
+      current.upgradeNotes?.push(itemMatch[1] as string);
+      continue;
+    }
     if (itemMatch && currentSection) {
       currentSection.items.push(itemMatch[1] as string);
       continue;
     }
 
     const continuationMatch = /^\s{2,}(\S.*)$/.exec(line);
+    if (continuationMatch && readingUpgradeNotes && current.upgradeNotes?.length) {
+      const index = current.upgradeNotes.length - 1;
+      current.upgradeNotes[index] = `${current.upgradeNotes[index]} ${continuationMatch[1]}`;
+      continue;
+    }
     if (continuationMatch && currentSection && currentSection.items.length > 0) {
       const itemIndex = currentSection.items.length - 1;
       currentSection.items[itemIndex] =
@@ -77,7 +95,7 @@ export function parseChangelog(contents: string): ReleaseCatalogEntry[] {
       continue;
     }
 
-    if (!currentSection && line.trim()) summaryLines.push(line.trim());
+    if (readingSummary && line.trim()) summaryLines.push(line.trim());
   }
 
   finishRelease();

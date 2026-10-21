@@ -26,6 +26,7 @@ export type BillNotification = NotificationBase & {
   kind: "bill";
   billId: string;
   name: string;
+  categoryIcon: string | null;
   amount: number;
   dueDate: string;
   period: string;
@@ -92,6 +93,7 @@ export type NotificationSources = {
   bills: Array<{
     id: string;
     name: string;
+    categoryIcon: string | null;
     amount: number;
     dueDate: string;
     period: string;
@@ -162,6 +164,7 @@ export function buildNotifications(input: {
           kind: "bill" as const,
           billId: bill.id,
           name: bill.name,
+          categoryIcon: bill.categoryIcon,
           amount: bill.amount,
           dueDate: bill.dueDate,
           period: bill.period,

@@ -6,6 +6,13 @@ import {
   resolveCardClosingRule,
 } from "@openmonetis/domain/cards";
 import {
+  assertDueDateExceptionEditable,
+  type DueDateExceptionState,
+  DueDateRuleError,
+  type DueDateRulesReader,
+  emptyDueDateRulesReader,
+} from "@openmonetis/domain/due-date-rules";
+import {
   calculateInvoicePersonBalances,
   createInvoiceAdjustmentDraft,
   validateInvoicePaymentAllocations,
@@ -60,6 +67,9 @@ type InvoiceDateRecord = {
   cardId: string;
   closingDate: string | null;
   dueDate: string | null;
+  originalDueDate?: string | null;
+  dueDateRuleExcluded?: boolean;
+  dueDateAdjustment?: import("@openmonetis/domain/due-date-rules").DueDateAdjustmentDetails | null;
   datesCustomized: boolean;
 };
 type InvoiceRecurringMovementRecord = InvoiceMovementRecord & {
@@ -110,20 +120,28 @@ export type InvoicesRepository = {
     amount: number;
     adminAmount: number;
     expectedPaidAmount: number;
+    expectedDueDateRuleExcluded: boolean;
     remainingAmount: number;
     paymentCategoryId: string | null;
     note: string;
     allocations: { personId: string; amount: number }[];
     closingDate: string;
     dueDate: string;
+    originalDueDate?: string;
+    dueDateAdjustment?:
+      | import("@openmonetis/domain/due-date-rules").DueDateAdjustmentDetails
+      | null;
   }): Promise<{ id: string } | null>;
-  upsertDates(data: {
-    userId: string;
-    cardId: string;
-    period: string;
-    closingDate: string;
-    dueDate: string;
-  }): Promise<boolean>;
+  upsertDates(
+    data: {
+      userId: string;
+      cardId: string;
+      period: string;
+      closingDate: string;
+      dueDate: string;
+    },
+    assertEditable: (state: DueDateExceptionState) => void,
+  ): Promise<boolean>;
   deletePayment(
     userId: string,
     cardId: string,
@@ -167,8 +185,10 @@ export type InvoicesRepository = {
 export function createInvoicesService(
   repository: InvoicesRepository,
   today = getCurrentDateInBrazil,
+  dueDateRules: DueDateRulesReader = emptyDueDateRulesReader,
 ) {
   async function get(period: string, userId: string): Promise<DashboardInvoicesOutput> {
+    const dueDateRuleVersions = await dueDateRules.listVersions(userId);
     const [cards, accounts, persistedMovements, recurringMovements, allocations, payments, dates] =
       await Promise.all([
         repository.listCards(userId),
@@ -199,6 +219,11 @@ export function createInvoicesService(
       const effectiveDates = dates.find((item) => item.cardId === card.id);
       const summary = calculateCardInvoiceSummary({
         period,
+        cardId: card.id,
+        dueDateRuleVersions,
+        persistedOriginalDueDate: effectiveDates?.originalDueDate,
+        persistedDueDateAdjustment: effectiveDates?.dueDateAdjustment,
+        dueDateRuleExcluded: effectiveDates?.dueDateRuleExcluded,
         limit: 0,
         closingDay: card.closingDay,
         closingRule: resolveCardClosingRule(card),
@@ -225,6 +250,11 @@ export function createInvoicesService(
           status: summary.status,
           closingDate: summary.closingDate,
           dueDate: summary.dueDate,
+          originalDueDate: summary.originalDueDate,
+
+          dueDateRuleExcluded: effectiveDates?.dueDateRuleExcluded ?? false,
+          dueDateAdjustment: summary.dueDateAdjustment,
+          dueDateExceptionEditable: summary.dueDateExceptionEditable,
           paymentCount: cardPayments.length,
           latestPayment: cardPayments[0]
             ? {
@@ -312,6 +342,7 @@ export function createInvoicesService(
         amount: totalAmount,
         adminAmount,
         expectedPaidAmount: invoice.paidAmount,
+        expectedDueDateRuleExcluded: invoice.dueDateRuleExcluded ?? false,
         remainingAmount,
         paymentCategoryId: context.paymentCategoryId,
         note: createInvoicePaymentNote({
@@ -326,6 +357,8 @@ export function createInvoicesService(
         allocations: input.allocations,
         closingDate: invoice.closingDate,
         dueDate: invoice.dueDate,
+        originalDueDate: invoice.originalDueDate ?? invoice.dueDate,
+        dueDateAdjustment: invoice.dueDateAdjustment,
       });
       if (!payment) {
         throw conflict(
@@ -457,8 +490,17 @@ export function createInvoicesService(
       if (!cards.some((card) => card.id === cardId)) {
         throw notFound("Card not found", "card_not_found");
       }
-      const updated = await repository.upsertDates({ userId, cardId, period, ...input });
-      if (!updated) throw notFound("Card not found", "card_not_found");
+      try {
+        const updated = await repository.upsertDates(
+          { userId, cardId, period, ...input },
+          assertDueDateExceptionEditable,
+        );
+        if (!updated) throw notFound("Card not found", "card_not_found");
+      } catch (error) {
+        if (error instanceof DueDateRuleError)
+          throw conflict("Paid invoice dates cannot be changed", error.code);
+        throw error;
+      }
       return input;
     },
   };

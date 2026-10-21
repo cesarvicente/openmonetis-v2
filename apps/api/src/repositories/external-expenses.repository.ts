@@ -1,5 +1,6 @@
 import {
   cards,
+  categories,
   db,
   establishmentLogos,
   externalExpenses,
@@ -44,6 +45,12 @@ import type {
   ExternalExpenseRecord,
   ExternalExpensesRepository,
 } from "../services/external-expenses.service";
+import { effectiveRecurringEndDateSql } from "./recurring-transactions.repository";
+import {
+  effectiveSplitAmountSql,
+  effectiveTransactionAmountSql,
+  recurringOccurrenceOverridesSql,
+} from "./settlements.repository";
 
 type DatabaseTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
@@ -60,6 +67,8 @@ const sourceRecurringAccounts = alias(
   financialAccounts,
   "external_expense_source_recurring_accounts",
 );
+const sourceCategories = alias(categories, "external_expense_source_categories");
+const sourceRecurringCategories = alias(categories, "external_expense_source_recurring_categories");
 
 const expenseColumns = {
   id: externalExpenses.id,
@@ -98,6 +107,11 @@ const expenseColumns = {
   installmentCount: externalExpenses.installmentCount,
   currentInstallment: externalExpenses.currentInstallment,
   sourceLabel: externalExpenses.sourceLabel,
+  categoryIcon: sql<
+    string | null
+  >`coalesce(${sourceCategories.icon}, ${sourceRecurringCategories.icon})`.as(
+    "external_expense_category_icon",
+  ),
   establishmentLogoDomain: externalExpenses.establishmentLogoDomain,
   sourceLogoUrl: sql<
     string | null
@@ -134,6 +148,13 @@ function expenseQuery() {
       ),
     )
     .leftJoin(
+      sourceCategories,
+      and(
+        eq(sourceCategories.id, sourceTransactions.categoryId),
+        eq(sourceCategories.userId, externalExpenses.ownerUserId),
+      ),
+    )
+    .leftJoin(
       sourceAccounts,
       and(
         eq(sourceAccounts.id, sourceTransactions.accountId),
@@ -152,6 +173,13 @@ function expenseQuery() {
       and(
         eq(sourceRecurringCards.id, sourceRecurringRules.cardId),
         eq(sourceRecurringCards.userId, externalExpenses.ownerUserId),
+      ),
+    )
+    .leftJoin(
+      sourceRecurringCategories,
+      and(
+        eq(sourceRecurringCategories.id, sourceRecurringRules.categoryId),
+        eq(sourceRecurringCategories.userId, externalExpenses.ownerUserId),
       ),
     )
     .leftJoin(
@@ -273,7 +301,7 @@ export const externalExpensesRepository: ExternalExpensesRepository = {
     const rows = await db
       .select({
         transactionPersonId: transactions.personId,
-        transactionAmount: transactions.amount,
+        transactionAmount: effectiveTransactionAmountSql.as("transaction_amount"),
         allocationAmount: transactionSplits.amount,
         currentInstallment: transactions.currentInstallment,
       })
@@ -363,7 +391,14 @@ export const externalExpensesRepository: ExternalExpensesRepository = {
         amount: recurringTransactionRules.amount,
         anchorDate: recurringTransactionRules.anchorDate,
         startDate: recurringTransactionRules.startDate,
-        endDate: recurringTransactionRules.endDate,
+        endDate: effectiveRecurringEndDateSql,
+
+        configuredEndDate: sql<
+          string | null
+        >`to_char(${recurringTransactionRules.recurrenceEndDate}, 'YYYY-MM-DD')`.as(
+          "configured_end_date",
+        ),
+        occurrenceOverrides: recurringOccurrenceOverridesSql,
         frequency: recurringTransactionRules.frequency,
         seriesCreatedAt: recurringTransactionSeries.createdAt,
         name: recurringTransactionRules.name,
@@ -441,6 +476,9 @@ export const externalExpensesRepository: ExternalExpensesRepository = {
         anchorDate: toDate(row.anchorDate) as string,
         startDate: toDate(row.startDate) as string,
         endDate: toDate(row.endDate),
+        occurrenceOverrides: row.occurrenceOverrides,
+
+        configuredEndDate: row.configuredEndDate,
         frequency: row.frequency,
         splits: group.flatMap((item) =>
           item.splitPersonId && item.splitAmount !== null
@@ -650,7 +688,7 @@ export async function synchronizePendingExternalExpensesForTransactions(
     trackedFromInstallment: installmentSeries.trackedFromInstallment,
     connectionId: personConnections.id,
     recipientUserId: personConnections.recipientUserId,
-    transactionAmount: transactions.amount,
+    transactionAmount: effectiveTransactionAmountSql.as("transaction_amount"),
     name: transactions.name,
     purchaseDate: transactions.purchaseDate,
     period: transactions.period,
@@ -667,7 +705,7 @@ export async function synchronizePendingExternalExpensesForTransactions(
     .select({
       ...sourceColumns,
       personId: transactions.personId,
-      amount: transactions.amount,
+      amount: effectiveTransactionAmountSql.as("amount"),
       allocationKind: sql<"direct">`'direct'`.as("external_expense_allocation_kind"),
     })
     .from(transactions)
@@ -705,7 +743,7 @@ export async function synchronizePendingExternalExpensesForTransactions(
     .select({
       ...sourceColumns,
       personId: transactionSplits.personId,
-      amount: transactionSplits.amount,
+      amount: effectiveSplitAmountSql.as("amount"),
       allocationKind: sql<"split">`'split'`.as("external_expense_allocation_kind"),
     })
     .from(transactions)

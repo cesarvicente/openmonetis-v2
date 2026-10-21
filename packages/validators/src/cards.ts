@@ -6,6 +6,7 @@ import {
   cardInvoiceStatuses,
   cardStatuses,
 } from "@openmonetis/domain/cards";
+import { DueDateAdjustmentDetailsSchema } from "./due-date-rules";
 
 export {
   cardBrands,
@@ -127,6 +128,11 @@ export const CardInvoiceSummarySchema = z
     status: z.enum(cardInvoiceStatuses),
     closingDate: z.iso.date(),
     dueDate: z.iso.date(),
+    originalDueDate: z.iso.date().nullable().optional(),
+
+    dueDateAdjustment: DueDateAdjustmentDetailsSchema.nullable().optional(),
+    dueDateExceptionEditable: z.boolean().optional(),
+    dueDateRuleExcluded: z.boolean().optional(),
     totalLimit: z.number().nonnegative(),
     usedLimit: z.number().nonnegative(),
     availableLimit: z.number().nonnegative(),

@@ -96,16 +96,24 @@ export const CategoryTrendValueOutputSchema = z
 export const CategoryTrendAvailableCategoryOutputSchema = z
   .object({
     categoryId: z.uuid(),
+    parentId: z.uuid().nullable().optional(),
+    parentName: z.string().nullable().optional(),
+    isSystem: z.boolean().optional(),
     name: z.string(),
     icon: z.string().nullable(),
     type: z.enum(["income", "expense"]),
   })
   .openapi("CategoryTrendAvailableCategory");
 
-export const CategoryTrendCategoryOutputSchema = CategoryTrendAvailableCategoryOutputSchema.extend({
+const CategoryTrendDetailOutputSchema = CategoryTrendAvailableCategoryOutputSchema.extend({
   totalAmount: z.number(),
   averageAmount: z.number(),
   values: z.array(CategoryTrendValueOutputSchema),
+});
+
+export const CategoryTrendCategoryOutputSchema = CategoryTrendDetailOutputSchema.extend({
+  subcategories: z.array(CategoryTrendDetailOutputSchema).optional(),
+  directCategory: CategoryTrendDetailOutputSchema.optional(),
 }).openapi("CategoryTrendCategory");
 
 export const CategoryTrendsSummaryOutputSchema = z

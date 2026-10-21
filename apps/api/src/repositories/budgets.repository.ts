@@ -13,6 +13,13 @@ import { resolveCardClosingRule } from "@openmonetis/domain/cards";
 import { and, asc, eq, isNull, lte, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import type { BudgetsRepository } from "../services/budgets.service";
+import { categoryLabelSql } from "./categories.repository";
+import { effectiveRecurringEndDateSql } from "./recurring-transactions.repository";
+import {
+  effectiveSplitAmountSql,
+  effectiveTransactionAmountSql,
+  recurringOccurrenceOverridesSql,
+} from "./settlements.repository";
 
 const transactionPeople = alias(people, "budget_transaction_people");
 const splitPeople = alias(people, "budget_split_people");
@@ -27,7 +34,7 @@ const budgetWithCategoryColumns = {
   amount: budgets.amount,
   createdAt: budgets.createdAt,
   updatedAt: budgets.updatedAt,
-  categoryName: categories.name,
+  categoryName: categoryLabelSql(categories),
   categoryIcon: categories.icon,
 };
 
@@ -105,7 +112,7 @@ export const budgetsRepository = {
         origin: transactions.origin,
         type: transactions.type,
         amount:
-          sql<string>`case when ${transactionSplits.id} is not null then ${transactionSplits.amount} else ${transactions.amount} end`.as(
+          sql<string>`case when ${transactionSplits.id} is not null then ${effectiveSplitAmountSql} else ${effectiveTransactionAmountSql} end`.as(
             "amount",
           ),
       })
@@ -148,7 +155,18 @@ export const budgetsRepository = {
           ),
         anchorDate: recurringTransactionRules.anchorDate,
         startDate: recurringTransactionRules.startDate,
-        endDate: recurringTransactionRules.endDate,
+        endDate: effectiveRecurringEndDateSql,
+
+        configuredEndDate: sql<
+          string | null
+        >`to_char(${recurringTransactionRules.recurrenceEndDate}, 'YYYY-MM-DD')`.as(
+          "configured_end_date",
+        ),
+        occurrenceOverrides: recurringOccurrenceOverridesSql,
+        allocationPersonId:
+          sql<string>`coalesce(${recurringTransactionSplits.personId}, ${recurringTransactionRules.personId})`.as(
+            "allocation_person_id",
+          ),
         frequency: recurringTransactionRules.frequency,
         paymentMethod: recurringTransactionRules.paymentMethod,
         dueDate: recurringTransactionRules.dueDate,
@@ -189,7 +207,7 @@ export const budgetsRepository = {
       .where(
         and(
           eq(recurringTransactionRules.userId, userId),
-          lte(recurringTransactionRules.startDate, periodEnd),
+          lte(recurringTransactionRules.startDate, new Date(periodEnd.getTime() + 32 * 86_400_000)),
           or(
             and(isNull(recurringTransactionSplits.id), eq(recurringPeople.role, "admin")),
             eq(recurringSplitPeople.role, "admin"),
@@ -204,6 +222,10 @@ export const budgetsRepository = {
       anchorDate: row.anchorDate.toISOString().slice(0, 10),
       startDate: row.startDate.toISOString().slice(0, 10),
       endDate: row.endDate?.toISOString().slice(0, 10) ?? null,
+      occurrenceOverrides: row.occurrenceOverrides,
+      allocationPersonId: row.allocationPersonId,
+
+      configuredEndDate: row.configuredEndDate,
       frequency: row.frequency,
       paymentMethod: row.paymentMethod,
       dueDate: row.dueDate?.toISOString().slice(0, 10) ?? null,

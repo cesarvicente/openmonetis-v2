@@ -1,3 +1,4 @@
+import { type DueDateRuleVersion, resolveDueDate } from "./due-date-rules";
 export const cardBrands = ["visa", "mastercard", "elo", "amex", "hipercard", "other"] as const;
 export const cardStatuses = ["active", "inactive"] as const;
 
@@ -100,6 +101,11 @@ export type CardInvoiceSummary = {
   status: CardInvoiceStatus;
   closingDate: string;
   dueDate: string;
+  originalDueDate?: string;
+
+  dueDateExceptionEditable?: boolean;
+  dueDateAdjustment?: import("./due-date-rules").DueDateAdjustmentDetails | null;
+  dueDateRuleExcluded?: boolean;
   totalLimit: number;
   usedLimit: number;
   availableLimit: number;
@@ -148,6 +154,11 @@ export function calculateCardInvoiceSummary(input: {
   paidPeriods: string[];
   persistedClosingDate?: string | null;
   persistedDueDate?: string | null;
+  persistedOriginalDueDate?: string | null;
+  persistedDueDateAdjustment?: import("./due-date-rules").DueDateAdjustmentDetails | null;
+  dueDateRuleExcluded?: boolean;
+  cardId?: string;
+  dueDateRuleVersions?: DueDateRuleVersion[];
   datesCustomized?: boolean;
   hasPayments?: boolean;
 }): CardInvoiceSummary {
@@ -189,12 +200,24 @@ export function calculateCardInvoiceSummary(input: {
     persistedDates !== null &&
     (input.datesCustomized === true ||
       input.paymentStatus === "paid" ||
-      input.hasPayments === true ||
-      input.period < input.today.slice(0, 7));
+      input.hasPayments === true);
   const closingDate = shouldPreservePersistedDates
     ? persistedDates.closingDate
     : calculatedDates.closingDate;
-  const dueDate = shouldPreservePersistedDates ? persistedDates.dueDate : calculatedDates.dueDate;
+  const resolution = resolveDueDate(
+    {
+      target: "invoice",
+      cardId: input.cardId,
+      dueDate: shouldPreservePersistedDates
+        ? (input.persistedOriginalDueDate ?? persistedDates.dueDate)
+        : calculatedDates.dueDate,
+      frozenDueDate: shouldPreservePersistedDates ? persistedDates.dueDate : null,
+      frozenAdjustment: input.persistedDueDateAdjustment,
+      excluded: input.dueDateRuleExcluded,
+    },
+    input.dueDateRuleVersions ?? [],
+  );
+  const dueDate = resolution.dueDate as string;
 
   return {
     period: input.period,
@@ -207,6 +230,11 @@ export function calculateCardInvoiceSummary(input: {
     }),
     closingDate,
     dueDate,
+    originalDueDate: resolution.originalDueDate as string,
+
+    dueDateExceptionEditable: resolution.dueDateExceptionEditable,
+    dueDateAdjustment: resolution.dueDateAdjustment,
+    dueDateRuleExcluded: input.dueDateRuleExcluded ?? false,
     totalLimit: fromCents(limitCents),
     usedLimit: fromCents(usedLimitCents),
     availableLimit: fromCents(availableLimitCents),
@@ -238,7 +266,8 @@ export function getInvoiceDates(input: {
   const [year, month] = input.period.split("-").map(Number) as [number, number];
   const invoiceMonthIndex = month - 1;
   const nominalDueDate = createClampedDate(year, invoiceMonthIndex, input.dueDay);
-  const dueDate = moveToNextWeekday(nominalDueDate);
+  // Preserve the established cycle anchor independently of payment adjustment rules.
+  const cycleDueDate = moveToNextWeekday(nominalDueDate);
   const closingRule = input.closingRule ?? {
     type: "fixedDay" as const,
     closingDay: input.closingDay ?? 1,
@@ -250,7 +279,7 @@ export function getInvoiceDates(input: {
           invoiceMonthIndex + (input.dueDay <= closingRule.closingDay ? -1 : 0),
           closingRule.closingDay,
         )
-      : subtractDays(dueDate, closingRule.days, closingRule.mode);
+      : subtractDays(cycleDueDate, closingRule.days, closingRule.mode);
 
   return {
     closingDate: toDateString(
@@ -258,7 +287,7 @@ export function getInvoiceDates(input: {
         ? subtractDays(closingDate, 1, "calendarDays")
         : closingDate,
     ),
-    dueDate: toDateString(dueDate),
+    dueDate: toDateString(nominalDueDate),
   };
 }
 

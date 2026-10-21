@@ -8,6 +8,7 @@ export const CreateCategoryInputSchema = z
     name: z.string().trim().min(1).max(120),
     type: z.enum(categoryTypes),
     icon: z.string().trim().min(1).max(100).nullable().optional(),
+    parentId: z.uuid().nullable().optional(),
   })
   .openapi("CreateCategoryInput");
 
@@ -25,6 +26,8 @@ export const CategoryOutputSchema = z
     type: z.enum(categoryTypes),
     icon: z.string().nullable(),
     isSystem: z.boolean(),
+    parentId: z.uuid().nullable().optional(),
+    parentName: z.string().nullable().optional(),
     createdAt: z.iso.datetime(),
     updatedAt: z.iso.datetime(),
   })

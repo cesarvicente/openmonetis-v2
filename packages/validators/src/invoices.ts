@@ -1,5 +1,6 @@
 import { z } from "@hono/zod-openapi";
 import { cardInvoiceStatuses } from "@openmonetis/domain/cards";
+import { DueDateAdjustmentDetailsSchema } from "./due-date-rules";
 
 const periodSchema = z.string().regex(/^[1-9]\d{3}-(0[1-9]|1[0-2])$/);
 export const ListInvoicesQuerySchema = z.object({
@@ -13,10 +14,8 @@ export const InvoicePaymentParamsSchema = InvoiceParamsSchema.extend({
   paymentId: z.uuid().openapi({ param: { name: "paymentId", in: "path" } }),
 });
 export const UpdateInvoiceDatesInputSchema = z
-  .object({
-    closingDate: z.iso.date(),
-    dueDate: z.iso.date(),
-  })
+  .object({ closingDate: z.iso.date(), dueDate: z.iso.date() })
+  .strict()
   .openapi("UpdateInvoiceDatesInput");
 export const CreateInvoicePaymentInputSchema = z
   .object({
@@ -71,6 +70,11 @@ export const DashboardInvoiceSchema = z.object({
   status: z.enum(cardInvoiceStatuses),
   closingDate: z.iso.date(),
   dueDate: z.iso.date(),
+  originalDueDate: z.iso.date().nullable().optional(),
+
+  dueDateAdjustment: DueDateAdjustmentDetailsSchema.nullable().optional(),
+  dueDateExceptionEditable: z.boolean().optional(),
+  dueDateRuleExcluded: z.boolean().optional(),
   paymentCount: z.number().int().nonnegative(),
   latestPayment: InvoicePaymentSummarySchema.nullable(),
   payments: z.array(InvoicePaymentSummarySchema),

@@ -17,6 +17,7 @@ import {
   normalizeDashboardWidgetPreferences,
 } from "@openmonetis/domain/dashboard";
 import { getRecurringDueDate } from "@openmonetis/domain/recurring-expenses";
+import { getOccurrenceAmount, type SettlementAwareRule } from "@openmonetis/domain/settlements";
 import {
   addMonthsToPeriod,
   buildTransferPostings,
@@ -44,7 +45,7 @@ import type {
   DashboardWidgetPreferencesOutput,
 } from "@openmonetis/validators/dashboard";
 
-export type DashboardTransactionRecord = {
+export type DashboardTransactionRecord = SettlementAwareRule & {
   id: string;
   accountId: string | null;
   adminAmount: string | null;
@@ -53,6 +54,9 @@ export type DashboardTransactionRecord = {
   categoryId: string | null;
   categoryIcon: string | null;
   categoryName: string | null;
+  categoryParentId?: string | null;
+  categoryParentName?: string | null;
+  categoryParentIcon?: string | null;
   condition: "single" | "installment" | "recurring";
   excludeFromBalance: boolean;
   isSettled: boolean;
@@ -61,6 +65,7 @@ export type DashboardTransactionRecord = {
   purchaseDate: string;
   dueDate: string | null;
   boletoPaymentDate: string | null;
+  settledDate?: string | null;
   personAvatarUrl: string | null;
   personId: string;
   personName: string;
@@ -70,7 +75,7 @@ export type DashboardTransactionRecord = {
   type: TransactionType;
 };
 
-export type DashboardRecurringRuleRecord = {
+export type DashboardRecurringRuleRecord = SettlementAwareRule & {
   seriesId: string;
   accountId: string | null;
   adminAmount: string | null;
@@ -78,6 +83,9 @@ export type DashboardRecurringRuleRecord = {
   categoryId: string | null;
   categoryIcon: string | null;
   categoryName: string | null;
+  categoryParentId?: string | null;
+  categoryParentName?: string | null;
+  categoryParentIcon?: string | null;
   cardId: string | null;
   card: { closingDay: number | null; closingRule: CardClosingRule; dueDay: number } | null;
   dueDate: string | null;
@@ -119,6 +127,7 @@ export type DashboardRepository = {
   ): Promise<
     Array<{
       boletoPaymentDate: string | null;
+      settledDate?: string | null;
       isSettled: boolean;
       purchaseDate: string;
       recurringSeriesId: string;
@@ -171,6 +180,7 @@ function expandRecurringRules(
   fromPurchasePeriod?: string,
   occurrenceStates: Array<{
     boletoPaymentDate: string | null;
+    settledDate?: string | null;
     isSettled: boolean;
     purchaseDate: string;
     recurringSeriesId: string;
@@ -197,10 +207,14 @@ function expandRecurringRules(
 
     for (
       let purchasePeriod = startPeriod;
-      purchasePeriod <= throughPeriod;
+      purchasePeriod <= addMonthsToPeriod(throughPeriod, 1);
       purchasePeriod = addMonthsToPeriod(purchasePeriod, 1)
     ) {
       for (const purchaseDate of listRecurrenceDatesInPeriod({
+        dueDate: rule.dueDate,
+
+        recurrenceEndDate: rule.configuredEndDate,
+
         anchorDate: rule.anchorDate,
         startDate: rule.startDate,
         endDate: rule.endDate,
@@ -238,6 +252,9 @@ function expandRecurringRules(
                 categoryId: rule.categoryId,
                 categoryIcon: rule.categoryIcon,
                 categoryName: rule.categoryName,
+                categoryParentId: rule.categoryParentId,
+                categoryParentName: rule.categoryParentName,
+                categoryParentIcon: rule.categoryParentIcon,
                 condition: "recurring" as const,
                 excludeFromBalance:
                   posting.direction === "outgoing"
@@ -263,13 +280,20 @@ function expandRecurringRules(
 
           entries.push({
             id: rule.id,
+            occurrenceOverrides: rule.occurrenceOverrides,
             accountId: rule.accountId,
-            adminAmount: rule.adminAmount,
-            amount: normalizeTransactionAmount(rule.type, Number(rule.amount)).toFixed(2),
+            adminAmount:
+              rule.adminAmount == null
+                ? null
+                : getOccurrenceAmount(rule, purchaseDate, rule.adminAmount, "admin").toFixed(2),
+            amount: getOccurrenceAmount(rule, purchaseDate, rule.amount).toFixed(2),
             cardId: rule.cardId,
             categoryId: rule.categoryId,
             categoryIcon: rule.categoryIcon,
             categoryName: rule.categoryName,
+            categoryParentId: rule.categoryParentId,
+            categoryParentName: rule.categoryParentName,
+            categoryParentIcon: rule.categoryParentIcon,
             condition: "recurring",
             excludeFromBalance: rule.excludeFromBalance,
             origin: rule.origin,
@@ -277,6 +301,7 @@ function expandRecurringRules(
             purchaseDate,
             dueDate,
             boletoPaymentDate,
+            settledDate: occurrence?.settledDate,
             personAvatarUrl: rule.personAvatarUrl,
             personId: rule.personId,
             personName: rule.personName,
@@ -298,6 +323,7 @@ function expandRecurringPaymentStatusEntries(input: {
   invoiceStatuses: Array<{ cardId: string; isPaid: boolean; period: string }>;
   occurrenceStates: Array<{
     boletoPaymentDate: string | null;
+    settledDate?: string | null;
     isSettled: boolean;
     purchaseDate: string;
     recurringSeriesId: string;
@@ -323,10 +349,14 @@ function expandRecurringPaymentStatusEntries(input: {
 
     for (
       let purchasePeriod = startPeriod;
-      purchasePeriod <= input.period;
+      purchasePeriod <= addMonthsToPeriod(input.period, 1);
       purchasePeriod = addMonthsToPeriod(purchasePeriod, 1)
     ) {
       for (const purchaseDate of listRecurrenceDatesInPeriod({
+        dueDate: rule.dueDate,
+
+        recurrenceEndDate: rule.configuredEndDate,
+
         anchorDate: rule.anchorDate,
         startDate: rule.startDate,
         endDate: rule.endDate,
@@ -342,7 +372,10 @@ function expandRecurringPaymentStatusEntries(input: {
         if (period !== input.period) continue;
 
         entries.push({
-          adminAmount: rule.adminAmount === null ? null : Number(rule.adminAmount),
+          adminAmount:
+            rule.adminAmount === null
+              ? null
+              : getOccurrenceAmount(rule, purchaseDate, rule.adminAmount, "admin"),
           isSettled:
             rule.paymentMethod === "credit_card"
               ? Boolean(rule.cardId && invoiceStatusByCard.get(`${rule.cardId}:${period}`))
@@ -364,7 +397,12 @@ function expandRecurringExpenseDistributionEntries(
   rules: DashboardRecurringRuleRecord[],
   period: string,
 ) {
-  const purchasePeriods = [addMonthsToPeriod(period, -2), addMonthsToPeriod(period, -1), period];
+  const purchasePeriods = [
+    addMonthsToPeriod(period, -2),
+    addMonthsToPeriod(period, -1),
+    period,
+    addMonthsToPeriod(period, 1),
+  ];
 
   return rules.flatMap((rule) => {
     if (rule.adminAmount === null) return [];
@@ -372,6 +410,10 @@ function expandRecurringExpenseDistributionEntries(
 
     for (const purchasePeriod of purchasePeriods) {
       for (const purchaseDate of listRecurrenceDatesInPeriod({
+        dueDate: rule.dueDate,
+
+        recurrenceEndDate: rule.configuredEndDate,
+
         anchorDate: rule.anchorDate,
         startDate: rule.startDate,
         endDate: rule.endDate,
@@ -392,7 +434,7 @@ function expandRecurringExpenseDistributionEntries(
         if (competencePeriod !== period) continue;
 
         entries.push({
-          amount: normalizeTransactionAmount(rule.type, Number(rule.adminAmount)),
+          amount: getOccurrenceAmount(rule, purchaseDate, rule.adminAmount, "admin"),
           condition: "recurring",
           origin: rule.origin,
           paymentMethod: rule.paymentMethod,
@@ -484,6 +526,7 @@ export function createDashboardService(
         | Promise<
             Array<{
               boletoPaymentDate: string | null;
+              settledDate?: string | null;
               isSettled: boolean;
               purchaseDate: string;
               recurringSeriesId: string;
@@ -753,6 +796,9 @@ export function createDashboardService(
             categoryId: transaction.categoryId,
             categoryIcon: transaction.categoryIcon,
             categoryName: transaction.categoryName,
+            categoryParentId: transaction.categoryParentId,
+            categoryParentName: transaction.categoryParentName,
+            categoryParentIcon: transaction.categoryParentIcon,
             origin: transaction.origin,
             period: deriveTransactionCompetencePeriod({
               paymentMethod: transaction.paymentMethod,
@@ -835,7 +881,12 @@ function buildPersonExpenseEntries(
         ];
 
     return people.map((person) => ({
-      amount: Number(person.amount),
+      amount: getOccurrenceAmount(
+        transaction,
+        transaction.purchaseDate,
+        person.amount,
+        person.personId,
+      ),
       excludeFromBalance: transaction.excludeFromBalance,
       origin: transaction.origin,
       period: deriveTransactionCompetencePeriod({

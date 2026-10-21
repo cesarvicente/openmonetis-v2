@@ -78,6 +78,55 @@
       "when": 1791065993332,
       "tag": "0010_card_closing_day_purchases",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1791656286348,
+      "tag": "0011_numerous_hitman",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1791775087165,
+      "tag": "0012_secret_killraven",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1791778285099,
+      "tag": "0013_square_mockingbird",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1791815783868,
+      "tag": "0014_glossy_prowler",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1791825395064,
+      "tag": "0015_amused_living_lightning",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1791828178929,
+      "tag": "0016_mute_queen_noir",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1791829024778,
+      "tag": "0017_payable_due_date_rules",
+      "breakpoints": true
     }
   ]
 }

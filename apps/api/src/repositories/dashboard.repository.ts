@@ -19,6 +19,12 @@ import { getPeriodEndDate } from "@openmonetis/domain/transactions";
 import { and, eq, gte, lte, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import type { DashboardRepository } from "../services/dashboard.service";
+import { effectiveRecurringEndDateSql } from "./recurring-transactions.repository";
+import {
+  effectiveSplitAmountSql,
+  effectiveTransactionAmountSql,
+  recurringOccurrenceOverridesSql,
+} from "./settlements.repository";
 
 const transactionAccounts = alias(financialAccounts, "dashboard_transaction_accounts");
 const cardAccounts = alias(financialAccounts, "dashboard_card_accounts");
@@ -86,10 +92,17 @@ export const dashboardRepository = {
         accountId: sql<string | null>`coalesce(${transactions.accountId}, ${cards.accountId})`.as(
           "account_id",
         ),
-        amount: transactions.amount,
+        amount: effectiveTransactionAmountSql.as("amount"),
         cardId: transactions.cardId,
         categoryId: transactionCategories.id,
         categoryName: transactionCategories.name,
+        categoryParentId: transactionCategories.parentId,
+        categoryParentName: sql<
+          string | null
+        >`(select p.name from categories p where p.id = ${transactionCategories.parentId} and p.user_id = ${userId})`,
+        categoryParentIcon: sql<
+          string | null
+        >`(select p.icon from categories p where p.id = ${transactionCategories.parentId} and p.user_id = ${userId})`,
         categoryIcon: transactionCategories.icon,
         adminAmount: sql<string | null>`case
           when exists (
@@ -97,7 +110,7 @@ export const dashboardRepository = {
             where ${transactionSplits.userId} = ${userId}
               and ${transactionSplits.transactionId} = ${transactions.id}
           ) then (
-            select ${transactionSplits.amount}
+            select ${effectiveSplitAmountSql}
             from ${transactionSplits}
             inner join ${people}
               on ${people.id} = ${transactionSplits.personId}
@@ -107,7 +120,7 @@ export const dashboardRepository = {
               and ${transactionSplits.transactionId} = ${transactions.id}
             limit 1
           )
-          when ${transactionPeople.role} = 'admin' then ${transactions.amount}
+          when ${transactionPeople.role} = 'admin' then ${effectiveTransactionAmountSql}
           else null
         end`.as("admin_amount"),
         condition: transactions.condition,
@@ -120,6 +133,7 @@ export const dashboardRepository = {
         purchaseDate: transactions.purchaseDate,
         dueDate: transactions.dueDate,
         boletoPaymentDate: transactions.boletoPaymentDate,
+        settledDate: transactions.settledDate,
         personId: transactionPeople.id,
         personName: transactionPeople.name,
         personAvatarUrl: transactionPeople.avatarUrl,
@@ -185,6 +199,7 @@ export const dashboardRepository = {
       purchaseDate: row.purchaseDate.toISOString().slice(0, 10),
       dueDate: toDateString(row.dueDate),
       boletoPaymentDate: toDateString(row.boletoPaymentDate),
+      settledDate: toDateString(row.settledDate),
     }));
   },
 
@@ -199,6 +214,13 @@ export const dashboardRepository = {
         amount: recurringTransactionRules.amount,
         categoryId: recurringCategories.id,
         categoryName: recurringCategories.name,
+        categoryParentId: recurringCategories.parentId,
+        categoryParentName: sql<
+          string | null
+        >`(select p.name from categories p where p.id = ${recurringCategories.parentId} and p.user_id = ${userId})`,
+        categoryParentIcon: sql<
+          string | null
+        >`(select p.icon from categories p where p.id = ${recurringCategories.parentId} and p.user_id = ${userId})`,
         categoryIcon: recurringCategories.icon,
         adminAmount: sql<string | null>`case
           when exists (
@@ -228,7 +250,14 @@ export const dashboardRepository = {
         paymentMethod: recurringTransactionRules.paymentMethod,
         anchorDate: recurringTransactionRules.anchorDate,
         startDate: recurringTransactionRules.startDate,
-        endDate: recurringTransactionRules.endDate,
+        endDate: effectiveRecurringEndDateSql,
+
+        configuredEndDate: sql<
+          string | null
+        >`to_char(${recurringTransactionRules.recurrenceEndDate}, 'YYYY-MM-DD')`.as(
+          "configured_end_date",
+        ),
+        occurrenceOverrides: recurringOccurrenceOverridesSql,
         dueDate: recurringTransactionRules.dueDate,
         personId: recurringPeople.id,
         personName: recurringPeople.name,
@@ -305,7 +334,7 @@ export const dashboardRepository = {
         and(
           eq(recurringTransactionRules.userId, userId),
           eq(recurringTransactionRules.status, "active"),
-          lte(recurringTransactionRules.startDate, periodEnd),
+          lte(recurringTransactionRules.startDate, new Date(periodEnd.getTime() + 32 * 86_400_000)),
         ),
       );
 
@@ -316,8 +345,14 @@ export const dashboardRepository = {
       amount: row.amount,
       categoryId: row.categoryId,
       categoryName: row.categoryName,
+      categoryParentId: row.categoryParentId,
+      categoryParentName: row.categoryParentName,
+      categoryParentIcon: row.categoryParentIcon,
       categoryIcon: row.categoryIcon,
       adminAmount: row.adminAmount,
+      occurrenceOverrides: row.occurrenceOverrides,
+
+      configuredEndDate: row.configuredEndDate,
       cardId: row.cardId,
       isSettled: row.isSettled,
       type: row.type,
@@ -358,7 +393,7 @@ export const dashboardRepository = {
   listTransactionPersonSplits(userId, period) {
     return db
       .select({
-        amount: transactionSplits.amount,
+        amount: effectiveSplitAmountSql.as("amount"),
         personAvatarUrl: transactionSplitPeople.avatarUrl,
         personId: transactionSplitPeople.id,
         personName: transactionSplitPeople.name,
@@ -406,7 +441,7 @@ export const dashboardRepository = {
         and(
           eq(recurringTransactionSplits.recurringRuleId, recurringTransactionRules.id),
           eq(recurringTransactionRules.userId, userId),
-          lte(recurringTransactionRules.startDate, periodEnd),
+          lte(recurringTransactionRules.startDate, new Date(periodEnd.getTime() + 32 * 86_400_000)),
         ),
       )
       .innerJoin(
@@ -425,6 +460,7 @@ export const dashboardRepository = {
         recurringSeriesId: recurringTransactionOccurrences.recurringSeriesId,
         purchaseDate: recurringTransactionOccurrences.purchaseDate,
         boletoPaymentDate: recurringTransactionOccurrences.boletoPaymentDate,
+        settledDate: recurringTransactionOccurrences.settledDate,
         isSettled: recurringTransactionOccurrences.isSettled,
       })
       .from(recurringTransactionOccurrences)
@@ -439,6 +475,7 @@ export const dashboardRepository = {
       ...row,
       purchaseDate: row.purchaseDate.toISOString().slice(0, 10),
       boletoPaymentDate: toDateString(row.boletoPaymentDate),
+      settledDate: toDateString(row.settledDate),
     }));
   },
 

@@ -29,7 +29,12 @@
     "./external-expenses": "./src/external-expenses.ts",
     "./inbox": "./src/inbox.ts",
     "./inbox-rules": "./src/inbox-rules.ts",
-    "./device-tokens": "./src/device-tokens.ts"
+    "./device-tokens": "./src/device-tokens.ts",
+    "./tags": "./src/tags.ts",
+    "./recurring-transactions": "./src/recurring-transactions.ts",
+    "./settlements": "./src/settlements.ts",
+    "./business-calendars": "./src/business-calendars.ts",
+    "./due-date-rules": "./src/due-date-rules.ts"
   },
   "scripts": {
     "build": "tsc --noEmit",

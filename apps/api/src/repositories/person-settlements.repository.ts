@@ -1,4 +1,5 @@
 import {
+  cards,
   db,
   invoicePaymentAllocations,
   invoicePayments,
@@ -9,9 +10,16 @@ import {
   transactionSplits,
   transactions,
 } from "@openmonetis/db";
+import { getPersonRecurringBalanceOccurrencePeriods } from "@openmonetis/domain/person-settlements";
 import { getPeriodEndDate, isExpenseReduction } from "@openmonetis/domain/transactions";
-import { and, asc, desc, eq, gte, isNull, lt, lte, or } from "drizzle-orm";
+import { and, asc, desc, eq, gte, isNull, lt, lte, or, sql } from "drizzle-orm";
 import type { PersonSettlementsRepository } from "../services/person-settlements.service";
+import { effectiveRecurringEndDateSql } from "./recurring-transactions.repository";
+import {
+  effectiveSplitAmountSql,
+  effectiveTransactionAmountSql,
+  recurringOccurrenceOverridesSql,
+} from "./settlements.repository";
 
 const settlementColumns = {
   id: personSettlements.id,
@@ -93,8 +101,8 @@ export const personSettlementsRepository: PersonSettlementsRepository = {
       .select({
         kind: transactions.origin,
         type: transactions.type,
-        amount: transactions.amount,
-        splitAmount: transactionSplits.amount,
+        amount: effectiveTransactionAmountSql.as("amount"),
+        splitAmount: effectiveSplitAmountSql.as("split_amount"),
       })
       .from(transactions)
       .leftJoin(
@@ -127,22 +135,44 @@ export const personSettlementsRepository: PersonSettlementsRepository = {
   },
 
   async listRecurringBalanceRulesForPeriod(userId, period) {
-    const periodStart = new Date(`${period}-01T00:00:00.000Z`);
-    const periodEnd = getPeriodEndDate(period);
+    const occurrencePeriods = getPersonRecurringBalanceOccurrencePeriods(period);
+    const periodStart = new Date(`${occurrencePeriods[0]}-01T00:00:00.000Z`);
+    const periodEnd = getPeriodEndDate(occurrencePeriods.at(-1) as string);
     const rows = await db
       .select({
         id: recurringTransactionRules.id,
         seriesId: recurringTransactionRules.seriesId,
         personId: recurringTransactionRules.personId,
         amount: recurringTransactionRules.amount,
+        paymentMethod: recurringTransactionRules.paymentMethod,
+        card: {
+          closingDay: cards.closingDay,
+          closingRuleType: cards.closingRuleType,
+          closingOffsetDays: cards.closingOffsetDays,
+          closingOffsetMode: cards.closingOffsetMode,
+          closingDayPurchasesNextInvoice: cards.closingDayPurchasesNextInvoice,
+          dueDay: cards.dueDay,
+        },
         anchorDate: recurringTransactionRules.anchorDate,
         startDate: recurringTransactionRules.startDate,
-        endDate: recurringTransactionRules.endDate,
+        endDate: effectiveRecurringEndDateSql,
+        dueDate: recurringTransactionRules.dueDate,
+
+        configuredEndDate: sql<
+          string | null
+        >`to_char(${recurringTransactionRules.recurrenceEndDate}, 'YYYY-MM-DD')`.as(
+          "configured_end_date",
+        ),
+        occurrenceOverrides: recurringOccurrenceOverridesSql,
         frequency: recurringTransactionRules.frequency,
         splitPersonId: recurringTransactionSplits.personId,
         splitAmount: recurringTransactionSplits.amount,
       })
       .from(recurringTransactionRules)
+      .leftJoin(
+        cards,
+        and(eq(cards.id, recurringTransactionRules.cardId), eq(cards.userId, userId)),
+      )
       .leftJoin(
         recurringTransactionSplits,
         and(
@@ -171,9 +201,15 @@ export const personSettlementsRepository: PersonSettlementsRepository = {
         seriesId: row.seriesId,
         personId: row.personId,
         amount: row.amount,
+        paymentMethod: row.paymentMethod,
+        card: row.card,
         anchorDate: row.anchorDate.toISOString().slice(0, 10),
         startDate: row.startDate.toISOString().slice(0, 10),
         endDate: row.endDate?.toISOString().slice(0, 10) ?? null,
+        occurrenceOverrides: row.occurrenceOverrides,
+        dueDate: row.dueDate?.toISOString().slice(0, 10) ?? null,
+
+        configuredEndDate: row.configuredEndDate,
         frequency: row.frequency,
         splits: group.flatMap((item) =>
           item.splitPersonId && item.splitAmount !== null

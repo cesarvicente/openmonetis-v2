@@ -8,8 +8,13 @@ import {
   recurringTransactionRules,
   transactions,
 } from "@openmonetis/db";
-import { and, asc, eq, inArray, isNotNull, lte, or } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull, lte, or, sql } from "drizzle-orm";
 import type { CardsRepository } from "../services/cards.service";
+import { effectiveRecurringEndDateSql } from "./recurring-transactions.repository";
+import {
+  effectiveTransactionAmountSql,
+  recurringOccurrenceOverridesSql,
+} from "./settlements.repository";
 
 export const cardsRepository = {
   async accountExistsForUser(accountId, userId) {
@@ -162,7 +167,7 @@ export const cardsRepository = {
       .select({
         cardId: transactions.cardId,
         period: transactions.period,
-        amount: transactions.amount,
+        amount: effectiveTransactionAmountSql.as("amount"),
         purchaseDate: transactions.purchaseDate,
       })
       .from(transactions)
@@ -189,6 +194,9 @@ export const cardsRepository = {
         paymentStatus: invoices.paymentStatus,
         closingDate: invoices.closingDate,
         dueDate: invoices.dueDate,
+        originalDueDate: invoices.originalDueDate,
+        dueDateRuleExcluded: invoices.dueDateRuleExcluded,
+        dueDateAdjustment: invoices.dueDateAdjustment,
         datesCustomized: invoices.datesCustomized,
       })
       .from(invoices)
@@ -198,6 +206,7 @@ export const cardsRepository = {
           ...row,
           closingDate: row.closingDate?.toISOString().slice(0, 10) ?? null,
           dueDate: row.dueDate?.toISOString().slice(0, 10) ?? null,
+          originalDueDate: row.originalDueDate?.toISOString().slice(0, 10) ?? null,
         })),
       );
   },
@@ -226,7 +235,14 @@ export const cardsRepository = {
         amount: recurringTransactionRules.amount,
         anchorDate: recurringTransactionRules.anchorDate,
         startDate: recurringTransactionRules.startDate,
-        endDate: recurringTransactionRules.endDate,
+        endDate: effectiveRecurringEndDateSql,
+
+        configuredEndDate: sql<
+          string | null
+        >`to_char(${recurringTransactionRules.recurrenceEndDate}, 'YYYY-MM-DD')`.as(
+          "configured_end_date",
+        ),
+        occurrenceOverrides: recurringOccurrenceOverridesSql,
         frequency: recurringTransactionRules.frequency,
         paymentMethod: recurringTransactionRules.paymentMethod,
         dueDate: recurringTransactionRules.dueDate,

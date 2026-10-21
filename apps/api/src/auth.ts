@@ -3,7 +3,7 @@ import { passkey } from "@better-auth/passkey";
 import { db } from "@openmonetis/db";
 import * as schema from "@openmonetis/db/schema";
 import { betterAuth } from "better-auth";
-import { createAuthMiddleware, freshSessionMiddleware } from "better-auth/api";
+import { APIError, createAuthMiddleware, freshSessionMiddleware } from "better-auth/api";
 import type { GoogleProfile } from "better-auth/social-providers";
 import { enforcePasswordChangePolicy } from "./middlewares/password-change";
 import { categoriesRepository } from "./repositories/categories.repository";
@@ -13,6 +13,7 @@ import { createPeopleService } from "./services/people.service";
 import {
   assertProductionSecret,
   getRequiredProductionEnv,
+  parseBooleanEnv,
   parseCsvEnv,
   parsePositiveIntegerEnv,
 } from "./utils/env";
@@ -28,6 +29,11 @@ const DEVELOPMENT_AUTH_SECRET = "openmonetis-local-development-secret-change-me"
 
 const googleClientId = process.env.GOOGLE_CLIENT_ID?.trim();
 const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET?.trim();
+const disableSignup = parseBooleanEnv("DISABLE_SIGNUP");
+export const authConfiguration = {
+  signupEnabled: !disableSignup,
+  googleEnabled: Boolean(googleClientId && googleClientSecret),
+};
 
 if (Boolean(googleClientId) !== Boolean(googleClientSecret)) {
   throw new Error("GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET must be configured together");
@@ -140,118 +146,137 @@ async function syncGoogleProviderAvatar(account: {
   }
 }
 
-export const auth = betterAuth({
-  appName: "OpenMonetis",
-  baseURL,
-  trustedOrigins,
-  secret: authSecret,
-  database: drizzleAdapter(db, {
-    provider: "pg",
-    schema,
-  }),
-  emailAndPassword: {
-    enabled: true,
-  },
-  socialProviders:
-    googleClientId && googleClientSecret
-      ? {
-          google: {
-            clientId: googleClientId,
-            clientSecret: googleClientSecret,
-            mapProfileToUser: (profile) => ({
-              name: getGoogleProfileName(profile),
-              email: profile.email,
-              image: profile.picture,
-              emailVerified: profile.email_verified,
-            }),
-          },
-        }
-      : undefined,
-  rateLimit: {
-    window: 60,
-    max: 100,
-    customRules: {
-      "/sign-in/email": { window: 60, max: 5 },
-      "/sign-in/social": { window: 60, max: 5 },
-      "/sign-up/email": { window: 60, max: 3 },
-      "/change-password": { window: 60, max: 5 },
-      "/passkey/generate-authenticate-options": { window: 60, max: 10 },
-      "/passkey/verify-authentication": { window: 60, max: 5 },
-      "/passkey/generate-register-options": { window: 60, max: 5 },
-      "/passkey/verify-registration": { window: 60, max: 5 },
-      "/passkey/update-passkey": { window: 60, max: 5 },
-      "/passkey/delete-passkey": { window: 60, max: 5 },
-    },
-  },
-  session: {
-    expiresIn: sessionExpiresInDays * 24 * 60 * 60,
-    freshAge: PASSKEY_FRESH_SESSION_AGE_SECONDS,
-    updateAge: sessionUpdateAgeHours * 60 * 60,
-  },
-  plugins: [
-    passkey({
-      rpID: passkeyOrigin.rpID,
-      rpName: "OpenMonetis",
-      origin: passkeyOrigin.origin,
-      authenticatorSelection: {
-        residentKey: "required",
-        userVerification: "required",
-      },
-      registration: {
-        requireSession: true,
-        afterVerification: ({ verification }) => {
-          requireVerifiedPasskeyUser(verification.registrationInfo?.userVerified === true);
-        },
-      },
-      authentication: {
-        afterVerification: ({ verification }) => {
-          requireVerifiedPasskeyUser(verification.authenticationInfo.userVerified);
-        },
-      },
+export function createAuth(options: { disableSignup?: boolean } = {}) {
+  const signupDisabled = options.disableSignup ?? disableSignup;
+  function assertSignupAllowed() {
+    if (signupDisabled)
+      throw new APIError("FORBIDDEN", {
+        code: "SIGNUP_DISABLED",
+        message: "Sign up is disabled on this instance",
+      });
+  }
+  return betterAuth({
+    appName: "OpenMonetis",
+    baseURL,
+    trustedOrigins,
+    secret: authSecret,
+    database: drizzleAdapter(db, {
+      provider: "pg",
+      schema,
     }),
-  ],
-  hooks: {
-    before: createAuthMiddleware(async (context) => {
-      const passwordChangePolicy = enforcePasswordChangePolicy(context);
-      if (passwordChangePolicy) return passwordChangePolicy;
-
-      if (PASSKEY_SENSITIVE_MANAGEMENT_PATHS.has(context.path)) {
-        await freshSessionMiddleware(context);
-      }
-    }),
-  },
-  advanced: {
-    cookieOptions: {
-      httpOnly: true,
-      sameSite: "lax",
-      secure: new URL(baseURL).protocol === "https:",
+    emailAndPassword: {
+      enabled: true,
+      disableSignUp: signupDisabled,
     },
-    database: {
-      generateId: "uuid",
-    },
-  },
-  databaseHooks: {
-    user: {
-      create: {
-        after: async (user) => {
-          try {
-            await peopleService.ensureAdmin({
-              id: user.id,
-              name: user.name,
-              email: user.email,
-              image: user.image,
-              providerAvatarUrl: user.image,
-            });
-            await categoriesService.seedDefaults(user.id);
-          } catch (error) {
-            console.error("[Auth] Failed to provision default user data", error);
+    socialProviders:
+      googleClientId && googleClientSecret
+        ? {
+            google: {
+              clientId: googleClientId,
+              clientSecret: googleClientSecret,
+              disableSignUp: signupDisabled,
+              mapProfileToUser: (profile) => ({
+                name: getGoogleProfileName(profile),
+                email: profile.email,
+                image: profile.picture,
+                emailVerified: profile.email_verified,
+              }),
+            },
           }
-        },
+        : undefined,
+    rateLimit: {
+      window: 60,
+      max: 100,
+      customRules: {
+        "/sign-in/email": { window: 60, max: 5 },
+        "/sign-in/social": { window: 60, max: 5 },
+        "/sign-up/email": { window: 60, max: 3 },
+        "/change-password": { window: 60, max: 5 },
+        "/passkey/generate-authenticate-options": { window: 60, max: 10 },
+        "/passkey/verify-authentication": { window: 60, max: 5 },
+        "/passkey/generate-register-options": { window: 60, max: 5 },
+        "/passkey/verify-registration": { window: 60, max: 5 },
+        "/passkey/update-passkey": { window: 60, max: 5 },
+        "/passkey/delete-passkey": { window: 60, max: 5 },
       },
     },
-    account: {
-      create: { after: syncGoogleProviderAvatar },
-      update: { after: syncGoogleProviderAvatar },
+    session: {
+      expiresIn: sessionExpiresInDays * 24 * 60 * 60,
+      freshAge: PASSKEY_FRESH_SESSION_AGE_SECONDS,
+      updateAge: sessionUpdateAgeHours * 60 * 60,
     },
-  },
-});
+    plugins: [
+      passkey({
+        rpID: passkeyOrigin.rpID,
+        rpName: "OpenMonetis",
+        origin: passkeyOrigin.origin,
+        authenticatorSelection: {
+          residentKey: "required",
+          userVerification: "required",
+        },
+        registration: {
+          requireSession: true,
+          afterVerification: ({ verification }) => {
+            requireVerifiedPasskeyUser(verification.registrationInfo?.userVerified === true);
+          },
+        },
+        authentication: {
+          afterVerification: ({ verification }) => {
+            requireVerifiedPasskeyUser(verification.authenticationInfo.userVerified);
+          },
+        },
+      }),
+    ],
+    hooks: {
+      before: createAuthMiddleware(async (context) => {
+        if (context.path.startsWith("/sign-up/")) assertSignupAllowed();
+        const passwordChangePolicy = enforcePasswordChangePolicy(context);
+        if (passwordChangePolicy) return passwordChangePolicy;
+
+        if (PASSKEY_SENSITIVE_MANAGEMENT_PATHS.has(context.path)) {
+          await freshSessionMiddleware(context);
+        }
+      }),
+    },
+    advanced: {
+      cookieOptions: {
+        httpOnly: true,
+        sameSite: "lax",
+        secure: new URL(baseURL).protocol === "https:",
+      },
+      database: {
+        generateId: "uuid",
+      },
+    },
+    databaseHooks: {
+      user: {
+        create: {
+          before: async (user) => {
+            assertSignupAllowed();
+            return { data: user };
+          },
+          after: async (user) => {
+            try {
+              await peopleService.ensureAdmin({
+                id: user.id,
+                name: user.name,
+                email: user.email,
+                image: user.image,
+                providerAvatarUrl: user.image,
+              });
+              await categoriesService.seedDefaults(user.id);
+            } catch (error) {
+              console.error("[Auth] Failed to provision default user data", error);
+            }
+          },
+        },
+      },
+      account: {
+        create: { after: syncGoogleProviderAvatar },
+        update: { after: syncGoogleProviderAvatar },
+      },
+    },
+  });
+}
+
+export const auth = createAuth();

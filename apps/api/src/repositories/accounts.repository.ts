@@ -18,6 +18,12 @@ import { balanceAdjustmentCategoryName, yieldCategoryName } from "@openmonetis/d
 import { and, asc, eq, inArray, isNull, lte, ne, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import type { AccountsRepository } from "../services/accounts.service";
+import { effectiveRecurringEndDateSql } from "./recurring-transactions.repository";
+import {
+  effectiveSplitAmountSql,
+  effectiveTransactionAmountSql,
+  recurringOccurrenceOverridesSql,
+} from "./settlements.repository";
 
 const transactionPeople = alias(people, "account_balance_transaction_people");
 const splitPeople = alias(people, "account_balance_split_people");
@@ -47,6 +53,7 @@ export const accountsRepository = {
           and(
             eq(categories.userId, data.userId),
             eq(categories.name, balanceAdjustmentCategoryName),
+            eq(categories.isSystem, true),
             eq(categories.type, data.type),
           ),
         )
@@ -90,6 +97,8 @@ export const accountsRepository = {
             eq(categories.type, "income"),
           ),
         )
+        // Defaults precede user-created subcategories; retain the original category when names repeat.
+        .orderBy(asc(categories.createdAt), asc(categories.id))
         .limit(1);
       if (!admin || !category) {
         throw new Error("Account yield dependencies not found");
@@ -337,8 +346,9 @@ export const accountsRepository = {
         dueDate: transactions.dueDate,
         paymentMethod: transactions.paymentMethod,
         boletoPaymentDate: transactions.boletoPaymentDate,
+        settledDate: transactions.settledDate,
         amount:
-          sql<string>`sum(case when ${transactionSplits.id} is not null then ${transactionSplits.amount} else ${transactions.amount} end)`.as(
+          sql<string>`sum(case when ${transactionSplits.id} is not null then ${effectiveSplitAmountSql} else ${effectiveTransactionAmountSql} end)`.as(
             "amount",
           ),
         includeInSummary: sql<boolean>`${transactions.origin} <> 'accountBalanceAdjustment'`.as(
@@ -369,7 +379,7 @@ export const accountsRepository = {
           or(
             and(
               or(isNull(transactions.paymentMethod), ne(transactions.paymentMethod, "boleto")),
-              lte(transactions.period, period),
+              sql`coalesce(to_char(${transactions.settledDate}, 'YYYY-MM'), ${transactions.period}) <= ${period}`,
             ),
             and(eq(transactions.paymentMethod, "boleto"), eq(transactions.type, "expense")),
           ),
@@ -388,15 +398,18 @@ export const accountsRepository = {
         transactions.origin,
         transactions.paymentMethod,
         transactions.boletoPaymentDate,
+        transactions.settledDate,
       );
 
     return postings.map((posting) => ({
       ...posting,
       postingDate:
+        posting.settledDate?.toISOString().slice(0, 10) ??
         posting.boletoPaymentDate?.toISOString().slice(0, 10) ??
         (posting.paymentMethod === "boleto" ? posting.dueDate?.toISOString().slice(0, 10) : null) ??
         posting.purchaseDate.toISOString().slice(0, 10),
       boletoPaymentDate: posting.boletoPaymentDate?.toISOString().slice(0, 10) ?? null,
+      settledDate: posting.settledDate?.toISOString().slice(0, 10) ?? null,
     }));
   },
 
@@ -417,7 +430,18 @@ export const accountsRepository = {
           paymentMethod: recurringTransactionRules.paymentMethod,
           anchorDate: recurringTransactionRules.anchorDate,
           startDate: recurringTransactionRules.startDate,
-          endDate: recurringTransactionRules.endDate,
+          endDate: effectiveRecurringEndDateSql,
+
+          configuredEndDate: sql<
+            string | null
+          >`to_char(${recurringTransactionRules.recurrenceEndDate}, 'YYYY-MM-DD')`.as(
+            "configured_end_date",
+          ),
+          occurrenceOverrides: recurringOccurrenceOverridesSql,
+          allocationPersonId:
+            sql<string>`coalesce(${recurringTransactionSplits.personId}, ${recurringTransactionRules.personId})`.as(
+              "allocation_person_id",
+            ),
           dueDate: recurringTransactionRules.dueDate,
           frequency: recurringTransactionRules.frequency,
           isSettled: recurringTransactionRules.isSettled,
@@ -449,7 +473,10 @@ export const accountsRepository = {
             eq(recurringTransactionRules.userId, userId),
             eq(recurringTransactionRules.status, "active"),
             ne(recurringTransactionRules.paymentMethod, "boleto"),
-            lte(recurringTransactionRules.startDate, periodEnd),
+            or(
+              lte(recurringTransactionRules.startDate, periodEnd),
+              sql`exists(select 1 from recurring_transaction_occurrences o where o.user_id = ${userId} and o.recurring_series_id = ${recurringTransactionRules.seriesId} and o.settled_date <= ${periodEnd})`,
+            ),
             or(
               and(isNull(recurringTransactionSplits.id), eq(recurringPeople.role, "admin")),
               eq(recurringSplitPeople.role, "admin"),
@@ -471,7 +498,18 @@ export const accountsRepository = {
           paymentMethod: recurringTransactionRules.paymentMethod,
           anchorDate: recurringTransactionRules.anchorDate,
           startDate: recurringTransactionRules.startDate,
-          endDate: recurringTransactionRules.endDate,
+          endDate: effectiveRecurringEndDateSql,
+
+          configuredEndDate: sql<
+            string | null
+          >`to_char(${recurringTransactionRules.recurrenceEndDate}, 'YYYY-MM-DD')`.as(
+            "configured_end_date",
+          ),
+          occurrenceOverrides: recurringOccurrenceOverridesSql,
+          allocationPersonId:
+            sql<string>`coalesce(${recurringTransactionSplits.personId}, ${recurringTransactionRules.personId})`.as(
+              "allocation_person_id",
+            ),
           dueDate: recurringTransactionRules.dueDate,
           frequency: recurringTransactionRules.frequency,
           isSettled: recurringTransactionRules.isSettled,
@@ -532,6 +570,7 @@ export const accountsRepository = {
         isSettled: recurringTransactionOccurrences.isSettled,
         accountId: recurringTransactionOccurrences.accountId,
         boletoPaymentDate: recurringTransactionOccurrences.boletoPaymentDate,
+        settledDate: recurringTransactionOccurrences.settledDate,
       })
       .from(recurringTransactionOccurrences)
       .where(
@@ -541,6 +580,7 @@ export const accountsRepository = {
           or(
             lte(recurringTransactionOccurrences.purchaseDate, periodEnd),
             lte(recurringTransactionOccurrences.boletoPaymentDate, periodEnd),
+            lte(recurringTransactionOccurrences.settledDate, periodEnd),
           ),
         ),
       );
@@ -548,6 +588,7 @@ export const accountsRepository = {
     return rows.map((row) => ({
       ...row,
       purchaseDate: row.purchaseDate.toISOString().slice(0, 10),
+      settledDate: row.settledDate?.toISOString().slice(0, 10) ?? null,
       boletoPaymentDate: row.boletoPaymentDate?.toISOString().slice(0, 10) ?? null,
     }));
   },

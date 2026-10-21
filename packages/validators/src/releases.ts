@@ -17,6 +17,7 @@ export const ReleaseOutputSchema = z.object({
   summary: z.string().min(1),
   isCurrent: z.boolean(),
   sections: z.array(ReleaseSectionOutputSchema),
+  upgradeNotes: z.array(z.string().min(1)).optional(),
 });
 
 export const ReleasesOutputSchema = z

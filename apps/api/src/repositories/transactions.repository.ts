@@ -17,16 +17,21 @@ import {
   type RecurringTransactionRule,
   recurringTransactionOccurrences,
   recurringTransactionRules,
+  recurringTransactionRuleTags,
   recurringTransactionSeries,
   recurringTransactionSplits,
+  settlementEvents,
   type Transaction,
   transactionAttachments,
   transactionRefunds,
   transactionSplits,
   transactions,
+  transactionTags,
 } from "@openmonetis/db";
 import { createEstablishmentNameKey } from "@openmonetis/domain/establishments";
 import { selectNewExternalExpenseAssignmentKeys } from "@openmonetis/domain/external-expenses";
+import { planRecurringScheduleChange } from "@openmonetis/domain/recurring-transactions";
+import { SettlementError } from "@openmonetis/domain/settlements";
 import {
   assertTransferWithinAvailableBalance,
   selectRecurringRuleVersionsToUpdate,
@@ -50,11 +55,30 @@ import {
   sql,
 } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
+import { categoryLabelSql } from "./categories.repository";
 import {
   deletePendingExternalExpensesForTransactions,
   findExternalExpenseAssignmentKeys,
   synchronizePendingExternalExpensesForTransactions,
 } from "./external-expenses.repository";
+import { effectiveRecurringEndDateSql } from "./recurring-transactions.repository";
+import {
+  effectiveSplitAmountSql,
+  effectiveTransactionAmountSql,
+  recurringOccurrenceOverridesSql,
+  settlePersistedTransactions,
+  settleRecurringTransaction,
+} from "./settlements.repository";
+
+import {
+  readRecurringRuleTagIds,
+  replaceRecurringRuleTags,
+  replaceTransactionTags,
+} from "./tags.repository";
+
+function withoutTagIds<T extends { tagIds?: string[] }>({ tagIds: _tagIds, ...record }: T) {
+  return record;
+}
 
 const transactionAccounts = alias(financialAccounts, "transaction_accounts");
 const occurrenceAccounts = alias(financialAccounts, "occurrence_accounts");
@@ -97,7 +121,24 @@ async function replaceTransactionSplits(
     );
 }
 
-export type TransactionCreateRecord = Omit<Transaction, "id" | "createdAt" | "updatedAt">;
+export type TransactionCreateRecord = Omit<
+  Transaction,
+  | "id"
+  | "createdAt"
+  | "updatedAt"
+  | "settledAmount"
+  | "settledDate"
+  | "dueDateAdjustment"
+  | "frozenDueDate"
+  | "dueDateRuleExcluded"
+> & {
+  dueDateAdjustment?: import("@openmonetis/domain/due-date-rules").DueDateAdjustmentDetails | null;
+  frozenDueDate?: Date | null;
+  dueDateRuleExcluded?: boolean;
+  settledAmount?: string | null;
+  settledDate?: Date | null;
+  tagIds?: string[];
+};
 type InstallmentSeriesCreateRecord = {
   id: string;
   userId: string;
@@ -107,8 +148,12 @@ type InstallmentSeriesCreateRecord = {
 };
 type RecurringRuleCreateRecord = Omit<
   RecurringTransactionRule,
-  "id" | "seriesId" | "createdAt" | "updatedAt"
->;
+  "id" | "seriesId" | "createdAt" | "updatedAt" | "recurrenceEndDate" | "dueDateRuleExcluded"
+> & {
+  dueDateRuleExcluded?: boolean;
+  tagIds?: string[];
+  recurrenceEndDate?: Date | null;
+};
 type RecurringRuleUpdateRecord = Partial<Omit<RecurringRuleCreateRecord, "userId">>;
 type TransactionConfirmation =
   | {
@@ -240,12 +285,15 @@ export type TransactionUpdateRecord = Partial<
     | "categoryId"
     | "sourceAccountId"
     | "destinationAccountId"
+    | "dueDateRuleExcluded"
     | "dueDate"
     | "boletoPaymentDate"
+    | "settledDate"
     | "installmentCount"
     | "currentInstallment"
     | "isSettled"
     | "note"
+    | "tagIds"
   >
 >;
 
@@ -273,7 +321,7 @@ async function getSettledAccountBalanceThroughPeriod(
 ) {
   const [adminPostings] = await transaction
     .select({
-      total: sql<string>`coalesce(sum(case when ${transactionSplits.id} is not null then ${transactionSplits.amount} else ${transactions.amount} end), 0)`,
+      total: sql<string>`coalesce(sum(case when ${transactionSplits.id} is not null then ${effectiveSplitAmountSql} else ${effectiveTransactionAmountSql} end), 0)`,
     })
     .from(transactions)
     .innerJoin(people, and(eq(transactions.personId, people.id), eq(people.userId, userId)))
@@ -297,7 +345,7 @@ async function getSettledAccountBalanceThroughPeriod(
         eq(transactions.accountId, accountId),
         eq(transactions.isSettled, true),
         or(isNull(transactions.paymentMethod), ne(transactions.paymentMethod, "boleto")),
-        lte(transactions.period, period),
+        sql`coalesce(to_char(${transactions.settledDate}, 'YYYY-MM'), ${transactions.period}) <= ${period}`,
         or(
           and(isNull(transactionSplits.id), eq(people.role, "admin")),
           eq(balanceSplitPeople.role, "admin"),
@@ -305,7 +353,7 @@ async function getSettledAccountBalanceThroughPeriod(
       ),
     );
   const [billPostings] = await transaction
-    .select({ total: sql<string>`coalesce(sum(${transactions.amount}), 0)` })
+    .select({ total: sql<string>`coalesce(sum(${effectiveTransactionAmountSql}), 0)` })
     .from(transactions)
     .where(
       and(
@@ -314,7 +362,7 @@ async function getSettledAccountBalanceThroughPeriod(
         eq(transactions.isSettled, true),
         eq(transactions.type, "expense"),
         eq(transactions.paymentMethod, "boleto"),
-        lte(transactions.period, period),
+        sql`coalesce(to_char(${transactions.settledDate}, 'YYYY-MM'), ${transactions.period}) <= ${period}`,
       ),
     );
 
@@ -354,7 +402,17 @@ async function assertSufficientTransferBalance(
   });
 }
 
-export type TransactionWithRelations = Transaction & {
+export type TransactionWithRelations = Omit<
+  Transaction,
+  "settledAmount" | "settledDate" | "dueDateRuleExcluded" | "frozenDueDate" | "dueDateAdjustment"
+> & {
+  dueDateRuleExcluded?: boolean;
+  dueDateAdjustment?: import("@openmonetis/domain/due-date-rules").DueDateAdjustmentDetails | null;
+  frozenDueDate?: Date | null;
+  settledAmount?: string | null;
+  settledDate?: Date | null;
+  plannedAmount?: string;
+  tagIds?: string[];
   personName: string;
   personAvatarUrl: string | null;
   accountName: string | null;
@@ -375,7 +433,16 @@ export type TransactionWithRelations = Transaction & {
   installmentOriginalPeriod: string | null;
 };
 
-export type RecurringRuleWithRelations = RecurringTransactionRule & {
+export type RecurringRuleWithRelations = Omit<
+  RecurringTransactionRule,
+  "recurrenceEndDate" | "dueDateRuleExcluded"
+> & {
+  dueDateRuleExcluded?: boolean;
+  occurrenceOverrides?: import("@openmonetis/domain/settlements").SettlementAwareRule["occurrenceOverrides"];
+  recurrenceEndDate?: Date | null;
+  configuredEndDate?: string | null;
+
+  tagIds?: string[];
   personName: string;
   personAvatarUrl: string | null;
   accountName: string | null;
@@ -397,6 +464,11 @@ export type RecurringRuleWithRelations = RecurringTransactionRule & {
 };
 
 const transactionColumns = {
+  tagIds: sql<
+    string[]
+  >`array(select ${transactionTags.tagId} from ${transactionTags} where ${transactionTags.transactionId} = ${transactions.id} and ${transactionTags.userId} = ${transactions.userId} order by ${transactionTags.tagId})`.as(
+    "tag_ids",
+  ),
   id: transactions.id,
   userId: transactions.userId,
   personId: transactions.personId,
@@ -405,7 +477,10 @@ const transactionColumns = {
   condition: transactions.condition,
   paymentMethod: transactions.paymentMethod,
   name: transactions.name,
-  amount: transactions.amount,
+  amount: effectiveTransactionAmountSql.as("amount"),
+  plannedAmount: transactions.amount,
+  settledAmount: transactions.settledAmount,
+  settledDate: transactions.settledDate,
   purchaseDate: transactions.purchaseDate,
   period: transactions.period,
   accountId: transactions.accountId,
@@ -414,6 +489,9 @@ const transactionColumns = {
   sourceAccountId: transactions.sourceAccountId,
   destinationAccountId: transactions.destinationAccountId,
   dueDate: transactions.dueDate,
+  dueDateRuleExcluded: transactions.dueDateRuleExcluded,
+  frozenDueDate: transactions.frozenDueDate,
+  dueDateAdjustment: transactions.dueDateAdjustment,
   boletoPaymentDate: transactions.boletoPaymentDate,
   installmentCount: transactions.installmentCount,
   currentInstallment: transactions.currentInstallment,
@@ -453,7 +531,7 @@ const transactionColumns = {
       and ${invoicePayments.userId} = ${transactions.userId}
     limit 1
   )`.as("invoice_payment_card_logo"),
-  categoryName: categories.name,
+  categoryName: categoryLabelSql(categories),
   categoryIcon: categories.icon,
   sourceAccountName: sourceAccounts.name,
   sourceAccountLogo: sourceAccounts.logo,
@@ -489,6 +567,11 @@ const transactionColumns = {
 };
 
 const recurringRuleColumns = {
+  tagIds: sql<
+    string[]
+  >`array(select ${recurringTransactionRuleTags.tagId} from ${recurringTransactionRuleTags} where ${recurringTransactionRuleTags.recurringRuleId} = ${recurringTransactionRules.id} and ${recurringTransactionRuleTags.userId} = ${recurringTransactionRules.userId} order by ${recurringTransactionRuleTags.tagId})`.as(
+    "tag_ids",
+  ),
   id: recurringTransactionRules.id,
   userId: recurringTransactionRules.userId,
   seriesId: recurringTransactionRules.seriesId,
@@ -499,7 +582,15 @@ const recurringRuleColumns = {
   amount: recurringTransactionRules.amount,
   anchorDate: recurringTransactionRules.anchorDate,
   startDate: recurringTransactionRules.startDate,
-  endDate: recurringTransactionRules.endDate,
+  endDate: effectiveRecurringEndDateSql,
+
+  configuredEndDate: sql<
+    string | null
+  >`to_char(${recurringTransactionRules.recurrenceEndDate}, 'YYYY-MM-DD')`.as(
+    "configured_end_date",
+  ),
+  occurrenceOverrides: recurringOccurrenceOverridesSql,
+  recurrenceEndDate: recurringTransactionRules.recurrenceEndDate,
   frequency: recurringTransactionRules.frequency,
   accountId: recurringTransactionRules.accountId,
   cardId: recurringTransactionRules.cardId,
@@ -507,6 +598,7 @@ const recurringRuleColumns = {
   sourceAccountId: recurringTransactionRules.sourceAccountId,
   destinationAccountId: recurringTransactionRules.destinationAccountId,
   dueDate: recurringTransactionRules.dueDate,
+  dueDateRuleExcluded: recurringTransactionRules.dueDateRuleExcluded,
   isSettled: recurringTransactionRules.isSettled,
   note: recurringTransactionRules.note,
   status: recurringTransactionRules.status,
@@ -518,7 +610,7 @@ const recurringRuleColumns = {
   accountLogo: transactionAccounts.logo,
   cardName: cards.name,
   cardLogo: cards.logo,
-  categoryName: categories.name,
+  categoryName: categoryLabelSql(categories),
   categoryIcon: categories.icon,
   sourceAccountName: sourceAccounts.name,
   sourceAccountLogo: sourceAccounts.logo,
@@ -546,7 +638,7 @@ export async function insertTransactionRefundForUser(data: {
     const [source] = await transaction
       .select({
         id: transactions.id,
-        amount: transactions.amount,
+        amount: effectiveTransactionAmountSql.as("amount"),
         type: transactions.type,
         origin: transactions.origin,
       })
@@ -573,9 +665,11 @@ export async function insertTransactionRefundForUser(data: {
 
     const [refundRecord] = await transaction
       .insert(transactions)
-      .values(data.record)
+      .values(withoutTagIds(data.record))
       .returning({ id: transactions.id });
     const refund = refundRecord as { id: string };
+    if (data.record.tagIds?.length)
+      await replaceTransactionTags(transaction, refund.id, data.userId, data.record.tagIds);
     if (data.splits.length > 1) {
       await transaction.insert(transactionSplits).values(
         data.splits.map((split) => ({
@@ -687,8 +781,32 @@ export async function insertTransactionsWithSplits(
     insertedRows = await db.transaction(async (transaction) => {
       const rows = await transaction
         .insert(transactions)
-        .values(data)
+        .values(
+          data.map((record) => ({
+            ...withoutTagIds(record),
+            settledAmount: record.settledDate && record.isSettled ? record.amount : null,
+          })),
+        )
         .returning({ id: transactions.id });
+      for (const [index, row] of rows.entries()) {
+        const record = data[index];
+        if (record?.settledDate && record.isSettled)
+          await transaction.insert(settlementEvents).values({
+            userId: record.userId,
+            transactionId: row.id,
+            action: "confirm",
+            snapshot: {
+              before: { accountId: record.accountId, amount: null, date: null },
+              after: {
+                amount: record.amount,
+                settledDate: record.settledDate.toISOString().slice(0, 10),
+              },
+              expectedAmount: record.amount,
+            },
+          });
+        if (record?.tagIds?.length)
+          await replaceTransactionTags(transaction, row.id, record.userId, record.tagIds);
+      }
       const splitRows = splits.flatMap((split) => {
         const row = rows[split.transactionIndex];
         return row
@@ -698,6 +816,11 @@ export async function insertTransactionsWithSplits(
                 transactionId: row.id,
                 personId: split.personId,
                 amount: split.amount,
+                settledAmount:
+                  data[split.transactionIndex]?.settledDate &&
+                  data[split.transactionIndex]?.isSettled
+                    ? split.amount
+                    : null,
               },
             ]
           : [];
@@ -747,8 +870,13 @@ export async function insertTransferWithBalanceCheck(
 
       const rows = await transaction
         .insert(transactions)
-        .values(data)
+        .values(data.map(withoutTagIds))
         .returning({ id: transactions.id });
+      for (const [index, row] of rows.entries()) {
+        const record = data[index];
+        if (record?.tagIds?.length)
+          await replaceTransactionTags(transaction, row.id, record.userId, record.tagIds);
+      }
       await confirmTransactionSource(transaction, confirmation, rows[outgoingIndex]?.id);
       return rows;
     });
@@ -776,8 +904,13 @@ export async function insertInstallmentSeriesWithTransactions(
       await transaction.insert(installmentSeries).values(series);
       const rows = await transaction
         .insert(transactions)
-        .values(data)
+        .values(data.map(withoutTagIds))
         .returning({ id: transactions.id });
+      for (const [index, row] of rows.entries()) {
+        const record = data[index];
+        if (record?.tagIds?.length)
+          await replaceTransactionTags(transaction, row.id, record.userId, record.tagIds);
+      }
       const splitRows = splits.flatMap((split) => {
         const row = rows[split.transactionIndex];
         return row
@@ -821,9 +954,11 @@ export async function insertRecurringRuleWithSplits(
     const series = seriesRecord as { id: string };
     const [ruleRecord] = await transaction
       .insert(recurringTransactionRules)
-      .values({ ...data, seriesId: series.id })
+      .values({ ...withoutTagIds(data), seriesId: series.id })
       .returning({ id: recurringTransactionRules.id });
     const rule = ruleRecord as { id: string };
+    if (data.tagIds?.length)
+      await replaceRecurringRuleTags(transaction, rule.id, data.userId, data.tagIds);
     if (splits.length) {
       await transaction
         .insert(recurringTransactionSplits)
@@ -845,7 +980,8 @@ export async function listTransactionSplitsForUser(transactionIds: string[], use
       personId: transactionSplits.personId,
       personName: people.name,
       personAvatarUrl: people.avatarUrl,
-      amount: transactionSplits.amount,
+      amount: effectiveSplitAmountSql.as("amount"),
+      plannedAmount: transactionSplits.amount,
     })
     .from(transactionSplits)
     .innerJoin(people, and(eq(transactionSplits.personId, people.id), eq(people.userId, userId)))
@@ -893,10 +1029,16 @@ export async function listRecurringOccurrencesForUser(
       recurringSeriesId: recurringTransactionOccurrences.recurringSeriesId,
       purchaseDate: recurringTransactionOccurrences.purchaseDate,
       isSettled: recurringTransactionOccurrences.isSettled,
+      dueDateRuleExcluded: recurringTransactionOccurrences.dueDateRuleExcluded,
+      frozenDueDate: recurringTransactionOccurrences.frozenDueDate,
+      dueDateAdjustment: recurringTransactionOccurrences.dueDateAdjustment,
       accountId: recurringTransactionOccurrences.accountId,
       accountName: occurrenceAccounts.name,
       accountLogo: occurrenceAccounts.logo,
       boletoPaymentDate: recurringTransactionOccurrences.boletoPaymentDate,
+      settledDate: recurringTransactionOccurrences.settledDate,
+      settledAmount: recurringTransactionOccurrences.settledAmount,
+      settledAllocations: recurringTransactionOccurrences.settledAllocations,
     })
     .from(recurringTransactionOccurrences)
     .leftJoin(
@@ -910,7 +1052,8 @@ export async function listRecurringOccurrencesForUser(
       and(
         eq(recurringTransactionOccurrences.userId, userId),
         inArray(recurringTransactionOccurrences.recurringSeriesId, seriesIds),
-        sql`${recurringTransactionOccurrences.purchaseDate} between ${periodStart} and ${periodEnd}`,
+        gte(recurringTransactionOccurrences.purchaseDate, periodStart),
+        lte(recurringTransactionOccurrences.purchaseDate, periodEnd),
       ),
     );
 }
@@ -927,10 +1070,16 @@ export async function listSettledRecurringBoletoOccurrencesByPaymentDateForUser(
       recurringSeriesId: recurringTransactionOccurrences.recurringSeriesId,
       purchaseDate: recurringTransactionOccurrences.purchaseDate,
       isSettled: recurringTransactionOccurrences.isSettled,
+      dueDateRuleExcluded: recurringTransactionOccurrences.dueDateRuleExcluded,
+      frozenDueDate: recurringTransactionOccurrences.frozenDueDate,
+      dueDateAdjustment: recurringTransactionOccurrences.dueDateAdjustment,
       accountId: recurringTransactionOccurrences.accountId,
       accountName: occurrenceAccounts.name,
       accountLogo: occurrenceAccounts.logo,
       boletoPaymentDate: recurringTransactionOccurrences.boletoPaymentDate,
+      settledDate: recurringTransactionOccurrences.settledDate,
+      settledAmount: recurringTransactionOccurrences.settledAmount,
+      settledAllocations: recurringTransactionOccurrences.settledAllocations,
     })
     .from(recurringTransactionOccurrences)
     .innerJoin(
@@ -939,8 +1088,6 @@ export async function listSettledRecurringBoletoOccurrencesByPaymentDateForUser(
         eq(recurringTransactionOccurrences.recurringRuleId, recurringTransactionRules.id),
         eq(recurringTransactionRules.userId, userId),
         eq(recurringTransactionRules.status, "active"),
-        eq(recurringTransactionRules.type, "expense"),
-        eq(recurringTransactionRules.paymentMethod, "boleto"),
       ),
     )
     .leftJoin(
@@ -961,8 +1108,8 @@ export async function listSettledRecurringBoletoOccurrencesByPaymentDateForUser(
             eq(recurringTransactionRules.accountId, accountId),
           ),
         ),
-        gte(recurringTransactionOccurrences.boletoPaymentDate, dateStart),
-        lte(recurringTransactionOccurrences.boletoPaymentDate, dateEnd),
+        sql`coalesce(${recurringTransactionOccurrences.settledDate}, ${recurringTransactionOccurrences.boletoPaymentDate}) >= ${dateStart}`,
+        sql`coalesce(${recurringTransactionOccurrences.settledDate}, ${recurringTransactionOccurrences.boletoPaymentDate}) <= ${dateEnd}`,
       ),
     );
 }
@@ -972,36 +1119,19 @@ export async function settleRecurringOccurrenceForUser(
   purchaseDate: Date,
   userId: string,
   isSettled: boolean,
-  boletoPaymentDate: Date | null,
+  settledDate: Date | null,
+  accountId?: string,
+  amount?: number,
 ) {
-  const rule = await findRecurringRuleByIdForUser(recurringRuleId, userId);
-  if (!rule) return null;
-  const [occurrence] = await db
-    .insert(recurringTransactionOccurrences)
-    .values({
-      userId,
-      recurringRuleId,
-      recurringSeriesId: rule.seriesId,
-      purchaseDate,
-      isSettled,
-      accountId: null,
-      boletoPaymentDate,
-    })
-    .onConflictDoUpdate({
-      target: [
-        recurringTransactionOccurrences.recurringSeriesId,
-        recurringTransactionOccurrences.purchaseDate,
-      ],
-      set: {
-        recurringRuleId,
-        isSettled,
-        boletoPaymentDate,
-        ...(isSettled ? {} : { accountId: null }),
-        updatedAt: new Date(),
-      },
-    })
-    .returning({ recurringRuleId: recurringTransactionOccurrences.recurringRuleId });
-  return occurrence as { recurringRuleId: string };
+  return settleRecurringTransaction({
+    id: recurringRuleId,
+    purchaseDate,
+    userId,
+    isSettled,
+    date: settledDate ?? new Date(),
+    accountId,
+    amount,
+  });
 }
 
 export async function listPaidInvoicePeriodsForUser(
@@ -1025,7 +1155,9 @@ export async function listPaidInvoicePeriodsForUser(
 
 export async function getCardExpenseTotalForUser(cardId: string, userId: string) {
   const [result] = await db
-    .select({ total: sql<string>`greatest(-coalesce(sum(${transactions.amount}), 0), 0)` })
+    .select({
+      total: sql<string>`greatest(-coalesce(sum(${effectiveTransactionAmountSql}), 0), 0)`,
+    })
     .from(transactions)
     .leftJoin(
       invoices,
@@ -1120,34 +1252,33 @@ export async function listTransactionsByPeriod(
   ]);
 }
 
+export async function listTransactionsByDueDateRange(
+  userId: string,
+  from: string,
+  through: string,
+) {
+  return listPersistedTransactions(userId, [
+    eq(transactions.type, "expense"),
+    gte(transactions.dueDate, new Date(`${from}T00:00:00.000Z`)),
+    lte(transactions.dueDate, new Date(`${through}T00:00:00.000Z`)),
+  ]);
+}
+
 export async function listAccountStatementTransactionsForUser(
   userId: string,
-  period: string,
+  _period: string,
   dateStart: Date,
   dateEnd: Date,
-  hasDateFilter: boolean,
+  _hasDateFilter: boolean,
   filters: PersistedTransactionFilters,
 ) {
-  const effectiveDate = sql<string>`case when ${transactions.paymentMethod} = 'boleto' then coalesce(${transactions.boletoPaymentDate}, ${transactions.dueDate}, ${transactions.purchaseDate}) else ${transactions.purchaseDate} end`;
+  const effectiveDate = sql<string>`coalesce(${transactions.settledDate}, case when ${transactions.paymentMethod} = 'boleto' then coalesce(${transactions.boletoPaymentDate}, ${transactions.dueDate}, ${transactions.purchaseDate}) else ${transactions.purchaseDate} end)`;
   const startDate = dateStart.toISOString().slice(0, 10);
   const endDate = dateEnd.toISOString().slice(0, 10);
   return listPersistedTransactions(userId, [
     eq(transactions.isSettled, true),
-    ...(hasDateFilter
-      ? [gte(effectiveDate, startDate), lte(effectiveDate, endDate)]
-      : [
-          or(
-            and(
-              eq(transactions.paymentMethod, "boleto"),
-              gte(effectiveDate, startDate),
-              lte(effectiveDate, endDate),
-            ),
-            and(
-              or(isNull(transactions.paymentMethod), ne(transactions.paymentMethod, "boleto")),
-              eq(transactions.period, period),
-            ),
-          ) as SQL,
-        ]),
+    gte(effectiveDate, startDate),
+    lte(effectiveDate, endDate),
     ...buildPersistedTransactionFilters(userId, filters),
   ]);
 }
@@ -1285,10 +1416,10 @@ function buildPersistedTransactionFilters(userId: string, filters: PersistedTran
       : undefined,
     filters.cardIds?.length ? inArray(transactions.cardId, filters.cardIds) : undefined,
     filters.minAmount !== undefined
-      ? sql`abs(${transactions.amount}) >= ${filters.minAmount}`
+      ? sql`abs(${effectiveTransactionAmountSql}) >= ${filters.minAmount}`
       : undefined,
     filters.maxAmount !== undefined
-      ? sql`abs(${transactions.amount}) <= ${filters.maxAmount}`
+      ? sql`abs(${effectiveTransactionAmountSql}) <= ${filters.maxAmount}`
       : undefined,
     filters.hasAttachments && attachmentExists ? exists(attachmentExists) : undefined,
     filters.hasDueDate ? isNotNull(transactions.dueDate) : undefined,
@@ -1370,7 +1501,7 @@ export async function listRecurringRulesForPeriod(userId: string, periodEnd: Dat
     and(
       eq(recurringTransactionRules.userId, userId),
       eq(recurringTransactionRules.status, "active"),
-      lte(recurringTransactionRules.startDate, periodEnd),
+      lte(recurringTransactionRules.startDate, new Date(periodEnd.getTime() + 32 * 86_400_000)),
     ),
   );
 }
@@ -1483,13 +1614,44 @@ export async function updateTransactionWithSplitsForUser(
   splits?: Array<{ personId: string; amount: string }>,
 ) {
   const updatedId = await db.transaction(async (transaction) => {
+    const [current] = await transaction
+      .select()
+      .from(transactions)
+      .where(and(eq(transactions.userId, userId), eq(transactions.id, id)))
+      .for("update");
+    if (!current) return null;
+    const financialKeys = [
+      "amount",
+      "type",
+      "condition",
+      "paymentMethod",
+      "purchaseDate",
+      "personId",
+      "accountId",
+      "cardId",
+      "dueDate",
+      "dueDateRuleExcluded",
+      "isSettled",
+      "settledDate",
+    ] as const;
+    if (
+      current.settledDate &&
+      (splits !== undefined ||
+        financialKeys.some(
+          (key) =>
+            data[key] !== undefined && JSON.stringify(data[key]) !== JSON.stringify(current[key]),
+        ))
+    )
+      throw new SettlementError("SETTLEMENT_REQUIRES_UNDO");
     const beforeAssignments = await findExternalExpenseAssignmentKeys(transaction, userId, [id]);
     const [row] = await transaction
       .update(transactions)
-      .set({ ...data, updatedAt: new Date() })
+      .set({ ...withoutTagIds(data), updatedAt: new Date() })
       .where(and(eq(transactions.id, id), eq(transactions.userId, userId)))
       .returning({ id: transactions.id });
     if (!row) return null;
+    if (data.tagIds !== undefined)
+      await replaceTransactionTags(transaction, id, userId, data.tagIds);
     if (splits !== undefined) {
       await replaceTransactionSplits(transaction, id, userId, splits);
     }
@@ -1528,7 +1690,7 @@ export async function updateTransferPairForUser(
       .select({
         id: transactions.id,
         accountId: transactions.accountId,
-        amount: transactions.amount,
+        amount: effectiveTransactionAmountSql.as("amount"),
         isSettled: transactions.isSettled,
         period: transactions.period,
       })
@@ -1559,12 +1721,16 @@ export async function updateTransferPairForUser(
 
     await transaction
       .update(transactions)
-      .set({ ...outgoing, updatedAt: new Date() })
+      .set({ ...withoutTagIds(outgoing), updatedAt: new Date() })
       .where(and(eq(transactions.id, outgoingRow.id), eq(transactions.userId, userId)));
     await transaction
       .update(transactions)
-      .set({ ...incoming, updatedAt: new Date() })
+      .set({ ...withoutTagIds(incoming), updatedAt: new Date() })
       .where(and(eq(transactions.id, incomingRow.id), eq(transactions.userId, userId)));
+    if (outgoing.tagIds !== undefined)
+      await replaceTransactionTags(transaction, outgoingRow.id, userId, outgoing.tagIds);
+    if (incoming.tagIds !== undefined)
+      await replaceTransactionTags(transaction, incomingRow.id, userId, incoming.tagIds);
     return outgoingRow.id;
   });
 
@@ -1610,17 +1776,31 @@ export function listTransactionSeriesForUser(seriesId: string, userId: string) {
   return db
     .select({
       id: transactions.id,
-      amount: transactions.amount,
+      amount: effectiveTransactionAmountSql.as("amount"),
+      plannedAmount: transactions.amount,
       purchaseDate: transactions.purchaseDate,
       period: transactions.period,
       dueDate: transactions.dueDate,
+      dueDateRuleExcluded: transactions.dueDateRuleExcluded,
+      frozenDueDate: transactions.frozenDueDate,
+      dueDateAdjustment: transactions.dueDateAdjustment,
       boletoPaymentDate: transactions.boletoPaymentDate,
       currentInstallment: transactions.currentInstallment,
       isSettled: transactions.isSettled,
+      settledDate: transactions.settledDate,
     })
     .from(transactions)
     .where(and(eq(transactions.seriesId, seriesId), eq(transactions.userId, userId)))
     .orderBy(asc(transactions.currentInstallment));
+}
+
+export async function findInstallmentSeriesByIdForUser(id: string, userId: string) {
+  const [series] = await db
+    .select({ originalAmount: installmentSeries.originalAmount })
+    .from(installmentSeries)
+    .where(and(eq(installmentSeries.id, id), eq(installmentSeries.userId, userId)))
+    .limit(1);
+  return series;
 }
 
 export async function updateTransactionSeriesRangeWithSplitsForUser(
@@ -1633,6 +1813,39 @@ export async function updateTransactionSeriesRangeWithSplitsForUser(
 ) {
   return db.transaction(async (transaction) => {
     const requestedIds = updates.map((update) => update.id);
+    const lockedRows = await transaction
+      .select()
+      .from(transactions)
+      .where(and(eq(transactions.userId, userId), inArray(transactions.id, requestedIds)))
+      .orderBy(asc(transactions.id))
+      .for("update");
+    const financialKeys = [
+      "amount",
+      "type",
+      "condition",
+      "paymentMethod",
+      "purchaseDate",
+      "personId",
+      "accountId",
+      "cardId",
+      "dueDate",
+      "dueDateRuleExcluded",
+      "isSettled",
+      "settledDate",
+    ] as const;
+    for (const update of updates) {
+      const current = lockedRows.find((row) => row.id === update.id);
+      if (
+        current?.settledDate &&
+        (update.splits !== undefined ||
+          financialKeys.some(
+            (key) =>
+              update.data[key] !== undefined &&
+              JSON.stringify(update.data[key]) !== JSON.stringify(current[key]),
+          ))
+      )
+        throw new SettlementError("SETTLEMENT_REQUIRES_UNDO");
+    }
     const beforeAssignments = await findExternalExpenseAssignmentKeys(
       transaction,
       userId,
@@ -1643,11 +1856,13 @@ export async function updateTransactionSeriesRangeWithSplitsForUser(
     for (const update of updates) {
       const [row] = await transaction
         .update(transactions)
-        .set({ ...update.data, updatedAt: new Date() })
+        .set({ ...withoutTagIds(update.data), updatedAt: new Date() })
         .where(and(eq(transactions.id, update.id), eq(transactions.userId, userId)))
         .returning({ id: transactions.id });
       if (!row) continue;
       updatedIds.push(row.id);
+      if (update.data.tagIds !== undefined)
+        await replaceTransactionTags(transaction, row.id, userId, update.data.tagIds);
       if (update.splits !== undefined) {
         await replaceTransactionSplits(transaction, update.id, userId, update.splits);
       }
@@ -1748,8 +1963,25 @@ export async function settleTransactionsForUser(
   currentPeriod: string,
   balanceSnapshots: Readonly<Record<string, { displayed: number; persisted: number } | undefined>>,
   boletoPaymentDate: Date,
+  settledAmount?: number,
+  accountId?: string,
 ) {
   if (!ids.length) return [];
+  const targetRows = await db
+    .select({ type: transactions.type })
+    .from(transactions)
+    .where(and(eq(transactions.userId, userId), inArray(transactions.id, ids)));
+  if (!targetRows.some((row) => row.type === "transfer"))
+    return settlePersistedTransactions({
+      ids,
+      userId,
+      isSettled,
+      date: boletoPaymentDate,
+      amount: settledAmount,
+      accountId,
+    });
+  if (settledAmount !== undefined || targetRows.some((row) => row.type !== "transfer"))
+    throw new SettlementError("SETTLEMENT_UNSUPPORTED");
   return db.transaction(async (transaction) => {
     const requested = await transaction
       .select({ id: transactions.id, transferId: transactions.transferId })
@@ -1774,7 +2006,7 @@ export async function settleTransactionsForUser(
       const transferRows = await transaction
         .select({
           accountId: transactions.accountId,
-          amount: transactions.amount,
+          amount: effectiveTransactionAmountSql.as("amount"),
           isSettled: transactions.isSettled,
         })
         .from(transactions)
@@ -1790,7 +2022,7 @@ export async function settleTransactionsForUser(
       const lockedTransferRows = await transaction
         .select({
           accountId: transactions.accountId,
-          amount: transactions.amount,
+          amount: effectiveTransactionAmountSql.as("amount"),
           isSettled: transactions.isSettled,
         })
         .from(transactions)
@@ -1830,42 +2062,6 @@ export async function settleTransactionsForUser(
   });
 }
 
-export async function updateRecurringRuleStatusForUser(
-  id: string,
-  userId: string,
-  status: "active" | "paused" | "cancelled",
-) {
-  return db.transaction(async (transaction) => {
-    const [rule] = await transaction
-      .select({ seriesId: recurringTransactionRules.seriesId })
-      .from(recurringTransactionRules)
-      .where(
-        and(eq(recurringTransactionRules.id, id), eq(recurringTransactionRules.userId, userId)),
-      );
-    if (!rule) return null;
-    await transaction
-      .select({ id: recurringTransactionSeries.id })
-      .from(recurringTransactionSeries)
-      .where(
-        and(
-          eq(recurringTransactionSeries.id, rule.seriesId),
-          eq(recurringTransactionSeries.userId, userId),
-        ),
-      )
-      .for("update");
-    await transaction
-      .update(recurringTransactionRules)
-      .set({ status, updatedAt: new Date() })
-      .where(
-        and(
-          eq(recurringTransactionRules.seriesId, rule.seriesId),
-          eq(recurringTransactionRules.userId, userId),
-        ),
-      );
-    return { id };
-  });
-}
-
 export async function updateRecurringRuleWithSplitsForUser(
   id: string,
   userId: string,
@@ -1877,6 +2073,7 @@ export async function updateRecurringRuleWithSplitsForUser(
     previousDate: Date;
     nextDate: Date | null;
     hasPrevious: boolean;
+    reschedule?: boolean;
     expectedVersions: Array<{ id: string; updatedAt: Date }>;
   },
 ) {
@@ -1908,13 +2105,7 @@ export async function updateRecurringRuleWithSplitsForUser(
     if (!current) return null;
 
     const series = await transaction
-      .select({
-        id: recurringTransactionRules.id,
-        startDate: recurringTransactionRules.startDate,
-        paymentMethod: recurringTransactionRules.paymentMethod,
-        isSettled: recurringTransactionRules.isSettled,
-        updatedAt: recurringTransactionRules.updatedAt,
-      })
+      .select()
       .from(recurringTransactionRules)
       .where(
         and(
@@ -1934,12 +2125,69 @@ export async function updateRecurringRuleWithSplitsForUser(
     }
     const selectedVersion = series.find((rule) => rule.id === id);
     if (!selectedVersion) return null;
+    const schedulePlan =
+      options.reschedule && data.anchorDate
+        ? planRecurringScheduleChange(
+            series.map((rule) => ({
+              ...rule,
+              anchorDate: rule.anchorDate.toISOString().slice(0, 10),
+              startDate: rule.startDate.toISOString().slice(0, 10),
+              endDate: rule.endDate?.toISOString().slice(0, 10) ?? null,
+              recurrenceEndDate: rule.recurrenceEndDate?.toISOString().slice(0, 10) ?? null,
+              dueDate: rule.dueDate?.toISOString().slice(0, 10) ?? null,
+            })),
+            id,
+            options.occurrenceDate.toISOString().slice(0, 10),
+            data.anchorDate.toISOString().slice(0, 10),
+          )
+        : null;
+    const boundaryDate = schedulePlan
+      ? new Date(schedulePlan.boundaryDate)
+      : options.occurrenceDate;
     const versionsToUpdate = selectRecurringRuleVersionsToUpdate(
       series,
       id,
       options.occurrenceDate.toISOString().slice(0, 10),
       options.scope,
     );
+    const financialKeys = [
+      "amount",
+      "type",
+      "paymentMethod",
+      "personId",
+      "accountId",
+      "cardId",
+      "dueDate",
+      "dueDateRuleExcluded",
+
+      "frequency",
+      "anchorDate",
+      "recurrenceEndDate",
+    ] as const;
+    const financialChange = financialKeys.some(
+      (key) =>
+        data[key] !== undefined && JSON.stringify(data[key]) !== JSON.stringify(current[key]),
+    );
+    if (financialChange) {
+      const [confirmed] = await transaction
+        .select({ id: recurringTransactionOccurrences.id })
+        .from(recurringTransactionOccurrences)
+        .where(
+          and(
+            eq(recurringTransactionOccurrences.userId, userId),
+            eq(recurringTransactionOccurrences.recurringSeriesId, current.seriesId),
+            eq(recurringTransactionOccurrences.isSettled, true),
+            ...(options.scope === "series"
+              ? []
+              : options.scope === "single"
+                ? [eq(recurringTransactionOccurrences.purchaseDate, options.occurrenceDate)]
+                : [gte(recurringTransactionOccurrences.purchaseDate, boundaryDate)]),
+          ),
+        )
+        .limit(1);
+      if (confirmed) throw new SettlementError("SETTLEMENT_REQUIRES_UNDO");
+    }
+    const originalTagIds = await readRecurringRuleTagIds(transaction, id, userId);
     const originalSplits = await transaction
       .select({
         personId: recurringTransactionSplits.personId,
@@ -1977,20 +2225,30 @@ export async function updateRecurringRuleWithSplitsForUser(
       const { id: _id, createdAt: _createdAt, updatedAt: _updatedAt, ...original } = current;
       const [version] = await transaction
         .insert(recurringTransactionRules)
-        .values({ ...original, ...values, userId, seriesId: current.seriesId })
+        .values({ ...original, ...withoutTagIds(values), userId, seriesId: current.seriesId })
         .returning({ id: recurringTransactionRules.id });
       if (shares.length) {
         await transaction
           .insert(recurringTransactionSplits)
           .values(shares.map((share) => ({ ...share, recurringRuleId: version.id, userId })));
       }
+      await replaceRecurringRuleTags(
+        transaction,
+        version.id,
+        userId,
+        values.tagIds ?? originalTagIds,
+      );
       return version.id;
     };
-    const updateExistingVersion = async (rule: (typeof series)[number]) => {
+    const updateExistingVersion = async (
+      rule: (typeof series)[number],
+      overrides: RecurringRuleUpdateRecord = {},
+    ) => {
       await transaction
         .update(recurringTransactionRules)
         .set({
-          ...data,
+          ...withoutTagIds(data),
+          ...overrides,
           isSettled:
             data.paymentMethod === "credit_card"
               ? null
@@ -2006,6 +2264,8 @@ export async function updateRecurringRuleWithSplitsForUser(
           ),
         );
       await replaceSplits(rule.id, splits);
+      if (data.tagIds !== undefined)
+        await replaceRecurringRuleTags(transaction, rule.id, userId, data.tagIds);
     };
 
     if (options.scope === "series") {
@@ -2016,20 +2276,76 @@ export async function updateRecurringRuleWithSplitsForUser(
     }
 
     if (options.scope === "future") {
-      if (!options.hasPrevious) {
-        await updateExistingVersion(selectedVersion);
-        for (const rule of versionsToUpdate) {
-          await updateExistingVersion(rule);
+      if (schedulePlan) {
+        // Old pending states refer to dates that no longer identify an occurrence.
+        // Confirmed states have already been rejected under the same series lock.
+        await transaction
+          .delete(recurringTransactionOccurrences)
+          .where(
+            and(
+              eq(recurringTransactionOccurrences.userId, userId),
+              eq(recurringTransactionOccurrences.recurringSeriesId, current.seriesId),
+              gte(recurringTransactionOccurrences.purchaseDate, boundaryDate),
+              eq(recurringTransactionOccurrences.isSettled, false),
+            ),
+          );
+        for (const version of schedulePlan.previousVersionEnds) {
+          await transaction
+            .update(recurringTransactionRules)
+            .set({ endDate: new Date(version.endDate), updatedAt: new Date() })
+            .where(
+              and(
+                eq(recurringTransactionRules.id, version.id),
+                eq(recurringTransactionRules.userId, userId),
+              ),
+            );
         }
-        return id;
+      }
+      const scheduledEnd = (ruleId: string): RecurringRuleUpdateRecord => {
+        const version = schedulePlan?.futureVersionEnds.find((item) => item.id === ruleId);
+        return version ? { endDate: version.endDate ? new Date(version.endDate) : null } : {};
+      };
+      const resolveScheduledVersionId = async (fallback: string) => {
+        if (!schedulePlan || !data.anchorDate) return fallback;
+        const [version] = await transaction
+          .select({ id: recurringTransactionRules.id })
+          .from(recurringTransactionRules)
+          .where(
+            and(
+              eq(recurringTransactionRules.userId, userId),
+              eq(recurringTransactionRules.seriesId, current.seriesId),
+              lte(recurringTransactionRules.startDate, data.anchorDate),
+              or(
+                isNull(recurringTransactionRules.endDate),
+                gte(recurringTransactionRules.endDate, data.anchorDate),
+              ),
+            ),
+          );
+        return version?.id ?? fallback;
+      };
+      if (!options.hasPrevious) {
+        await updateExistingVersion(
+          selectedVersion,
+          schedulePlan ? { startDate: boundaryDate, ...scheduledEnd(id) } : {},
+        );
+        for (const rule of versionsToUpdate) {
+          await updateExistingVersion(rule, scheduledEnd(rule.id));
+        }
+        return resolveScheduledVersionId(id);
       }
       await transaction
         .update(recurringTransactionRules)
-        .set({ endDate: options.previousDate, updatedAt: new Date() })
+        .set({
+          endDate: schedulePlan ? new Date(schedulePlan.previousDate) : options.previousDate,
+          updatedAt: new Date(),
+        })
         .where(
           and(eq(recurringTransactionRules.id, id), eq(recurringTransactionRules.userId, userId)),
         );
-      const versionId = await insertVersion({ ...data, startDate: options.occurrenceDate }, splits);
+      const versionId = await insertVersion(
+        { ...data, startDate: boundaryDate, ...scheduledEnd(id) },
+        splits,
+      );
       await transaction
         .update(recurringTransactionOccurrences)
         .set({ recurringRuleId: versionId, updatedAt: new Date() })
@@ -2041,9 +2357,9 @@ export async function updateRecurringRuleWithSplitsForUser(
           ),
         );
       for (const rule of versionsToUpdate) {
-        await updateExistingVersion(rule);
+        await updateExistingVersion(rule, scheduledEnd(rule.id));
       }
-      return versionId;
+      return resolveScheduledVersionId(versionId);
     }
 
     let selectedRuleId = id;
@@ -2061,11 +2377,13 @@ export async function updateRecurringRuleWithSplitsForUser(
     } else {
       await transaction
         .update(recurringTransactionRules)
-        .set({ ...data, endDate: options.occurrenceDate, updatedAt: new Date() })
+        .set({ ...withoutTagIds(data), endDate: options.occurrenceDate, updatedAt: new Date() })
         .where(
           and(eq(recurringTransactionRules.id, id), eq(recurringTransactionRules.userId, userId)),
         );
       await replaceSplits(id, splits);
+      if (data.tagIds !== undefined)
+        await replaceRecurringRuleTags(transaction, id, userId, data.tagIds);
     }
     if (options.nextDate) {
       const followingRuleId = await insertVersion({ startDate: options.nextDate }, originalSplits);

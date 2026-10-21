@@ -7,9 +7,11 @@ import {
   dashboardPreferences,
   db,
   deviceTokens,
+  dueDateRuleVersions,
   establishmentLogos,
   externalExpenses,
   financialAccounts,
+  goals,
   importCategoryMappings,
   inboxItems,
   inboxRules,
@@ -29,8 +31,11 @@ import {
   personSettlements,
   recurringTransactionOccurrences,
   recurringTransactionRules,
+  recurringTransactionSeries,
   recurringTransactionSplits,
   session,
+  settlementEvents,
+  tags,
   transactionAttachments,
   transactionRefunds,
   transactionSplits,
@@ -97,6 +102,8 @@ async function clearApplicationDataForUser(transaction: DatabaseTransaction, use
   await transaction.delete(deviceTokens).where(eq(deviceTokens.userId, userId));
   await transaction.delete(notificationStates).where(eq(notificationStates.userId, userId));
   await transaction.delete(userPreferences).where(eq(userPreferences.userId, userId));
+  await transaction.delete(dueDateRuleVersions).where(eq(dueDateRuleVersions.userId, userId));
+  await transaction.delete(settlementEvents).where(eq(settlementEvents.userId, userId));
   await transaction.delete(transactionRefunds).where(eq(transactionRefunds.userId, userId));
   await transaction.delete(personSettlements).where(eq(personSettlements.userId, userId));
   await transaction
@@ -121,6 +128,11 @@ async function clearApplicationDataForUser(transaction: DatabaseTransaction, use
   await transaction
     .delete(recurringTransactionRules)
     .where(eq(recurringTransactionRules.userId, userId));
+  await transaction
+    .delete(recurringTransactionSeries)
+    .where(eq(recurringTransactionSeries.userId, userId));
+  await transaction.delete(tags).where(eq(tags.userId, userId));
+  await transaction.delete(goals).where(eq(goals.userId, userId));
   await transaction.delete(installmentSeries).where(eq(installmentSeries.userId, userId));
   await transaction.delete(invoices).where(eq(invoices.userId, userId));
   await transaction.delete(cards).where(eq(cards.userId, userId));

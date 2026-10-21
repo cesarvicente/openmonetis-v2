@@ -43,6 +43,8 @@ export const PersonBalanceOutputSchema = z
     assignedAmount: z.number(),
     refundedAmount: z.number(),
     settledAmount: z.number(),
+    dueAmount: z.number(),
+    coveredAmount: z.number(),
     balanceAmount: z.number(),
     receivableAmount: z.number(),
     creditAmount: z.number(),
@@ -74,6 +76,7 @@ export const PersonSettlementsSummaryOutputSchema = z
     period: z.string().regex(/^[1-9]\d{3}-(0[1-9]|1[0-2])$/),
     totalReceivableAmount: z.number().finite().nonnegative(),
     totalCreditAmount: z.number().finite().nonnegative(),
+    pendingCount: z.number().int().nonnegative(),
     items: z.array(PersonSettlementSummaryItemOutputSchema),
   })
   .openapi("PersonSettlementsSummaryOutput");

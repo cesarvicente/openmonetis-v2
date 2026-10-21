@@ -1,7 +1,27 @@
-import { listRecurrenceDatesInPeriod, type RecurrenceFrequency } from "./transactions";
+import { resolveRecurringDueDate } from "./recurring-expenses";
+import {
+  addMonthsToPeriod,
+  listRecurrenceDatesInPeriod,
+  type RecurrenceFrequency,
+} from "./transactions";
 
 export const billStatuses = ["paid", "due", "overdue"] as const;
 export type BillStatus = (typeof billStatuses)[number];
+
+export function isPayable(input: {
+  type?: string;
+  origin?: string;
+  paymentMethod?: string | null;
+  dueDate: string | null;
+}) {
+  return (
+    input.type === "expense" &&
+    (input.origin === undefined || input.origin === "regular") &&
+    input.paymentMethod != null &&
+    input.paymentMethod !== "credit_card" &&
+    input.dueDate !== null
+  );
+}
 
 export function calculateOpenBillsTotal(bills: readonly { amount: number; isSettled: boolean }[]) {
   const total = bills.reduce((sum, bill) => sum + (bill.isSettled ? 0 : bill.amount), 0);
@@ -19,32 +39,33 @@ export function getBillStatus(input: {
 
 export function listRecurringBillOccurrences(input: {
   ruleId: string;
+
+  configuredEndDate?: string | null;
   anchorDate: string;
   startDate: string;
   endDate?: string | null;
-  dueDate: string;
+  dueDate: string | null;
   frequency: RecurrenceFrequency;
   period: string;
+  includeAdjacent?: boolean;
 }) {
-  const dueDay = Number(input.dueDate.slice(8, 10));
-
-  return listRecurrenceDatesInPeriod({
-    anchorDate: input.anchorDate,
-    startDate: input.startDate,
-    endDate: input.endDate,
-    frequency: input.frequency,
-    period: input.period,
-  }).map((purchaseDate) => ({
-    id: `${input.ruleId}:${purchaseDate}`,
-    purchaseDate,
-    dueDate: withClampedDay(purchaseDate, dueDay),
-  }));
-}
-
-function withClampedDay(date: string, day: number) {
-  const [year, month] = date.split("-").map(Number) as [number, number];
-  const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
-  return `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(
-    Math.min(day, lastDay),
-  ).padStart(2, "0")}`;
+  return (input.includeAdjacent ? Array.from({ length: 27 }, (_, index) => index - 13) : [-1, 0, 1])
+    .flatMap((offset) =>
+      listRecurrenceDatesInPeriod({
+        anchorDate: input.anchorDate,
+        startDate: input.startDate,
+        endDate: input.endDate,
+        frequency: input.frequency,
+        period: addMonthsToPeriod(input.period, offset),
+      }).map((purchaseDate) => ({
+        id: `${input.ruleId}:${purchaseDate}`,
+        purchaseDate,
+        dueDate: resolveRecurringDueDate(purchaseDate, input.dueDate) ?? purchaseDate,
+      })),
+    )
+    .filter(
+      (item) =>
+        (input.includeAdjacent || item.dueDate.slice(0, 7) === input.period) &&
+        (!input.configuredEndDate || item.dueDate <= input.configuredEndDate),
+    );
 }

@@ -1,3 +1,7 @@
+import type {
+  DueDateAdjustmentDetails,
+  DueDateRuleVersion,
+} from "@openmonetis/domain/due-date-rules";
 import { relations, sql } from "drizzle-orm";
 import {
   boolean,
@@ -569,6 +573,7 @@ export const categories = pgTable(
       .references(() => user.id, { onDelete: "cascade" }),
     name: varchar("name", { length: 120 }).notNull(),
     type: categoryType("type").notNull(),
+    parentId: uuid("parent_id"),
     icon: varchar("icon", { length: 100 }),
     isSystem: boolean("is_system").notNull().default(false),
     createdAt: timestamp("created_at").notNull().defaultNow(),
@@ -579,9 +584,47 @@ export const categories = pgTable(
   },
   (table) => [
     index("categories_user_id_type_idx").on(table.userId, table.type),
-    uniqueIndex("categories_user_id_name_type_unique").on(table.userId, table.name, table.type),
+    uniqueIndex("categories_user_id_name_type_unique")
+      .on(table.userId, table.name, table.type)
+      .where(sql`${table.parentId} is null`),
+    uniqueIndex("categories_user_id_parent_name_type_unique")
+      .on(table.userId, table.parentId, table.name, table.type)
+      .where(sql`${table.parentId} is not null`),
+    index("categories_user_id_parent_idx").on(table.userId, table.parentId),
+    uniqueIndex("categories_id_user_id_type_unique").on(table.id, table.userId, table.type),
+    foreignKey({
+      columns: [table.parentId, table.userId, table.type],
+      foreignColumns: [table.id, table.userId, table.type],
+      name: "categories_parent_owner_type_fk",
+    }).onDelete("no action"),
+    check(
+      "categories_parent_check",
+      sql`${table.parentId} is null or (${table.parentId} <> ${table.id} and not ${table.isSystem})`,
+    ),
     uniqueIndex("categories_id_user_id_unique").on(table.id, table.userId),
     check("categories_name_not_blank_check", sql`btrim(${table.name}) <> ''`),
+  ],
+);
+
+export const tags = pgTable(
+  "tags",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 80 }).notNull(),
+    nameKey: varchar("name_key", { length: 80 }).notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at")
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [
+    uniqueIndex("tags_user_name_key_unique").on(table.userId, table.nameKey),
+    uniqueIndex("tags_id_user_id_unique").on(table.id, table.userId),
+    check("tags_name_not_blank_check", sql`btrim(${table.name}) <> ''`),
   ],
 );
 
@@ -640,6 +683,7 @@ export const recurringTransactionRules = pgTable(
     anchorDate: date("anchor_date", { mode: "date" }).notNull(),
     startDate: date("start_date", { mode: "date" }).notNull(),
     endDate: date("end_date", { mode: "date" }),
+    recurrenceEndDate: date("recurrence_end_date", { mode: "date" }),
     frequency: recurrenceFrequency("frequency").notNull(),
     accountId: uuid("account_id").references(() => financialAccounts.id, { onDelete: "restrict" }),
     cardId: uuid("card_id").references(() => cards.id, { onDelete: "restrict" }),
@@ -651,6 +695,7 @@ export const recurringTransactionRules = pgTable(
       onDelete: "restrict",
     }),
     dueDate: date("due_date", { mode: "date" }),
+    dueDateRuleExcluded: boolean("due_date_rule_excluded").notNull().default(false),
     isSettled: boolean("is_settled"),
     note: text("note"),
     status: recurringRuleStatus("status").notNull().default("active"),
@@ -671,6 +716,10 @@ export const recurringTransactionRules = pgTable(
     index("recurring_transaction_rules_account_id_idx").on(table.accountId),
     index("recurring_transaction_rules_card_id_idx").on(table.cardId),
     index("recurring_transaction_rules_category_id_idx").on(table.categoryId),
+    check(
+      "recurring_transaction_rules_deadline_check",
+      sql`${table.recurrenceEndDate} is null or ${table.recurrenceEndDate} >= ${table.anchorDate}`,
+    ),
     index("recurring_transaction_rules_source_account_id_idx").on(table.sourceAccountId),
     index("recurring_transaction_rules_destination_account_id_idx").on(table.destinationAccountId),
     uniqueIndex("recurring_transaction_rules_id_user_id_unique").on(table.id, table.userId),
@@ -761,6 +810,8 @@ export const transactions = pgTable(
     paymentMethod: paymentMethod("payment_method"),
     name: varchar("name", { length: 160 }).notNull(),
     amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
+    settledAmount: numeric("settled_amount", { precision: 12, scale: 2 }),
+    settledDate: date("settled_date", { mode: "date" }),
     purchaseDate: date("purchase_date", { mode: "date" }).notNull(),
     period: varchar("period", { length: 7 }).notNull(),
     accountId: uuid("account_id").references(() => financialAccounts.id, { onDelete: "restrict" }),
@@ -781,6 +832,9 @@ export const transactions = pgTable(
     recurringRuleId: uuid("recurring_rule_id").references(() => recurringTransactionRules.id, {
       onDelete: "set null",
     }),
+    dueDateRuleExcluded: boolean("due_date_rule_excluded").notNull().default(false),
+    frozenDueDate: date("frozen_due_date", { mode: "date" }),
+    dueDateAdjustment: jsonb("due_date_adjustment").$type<DueDateAdjustmentDetails>(),
     isSettled: boolean("is_settled"),
     note: text("note"),
     importSourceFingerprint: varchar("import_source_fingerprint", { length: 64 }),
@@ -904,6 +958,47 @@ export const transactions = pgTable(
         AND ${table.paymentMethod} IS NOT NULL
       )`,
     ),
+  ],
+);
+
+export const transactionTags = pgTable(
+  "transaction_tags",
+  {
+    userId: uuid("user_id").notNull(),
+    transactionId: uuid("transaction_id").notNull(),
+    tagId: uuid("tag_id").notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.transactionId, table.tagId] }),
+    index("transaction_tags_user_tag_idx").on(table.userId, table.tagId),
+    foreignKey({
+      columns: [table.transactionId, table.userId],
+      foreignColumns: [transactions.id, transactions.userId],
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.tagId, table.userId],
+      foreignColumns: [tags.id, tags.userId],
+    }).onDelete("cascade"),
+  ],
+);
+export const recurringTransactionRuleTags = pgTable(
+  "recurring_transaction_rule_tags",
+  {
+    userId: uuid("user_id").notNull(),
+    recurringRuleId: uuid("recurring_rule_id").notNull(),
+    tagId: uuid("tag_id").notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.recurringRuleId, table.tagId] }),
+    index("recurring_rule_tags_user_tag_idx").on(table.userId, table.tagId),
+    foreignKey({
+      columns: [table.recurringRuleId, table.userId],
+      foreignColumns: [recurringTransactionRules.id, recurringTransactionRules.userId],
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.tagId, table.userId],
+      foreignColumns: [tags.id, tags.userId],
+    }).onDelete("cascade"),
   ],
 );
 
@@ -1105,6 +1200,7 @@ export const transactionSplits = pgTable(
       .notNull()
       .references(() => people.id, { onDelete: "restrict" }),
     amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
+    settledAmount: numeric("settled_amount", { precision: 12, scale: 2 }),
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (table) => [
@@ -1422,7 +1518,16 @@ export const recurringTransactionOccurrences = pgTable(
       .notNull()
       .references(() => recurringTransactionSeries.id, { onDelete: "cascade" }),
     purchaseDate: date("purchase_date", { mode: "date" }).notNull(),
+    dueDateRuleExcluded: boolean("due_date_rule_excluded"),
+    frozenDueDate: date("frozen_due_date", { mode: "date" }),
+    dueDateAdjustment: jsonb("due_date_adjustment").$type<DueDateAdjustmentDetails>(),
     isSettled: boolean("is_settled").notNull(),
+    settledAmount: numeric("settled_amount", { precision: 12, scale: 2 }),
+    settledDate: date("settled_date", { mode: "date" }),
+    settledAllocations:
+      jsonb("settled_allocations").$type<
+        Array<{ personId: string; amount: string; role?: "admin" | "external" }>
+      >(),
     accountId: uuid("account_id").references(() => financialAccounts.id, {
       onDelete: "restrict",
     }),
@@ -1533,6 +1638,9 @@ export const invoices = pgTable(
       onDelete: "set null",
     }),
     closingDate: date("closing_date", { mode: "date" }),
+    originalDueDate: date("original_due_date", { mode: "date" }),
+    dueDateRuleExcluded: boolean("due_date_rule_excluded").notNull().default(false),
+    dueDateAdjustment: jsonb("due_date_adjustment").$type<DueDateAdjustmentDetails>(),
     dueDate: date("due_date", { mode: "date" }),
     datesCustomized: boolean("dates_customized").notNull().default(false),
     createdAt: timestamp("created_at").notNull().defaultNow(),
@@ -2216,3 +2324,48 @@ export type RecurringTransactionRule = typeof recurringTransactionRules.$inferSe
 export type NewRecurringTransactionRule = typeof recurringTransactionRules.$inferInsert;
 export type Transaction = typeof transactions.$inferSelect;
 export type NewTransaction = typeof transactions.$inferInsert;
+
+export const settlementEvents = pgTable(
+  "settlement_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    transactionId: uuid("transaction_id").references(() => transactions.id, {
+      onDelete: "set null",
+    }),
+    recurringSeriesId: uuid("recurring_series_id").references(() => recurringTransactionSeries.id, {
+      onDelete: "set null",
+    }),
+    occurrenceDate: date("occurrence_date", { mode: "date" }),
+    action: varchar("action", { length: 16 }).notNull(),
+    snapshot: jsonb("snapshot").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => [
+    index("settlement_events_user_target_idx").on(
+      table.userId,
+      table.transactionId,
+      table.recurringSeriesId,
+    ),
+  ],
+);
+
+export const dueDateRuleVersions = pgTable(
+  "due_date_rule_versions",
+  {
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    revision: integer("revision").notNull(),
+    effectiveFrom: date("effective_from", { mode: "string" }).notNull(),
+    calendar: jsonb("calendar").$type<DueDateRuleVersion["calendar"]>().notNull(),
+    rules: jsonb("rules").$type<DueDateRuleVersion["rules"]>().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.userId, table.revision] }),
+    check("due_date_rule_versions_revision_check", sql`${table.revision} > 0`),
+  ],
+);

@@ -13,6 +13,12 @@ import { invoicePaymentCategoryName } from "@openmonetis/domain/categories";
 import { and, asc, eq, gte, inArray, isNull, lte, ne, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import type { CategoryTrendsRepository } from "../services/category-trends.service";
+import { effectiveRecurringEndDateSql } from "./recurring-transactions.repository";
+import {
+  effectiveSplitAmountSql,
+  effectiveTransactionAmountSql,
+  recurringOccurrenceOverridesSql,
+} from "./settlements.repository";
 
 const transactionPeople = alias(people, "category_trend_transaction_people");
 const splitPeople = alias(people, "category_trend_split_people");
@@ -24,12 +30,19 @@ export const categoryTrendsRepository = {
     const rows = await db
       .select({
         categoryId: categories.id,
+        parentId: categories.parentId,
+        isSystem: categories.isSystem,
         name: categories.name,
         icon: categories.icon,
         type: categories.type,
       })
       .from(categories)
-      .where(and(eq(categories.userId, userId), ne(categories.name, invoicePaymentCategoryName)))
+      .where(
+        and(
+          eq(categories.userId, userId),
+          or(ne(categories.name, invoicePaymentCategoryName), eq(categories.isSystem, false)),
+        ),
+      )
       .orderBy(asc(categories.name), asc(categories.id));
     return rows;
   },
@@ -49,7 +62,7 @@ export const categoryTrendsRepository = {
         type: categories.type,
         period: transactions.period,
         amount:
-          sql<string>`case when ${transactionSplits.id} is not null then ${transactionSplits.amount} else ${transactions.amount} end`.as(
+          sql<string>`case when ${transactionSplits.id} is not null then ${effectiveSplitAmountSql} else ${effectiveTransactionAmountSql} end`.as(
             "amount",
           ),
       })
@@ -77,7 +90,7 @@ export const categoryTrendsRepository = {
         and(
           eq(transactions.userId, userId),
           ne(transactions.type, "transfer"),
-          ne(categories.name, invoicePaymentCategoryName),
+          or(ne(categories.name, invoicePaymentCategoryName), eq(categories.isSystem, false)),
           gte(transactions.period, startPeriod),
           lte(transactions.period, endPeriod),
           personScope === "all"
@@ -111,7 +124,18 @@ export const categoryTrendsRepository = {
           ),
         anchorDate: recurringTransactionRules.anchorDate,
         startDate: recurringTransactionRules.startDate,
-        endDate: recurringTransactionRules.endDate,
+        endDate: effectiveRecurringEndDateSql,
+
+        configuredEndDate: sql<
+          string | null
+        >`to_char(${recurringTransactionRules.recurrenceEndDate}, 'YYYY-MM-DD')`.as(
+          "configured_end_date",
+        ),
+        occurrenceOverrides: recurringOccurrenceOverridesSql,
+        allocationPersonId:
+          sql<string>`coalesce(${recurringTransactionSplits.personId}, ${recurringTransactionRules.personId})`.as(
+            "allocation_person_id",
+          ),
         frequency: recurringTransactionRules.frequency,
         paymentMethod: recurringTransactionRules.paymentMethod,
         dueDate: recurringTransactionRules.dueDate,
@@ -157,8 +181,8 @@ export const categoryTrendsRepository = {
         and(
           eq(recurringTransactionRules.userId, userId),
           ne(recurringTransactionRules.type, "transfer"),
-          ne(categories.name, invoicePaymentCategoryName),
-          lte(recurringTransactionRules.startDate, periodEnd),
+          or(ne(categories.name, invoicePaymentCategoryName), eq(categories.isSystem, false)),
+          lte(recurringTransactionRules.startDate, new Date(periodEnd.getTime() + 32 * 86_400_000)),
           personScope === "all"
             ? undefined
             : or(
@@ -184,6 +208,10 @@ export const categoryTrendsRepository = {
       anchorDate: row.anchorDate.toISOString().slice(0, 10),
       startDate: row.startDate.toISOString().slice(0, 10),
       endDate: row.endDate?.toISOString().slice(0, 10) ?? null,
+      occurrenceOverrides: row.occurrenceOverrides,
+      allocationPersonId: row.allocationPersonId,
+
+      configuredEndDate: row.configuredEndDate,
       frequency: row.frequency,
       paymentMethod: row.paymentMethod,
       dueDate: row.dueDate?.toISOString().slice(0, 10) ?? null,

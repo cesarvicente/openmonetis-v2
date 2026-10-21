@@ -224,6 +224,9 @@ export type DashboardExpenseDistribution = {
 };
 
 export type DashboardCategoryBreakdownEntry = {
+  categoryParentId?: string | null;
+  categoryParentName?: string | null;
+  categoryParentIcon?: string | null;
   amount: number;
   categoryId: string;
   categoryIcon: string | null;
@@ -690,10 +693,13 @@ function groupCategoryBreakdown(
       continue;
     }
 
-    const group = groups.get(entry.categoryId) ?? {
+    const groupId = entry.categoryParentId ?? entry.categoryId;
+    const group = groups.get(groupId) ?? {
       amountCents: 0,
-      categoryIcon: entry.categoryIcon,
-      categoryName: entry.categoryName,
+      categoryIcon: entry.categoryParentId
+        ? (entry.categoryParentIcon ?? entry.categoryIcon)
+        : entry.categoryIcon,
+      categoryName: entry.categoryParentName ?? entry.categoryName,
       count: 0,
       previousAmountCents: 0,
     };
@@ -706,7 +712,7 @@ function groupCategoryBreakdown(
     } else {
       group.previousAmountCents += amountCents;
     }
-    groups.set(entry.categoryId, group);
+    groups.set(groupId, group);
   }
 
   const totalCents = [...groups.values()].reduce((total, group) => total + group.amountCents, 0);

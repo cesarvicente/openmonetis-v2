@@ -8,6 +8,7 @@ import {
 } from "@openmonetis/db";
 import { and, asc, desc, eq, like, lt, notExists, notLike, sql } from "drizzle-orm";
 import type { AttachmentsRepository } from "../services/attachments.service";
+import { categoryLabelSql } from "./categories.repository";
 
 export const attachmentsRepository = {
   async transactionExistsForUser(transactionId, userId) {
@@ -119,7 +120,7 @@ export const attachmentsRepository = {
         personId: people.id,
         personName: people.name,
         personAvatarUrl: people.avatarUrl,
-        categoryName: categories.name,
+        categoryName: categoryLabelSql(categories),
         categoryIcon: categories.icon,
         linkedTransactionCount: sql<number>`(
           select count(*)::int

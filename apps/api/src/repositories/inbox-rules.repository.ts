@@ -2,6 +2,7 @@ import { categories, db, inboxItems, inboxRules, people } from "@openmonetis/db"
 import type { InboxRuleCondition } from "@openmonetis/domain/inbox-rules";
 import { and, asc, eq, sql } from "drizzle-orm";
 import type { InboxRuleRecord, InboxRulesRepository } from "../services/inbox-rules.service";
+import { categoryLabelSql } from "./categories.repository";
 
 const ruleSelection = {
   id: inboxRules.id,
@@ -12,7 +13,7 @@ const ruleSelection = {
   matchMode: inboxRules.matchMode,
   conditions: inboxRules.conditions,
   categoryId: inboxRules.categoryId,
-  categoryName: categories.name,
+  categoryName: categoryLabelSql(categories),
   categoryType: categories.type,
   personId: inboxRules.personId,
   personName: people.name,

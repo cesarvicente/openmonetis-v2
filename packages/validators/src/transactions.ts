@@ -1,5 +1,8 @@
 import { z } from "@hono/zod-openapi";
+import { recurringActions } from "@openmonetis/domain/recurring-transactions";
 import {
+  maximumInstallmentCount,
+  minimumInstallmentCount,
   paymentMethods,
   recurrenceFrequencies,
   transactionConditions,
@@ -7,12 +10,40 @@ import {
   transactionTypes,
   validateTransactionSplits,
 } from "@openmonetis/domain/transactions";
+import { DueDateAdjustmentDetailsSchema } from "./due-date-rules";
+import { TagIdsSchema } from "./tags";
 
-export { paymentMethods, recurrenceFrequencies, transactionConditions, transactionTypes };
+export {
+  maximumInstallmentCount,
+  minimumInstallmentCount,
+  paymentMethods,
+  recurrenceFrequencies,
+  transactionConditions,
+  transactionTypes,
+};
 
 const dateSchema = z.iso.date();
 const periodSchema = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/);
 const nullableUuidSchema = z.string().uuid().nullable().optional();
+export const InstallmentOptionsQuerySchema = z
+  .object({ amount: z.coerce.number().positive().max(999_999_999.99).multipleOf(0.01) })
+  .openapi("InstallmentOptionsQuery");
+export const InstallmentOptionOutputSchema = z.object({
+  count: z.number().int().min(minimumInstallmentCount).max(maximumInstallmentCount),
+  minimumAmount: z.number().nonnegative(),
+  maximumAmount: z.number().nonnegative(),
+});
+export const InstallmentOptionsOutputSchema = z
+  .object({
+    options: z
+      .array(InstallmentOptionOutputSchema)
+      .length(maximumInstallmentCount - minimumInstallmentCount + 1),
+  })
+  .openapi("InstallmentOptionsOutput");
+export type InstallmentOptionsQuery = z.infer<typeof InstallmentOptionsQuerySchema>;
+export type InstallmentOptionOutput = z.infer<typeof InstallmentOptionOutputSchema>;
+export type InstallmentOptionsOutput = z.infer<typeof InstallmentOptionsOutputSchema>;
+
 const csvUuidSchema = z
   .string()
   .optional()
@@ -33,6 +64,7 @@ const csvUuidSchema = z
   });
 
 const TransactionFieldsSchema = z.object({
+  tagIds: TagIdsSchema.optional(),
   type: z.enum(transactionTypes).openapi({ example: "expense" }),
   condition: z.enum(transactionConditions).default("single").openapi({ example: "single" }),
   paymentMethod: z.enum(paymentMethods).openapi({ example: "pix" }),
@@ -52,14 +84,28 @@ const TransactionFieldsSchema = z.object({
   destinationAccountId: nullableUuidSchema.openapi({
     example: "3f6d2b84-6ed0-4a50-b257-8adf0b6178de",
   }),
+  dueDateRuleExcluded: z.boolean().optional(),
   dueDate: dateSchema.nullable().optional().openapi({ example: "2026-07-10" }),
+  settledDate: dateSchema.nullable().optional(),
   boletoPaymentDate: dateSchema.nullable().optional().openapi({ example: "2026-07-09" }),
-  installmentCount: z.number().int().min(2).max(60).nullable().optional().openapi({ example: 12 }),
+  installmentCount: z
+    .number()
+    .int()
+    .min(minimumInstallmentCount)
+    .max(maximumInstallmentCount)
+    .nullable()
+    .optional()
+    .openapi({ example: 12 }),
   recurrenceFrequency: z
     .enum(recurrenceFrequencies)
     .nullable()
     .optional()
     .openapi({ example: "monthly" }),
+  recurrenceEndDate: dateSchema.nullable().optional().openapi({
+    example: "2027-12-31",
+    description:
+      "Inclusive optional last occurrence date. Null means no deadline; version boundaries are managed independently.",
+  }),
   isSettled: z.boolean().nullable().optional().openapi({ example: true }),
   note: z.string().trim().max(1000).nullable().optional().openapi({
     example: "Contrato residencial",
@@ -144,6 +190,18 @@ export const TransactionInputSchema = CreateTransactionFieldsSchema.superRefine(
       code: z.ZodIssueCode.custom,
       path: ["recurrenceFrequency"],
       message: "recurrenceFrequency is only allowed for recurring transactions",
+    });
+  }
+
+  if (
+    data.recurrenceEndDate &&
+    (data.condition !== "recurring" || data.recurrenceEndDate < data.purchaseDate)
+  ) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["recurrenceEndDate"],
+      message:
+        "Recurring end date must be on or after purchaseDate and only applies to recurring transactions",
     });
   }
 
@@ -328,9 +386,18 @@ export const ListTransactionsQuerySchema = z
     paymentMethod: z.enum(paymentMethods).optional(),
     settlement: z.enum(["paid", "unpaid", "invoice"]).optional(),
     view: z.literal("accountStatement").optional(),
+    payables: z
+      .literal("true")
+      .transform(() => true as const)
+      .optional(),
     sort: z.enum(["recent", "oldest", "dueDate", "amount"]).optional(),
     personIds: csvUuidSchema,
     categoryIds: csvUuidSchema,
+    tagIds: csvUuidSchema.optional(),
+    withoutTags: z
+      .literal("true")
+      .transform(() => true as const)
+      .optional(),
     accountIds: csvUuidSchema,
     cardIds: csvUuidSchema,
     minAmount: z.coerce.number().nonnegative().max(999_999_999.99).optional(),
@@ -353,6 +420,13 @@ export const ListTransactionsQuerySchema = z
       .default(30),
   })
   .superRefine((data, ctx) => {
+    if (data.withoutTags && data.tagIds?.length) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["tagIds"],
+        message: "withoutTags cannot be combined with tagIds",
+      });
+    }
     if (data.view === "accountStatement" && data.accountIds.length !== 1) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -380,6 +454,25 @@ export const ListTransactionsQuerySchema = z
     }
   })
   .openapi("ListTransactionsQuery");
+
+export const ExportTransactionsQuerySchema = ListTransactionsQuerySchema.safeExtend({
+  format: z.enum(["csv", "xlsx"]),
+}).openapi("ExportTransactionsQuery");
+
+export const TransactionExportOutputSchema = z
+  .object({
+    fileName: z.string(),
+    contentType: z.enum([
+      "text/csv;charset=utf-8",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    ]),
+    contentBase64: z.string(),
+    rowCount: z.number().int().nonnegative(),
+  })
+  .openapi("TransactionExport");
+
+export type ExportTransactionsQuery = z.infer<typeof ExportTransactionsQuerySchema>;
+export type TransactionExportOutput = z.infer<typeof TransactionExportOutputSchema>;
 export const transactionActionScopes = ["single", "future", "series"] as const;
 export const TransactionActionScopeSchema = z.enum(transactionActionScopes);
 export const TransactionActionInputSchema = z.object({
@@ -387,6 +480,9 @@ export const TransactionActionInputSchema = z.object({
 });
 export const TransactionActionQuerySchema =
   TransactionActionInputSchema.openapi("TransactionActionQuery");
+export const RecurringRuleOccurrenceQuerySchema = z
+  .object({ occurrenceDate: dateSchema })
+  .openapi("RecurringRuleOccurrenceQuery");
 export const UpdateRecurringRuleQuerySchema = z
   .object({
     scope: TransactionActionScopeSchema.default("series"),
@@ -406,15 +502,28 @@ export const BulkTransactionsInputSchema = z.object({ ids: z.array(z.uuid()).min
 export const SettleTransactionsInputSchema = BulkTransactionsInputSchema.extend({
   isSettled: z.boolean(),
   settledDate: dateSchema.optional(),
+  settledAmount: z.number().positive().max(999_999_999.99).multipleOf(0.01).optional(),
+  accountId: z.uuid().optional(),
 });
 export const RecurringRuleActionInputSchema = z.object({
   status: z.enum(["active", "paused", "cancelled"]),
+  occurrenceDate: dateSchema.optional(),
 });
+export const RecurringOccurrenceActionInputSchema = z
+  .object({
+    action: z.enum(recurringActions),
+    occurrenceDate: dateSchema,
+  })
+  .strict()
+  .openapi("RecurringOccurrenceActionInput");
+export type RecurringOccurrenceActionInput = z.infer<typeof RecurringOccurrenceActionInputSchema>;
 export const SettleRecurringOccurrenceInputSchema = z.object({
   recurringRuleId: z.string().uuid(),
   purchaseDate: dateSchema,
   isSettled: z.boolean(),
   settledDate: dateSchema.optional(),
+  settledAmount: z.number().positive().max(999_999_999.99).multipleOf(0.01).optional(),
+  accountId: z.uuid().optional(),
 });
 
 export const PreviewTransactionImportInputSchema = z
@@ -545,12 +654,16 @@ export const TransactionOutputSchema = z
     name: z.string().openapi({ example: "Aluguel" }),
     amount: z.number().openapi({ example: -2500 }),
     displayAmount: z.number().openapi({ example: 2500 }),
+    plannedAmount: z.number().nonnegative().optional(),
+    settledAmount: z.number().nonnegative().nullable().optional(),
+    settledDate: dateSchema.nullable().optional(),
     allocation: z
       .object({
         personId: z.string().uuid(),
         personName: z.string(),
         personAvatarUrl: z.string().nullable(),
         amount: z.number(),
+        plannedAmount: z.number().nonnegative().optional(),
       })
       .nullable(),
     purchaseDate: dateSchema.openapi({ example: "2026-07-07" }),
@@ -568,6 +681,7 @@ export const TransactionOutputSchema = z
     invoicePaymentCardName: z.string().nullable(),
     invoicePaymentCardLogo: z.string().nullable(),
     categoryId: z.string().uuid().nullable(),
+    tagIds: TagIdsSchema.optional(),
     categoryName: z.string().nullable(),
     categoryIcon: z.string().nullable(),
     sourceAccountId: z.string().uuid().nullable(),
@@ -577,11 +691,18 @@ export const TransactionOutputSchema = z
     destinationAccountName: z.string().nullable(),
     destinationAccountLogo: z.string().nullable(),
     dueDate: dateSchema.nullable(),
+    originalDueDate: z.iso.date().nullable().optional(),
+
+    dueDateAdjustment: DueDateAdjustmentDetailsSchema.nullable().optional(),
+    dueDateExceptionEditable: z.boolean().optional(),
+    dueDateRuleExcluded: z.boolean().optional(),
     boletoPaymentDate: dateSchema.nullable(),
     installmentCount: z.number().int().nullable(),
     currentInstallment: z.number().int().nullable(),
     installmentEndPeriod: periodSchema.nullable(),
     recurrenceFrequency: z.enum(recurrenceFrequencies).nullable(),
+    recurrenceAnchorDate: dateSchema.nullable().optional(),
+    recurrenceEndDate: dateSchema.nullable().optional(),
     isSettled: z.boolean().nullable(),
     note: z.string().nullable(),
     splitShares: z.array(
@@ -590,6 +711,7 @@ export const TransactionOutputSchema = z
         personName: z.string(),
         personAvatarUrl: z.string().nullable(),
         amount: z.number(),
+        plannedAmount: z.number().nonnegative().optional(),
       }),
     ),
     isDivided: z.boolean(),

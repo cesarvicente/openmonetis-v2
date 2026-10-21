@@ -65,6 +65,7 @@ export const ExternalExpenseOutputSchema = z
     sourceVersion: z.number().int().positive(),
     isDivided: z.boolean(),
     snapshot: ExternalExpenseSnapshotSchema,
+    categoryIcon: z.string().nullable(),
     establishmentLogoUrl: z.url().nullable(),
     sourceLogoUrl: z.string().max(255).nullable(),
     sourceCardBrand: z.enum(cardBrands).nullable(),

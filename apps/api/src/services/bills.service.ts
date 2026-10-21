@@ -3,7 +3,22 @@ import {
   getBillStatus,
   listRecurringBillOccurrences,
 } from "@openmonetis/domain/bills";
-import type { RecurrenceFrequency, TransactionCondition } from "@openmonetis/domain/transactions";
+import {
+  type DueDateRulesReader,
+  emptyDueDateRulesReader,
+  resolveDueDate,
+} from "@openmonetis/domain/due-date-rules";
+import {
+  getOccurrenceAmount,
+  type SettlementAwareRule,
+  SettlementError,
+} from "@openmonetis/domain/settlements";
+import {
+  addMonthsToPeriod,
+  type PaymentMethod,
+  type RecurrenceFrequency,
+  type TransactionCondition,
+} from "@openmonetis/domain/transactions";
 import { getCurrentDateInBrazil, getPeriodEndDateString } from "@openmonetis/shared/date-time";
 import type {
   CreateBillPaymentInput,
@@ -13,6 +28,7 @@ import type {
 import { badRequest, notFound } from "../utils/errors";
 
 type BillRelationRecord = {
+  paymentMethod: PaymentMethod;
   accountId: string | null;
   accountName: string | null;
   accountLogo: string | null;
@@ -22,6 +38,9 @@ type BillRelationRecord = {
   personName: string;
   personAvatarUrl: string | null;
   splits: BillPersonRecord[];
+  dueDateRuleExcluded?: boolean;
+  frozenDueDate?: string | null;
+  dueDateAdjustment?: import("@openmonetis/domain/due-date-rules").DueDateAdjustmentDetails | null;
 };
 
 type BillPersonRecord = {
@@ -38,31 +57,37 @@ type PersistedBillRecord = BillRelationRecord & {
   amount: string;
   dueDate: string;
   boletoPaymentDate: string | null;
+  settledDate: string | null;
   isSettled: boolean;
   condition: TransactionCondition;
   currentInstallment: number | null;
   installmentCount: number | null;
 };
 
-type RecurringBillRecord = BillRelationRecord & {
-  id: string;
-  seriesId: string;
-  anchorDate: string;
-  startDate: string;
-  endDate?: string | null;
-  dueDate: string;
-  frequency: RecurrenceFrequency;
-  name: string;
-  amount: string;
-  isSettled: boolean;
-};
+type RecurringBillRecord = BillRelationRecord &
+  SettlementAwareRule & {
+    id: string;
+    seriesId: string;
+    anchorDate: string;
+    startDate: string;
+    endDate?: string | null;
+    dueDate: string | null;
+    frequency: RecurrenceFrequency;
+    name: string;
+    amount: string;
+    isSettled: boolean;
+  };
 
 type BillOccurrenceStateRecord = {
+  dueDateRuleExcluded?: boolean | null;
+  frozenDueDate?: string | null;
+  dueDateAdjustment?: import("@openmonetis/domain/due-date-rules").DueDateAdjustmentDetails | null;
   recurringSeriesId: string;
   purchaseDate: string;
   isSettled: boolean;
   accountId: string | null;
   boletoPaymentDate: string | null;
+  settledDate: string | null;
 };
 
 type BillAccountRecord = { id: string; name: string; logo: string | null };
@@ -77,30 +102,47 @@ export type BillsRepository = {
     periodEnd: string,
   ): Promise<BillOccurrenceStateRecord[]>;
   listAccounts(userId: string): Promise<BillAccountRecord[]>;
-  payPersisted(userId: string, billId: string, accountId: string, paidAt: string): Promise<boolean>;
+  payPersisted(
+    userId: string,
+    billId: string,
+    accountId: string,
+    paidAt: string,
+    amount?: number,
+  ): Promise<boolean>;
   payRecurring(
     userId: string,
     recurringRuleId: string,
     purchaseDate: string,
     accountId: string,
     paidAt: string,
+    amount?: number,
   ): Promise<boolean>;
 };
 
-export function createBillsService(repository: BillsRepository, today = getCurrentDateInBrazil) {
-  async function get(period: string, userId: string): Promise<DashboardBillsOutput> {
-    const periodStart = `${period}-01`;
-    const periodEnd = getPeriodEndDateString(period);
+export function createBillsService(
+  repository: BillsRepository,
+  today = getCurrentDateInBrazil,
+  dueDateRules: DueDateRulesReader = emptyDueDateRulesReader,
+) {
+  async function get(
+    period: string,
+    userId: string,
+    byOriginalDueDate = false,
+  ): Promise<DashboardBillsOutput> {
+    const dueDateVersions = await dueDateRules.listVersions(userId);
     const [persisted, recurring, accounts] = await Promise.all([
       repository.listPersisted(userId, period),
-      repository.listRecurring(userId, new Date(`${periodEnd}T23:59:59.999Z`)),
+      repository.listRecurring(
+        userId,
+        new Date(`${getPeriodEndDateString(addMonthsToPeriod(period, 13))}T23:59:59.999Z`),
+      ),
       repository.listAccounts(userId),
     ]);
     const occurrenceStates = await repository.listOccurrenceStates(
       userId,
       [...new Set(recurring.map((rule) => rule.seriesId))],
-      periodStart,
-      periodEnd,
+      `${addMonthsToPeriod(period, -13)}-01`,
+      getPeriodEndDateString(addMonthsToPeriod(period, 13)),
     );
     const states = new Map(
       occurrenceStates.map((state) => [`${state.recurringSeriesId}:${state.purchaseDate}`, state]),
@@ -108,6 +150,19 @@ export function createBillsService(repository: BillsRepository, today = getCurre
     const persistedItems: DashboardBill[] = persisted.map((bill) =>
       buildBill({
         ...bill,
+        ...resolveDueDate(
+          {
+            dueDate: bill.dueDate,
+            type: "expense",
+            paymentMethod: bill.paymentMethod,
+            transactionId: bill.id,
+            excluded: bill.dueDateRuleExcluded,
+            isSettled: bill.isSettled,
+            frozenDueDate: bill.frozenDueDate,
+            frozenAdjustment: bill.dueDateAdjustment,
+          },
+          dueDateVersions,
+        ),
         recordId: bill.id,
         recurringRuleId: null,
         recurrenceFrequency: null,
@@ -122,8 +177,11 @@ export function createBillsService(repository: BillsRepository, today = getCurre
         startDate: rule.startDate,
         endDate: rule.endDate,
         dueDate: rule.dueDate,
+
+        configuredEndDate: rule.configuredEndDate,
         frequency: rule.frequency,
         period,
+        includeAdjacent: true,
       }).map((occurrence) => {
         const state = states.get(`${rule.seriesId}:${occurrence.purchaseDate}`);
         const paymentAccount = state?.accountId
@@ -132,6 +190,31 @@ export function createBillsService(repository: BillsRepository, today = getCurre
         return buildBill({
           ...rule,
           ...occurrence,
+          recurringSeriesId: rule.seriesId,
+          dueDateRuleExcluded: state?.dueDateRuleExcluded ?? rule.dueDateRuleExcluded,
+          ...resolveDueDate(
+            {
+              dueDate: occurrence.dueDate,
+              type: "expense",
+              paymentMethod: rule.paymentMethod,
+              seriesId: rule.seriesId,
+              excluded: state?.dueDateRuleExcluded ?? rule.dueDateRuleExcluded,
+              isSettled: state?.isSettled ?? rule.isSettled,
+              frozenDueDate: state?.frozenDueDate,
+              frozenAdjustment: state?.dueDateAdjustment,
+            },
+            dueDateVersions,
+          ),
+          amount: getOccurrenceAmount(rule, occurrence.purchaseDate, rule.amount).toFixed(2),
+          splits: rule.splits.map((share) => ({
+            ...share,
+            amount: getOccurrenceAmount(
+              rule,
+              occurrence.purchaseDate,
+              share.amount,
+              share.personId,
+            ).toFixed(2),
+          })),
           recordId: null,
           recurringRuleId: rule.id,
           condition: "recurring",
@@ -140,6 +223,7 @@ export function createBillsService(repository: BillsRepository, today = getCurre
           recurrenceFrequency: rule.frequency,
           isSettled: state?.isSettled ?? rule.isSettled,
           boletoPaymentDate: state?.boletoPaymentDate ?? null,
+          settledDate: state?.settledDate ?? state?.boletoPaymentDate ?? null,
           accountId: state?.accountId ?? rule.accountId,
           accountName: paymentAccount?.name ?? rule.accountName,
           accountLogo: paymentAccount?.logo ?? rule.accountLogo,
@@ -148,7 +232,11 @@ export function createBillsService(repository: BillsRepository, today = getCurre
         });
       }),
     );
-    const items = [...persistedItems, ...recurringItems].sort(compareBills);
+    const items = [...persistedItems, ...recurringItems]
+      .filter(
+        (item) => (byOriginalDueDate ? item.originalDueDate : item.dueDate)?.slice(0, 7) === period,
+      )
+      .sort(compareBills);
     return {
       period,
       totalOpen: calculateOpenBillsTotal(items),
@@ -170,15 +258,29 @@ export function createBillsService(repository: BillsRepository, today = getCurre
       if (!snapshot.accounts.some((account) => account.id === input.accountId)) {
         throw notFound("Account not found", "account_not_found");
       }
-      const paid = bill.recordId
-        ? await repository.payPersisted(userId, bill.recordId, input.accountId, input.paidAt)
-        : await repository.payRecurring(
-            userId,
-            bill.recurringRuleId as string,
-            bill.purchaseDate,
-            input.accountId,
-            input.paidAt,
-          );
+      let paid: boolean;
+      try {
+        paid = bill.recordId
+          ? await repository.payPersisted(
+              userId,
+              bill.recordId,
+              input.accountId,
+              input.paidAt,
+              input.amount,
+            )
+          : await repository.payRecurring(
+              userId,
+              bill.recurringRuleId as string,
+              bill.purchaseDate,
+              input.accountId,
+              input.paidAt,
+              input.amount,
+            );
+      } catch (error) {
+        if (error instanceof SettlementError)
+          throw badRequest("Invalid bill settlement", error.code);
+        throw error;
+      }
       return paid
         ? { id: bill.id, accountId: input.accountId, paidAt: input.paidAt }
         : Promise.reject(notFound("Bill not found", "bill_not_found"));
@@ -195,8 +297,13 @@ function buildBill(
     period: string;
     name: string;
     amount: string;
-    dueDate: string;
+    dueDate: string | null;
+    originalDueDate?: string | null;
+
+    dueDateExceptionEditable?: boolean;
+    recurringSeriesId?: string;
     boletoPaymentDate: string | null;
+    settledDate: string | null;
     isSettled: boolean;
     condition: TransactionCondition;
     currentInstallment: number | null;
@@ -212,11 +319,19 @@ function buildBill(
     purchaseDate: bill.purchaseDate,
     period: bill.period,
     name: bill.name,
+    paymentMethod: bill.paymentMethod,
     amount: Math.abs(Number(bill.amount)),
-    dueDate: bill.dueDate,
+    dueDate: bill.dueDate as string,
+    originalDueDate: bill.originalDueDate ?? bill.dueDate,
+
+    dueDateAdjustment: bill.dueDateAdjustment ?? null,
+    dueDateExceptionEditable: bill.dueDateExceptionEditable ?? false,
+    dueDateRuleExcluded: bill.dueDateRuleExcluded ?? false,
+    recurringSeriesId: bill.recurringSeriesId ?? null,
     boletoPaymentDate: bill.boletoPaymentDate,
+    settledDate: bill.settledDate ?? bill.boletoPaymentDate,
     isSettled: bill.isSettled,
-    status: getBillStatus(bill),
+    status: getBillStatus({ ...bill, dueDate: bill.dueDate as string }),
     condition: bill.condition,
     currentInstallment: bill.currentInstallment,
     installmentCount: bill.installmentCount,

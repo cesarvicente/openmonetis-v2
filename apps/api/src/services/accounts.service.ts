@@ -9,6 +9,7 @@ import {
   createAccountYieldDraft,
 } from "@openmonetis/domain/accounts";
 import { getRecurringDueDate } from "@openmonetis/domain/recurring-expenses";
+import { getOccurrenceAmount, type SettlementAwareRule } from "@openmonetis/domain/settlements";
 import {
   addMonthsToPeriod,
   buildTransferPostings,
@@ -64,6 +65,7 @@ type AccountBalancePostingRecord = {
   includeInSummary?: boolean;
   paymentMethod?: PaymentMethod | null;
   boletoPaymentDate?: string | null;
+  settledDate?: string | null;
 };
 
 type AccountBalanceAdjustmentRecord = {
@@ -91,7 +93,7 @@ type DeleteAccountResult =
   | { status: "deleted"; id: string }
   | { status: "not_found" };
 
-type AccountRecurringRuleRecord = {
+type AccountRecurringRuleRecord = SettlementAwareRule & {
   id: string;
   seriesId: string;
   accountId: string | null;
@@ -114,6 +116,7 @@ type AccountRecurringOccurrenceRecord = {
   isSettled: boolean;
   accountId: string | null;
   boletoPaymentDate: string | null;
+  settledDate?: string | null;
 };
 
 export type AccountsRepository = {
@@ -220,6 +223,7 @@ export function createAccountsService(
             period: posting.period,
             paymentMethod: posting.paymentMethod ?? null,
             boletoPaymentDate: posting.boletoPaymentDate,
+            settledDate: posting.settledDate,
           }),
         }))
         .filter((posting) => posting.period <= period),
@@ -512,6 +516,10 @@ function expandSettledRecurringPostings(
       purchasePeriod = addMonthsToPeriod(purchasePeriod, 1)
     ) {
       for (const purchaseDate of listRecurrenceDatesInPeriod({
+        dueDate: rule.dueDate,
+
+        recurrenceEndDate: rule.configuredEndDate,
+
         anchorDate: rule.anchorDate,
         startDate: rule.startDate,
         endDate: rule.endDate,
@@ -528,6 +536,7 @@ function expandSettledRecurringPostings(
           dueDate: getRecurringDueDate(rule.dueDate, purchaseDate),
         });
         const postingDate =
+          occurrence?.settledDate ??
           occurrence?.boletoPaymentDate ??
           (rule.paymentMethod === "boleto"
             ? getRecurringDueDate(rule.dueDate, purchaseDate)
@@ -537,6 +546,7 @@ function expandSettledRecurringPostings(
           period: scheduledPeriod,
           paymentMethod: rule.paymentMethod,
           boletoPaymentDate: occurrence?.boletoPaymentDate,
+          settledDate: occurrence?.settledDate,
         });
         if (period > throughPeriod) continue;
         if (rule.type === "transfer" && rule.sourceAccountId && rule.destinationAccountId) {
@@ -557,7 +567,7 @@ function expandSettledRecurringPostings(
             accountId: occurrence?.accountId ?? rule.accountId,
             period,
             postingDate,
-            amount: rule.amount,
+            amount: getOccurrenceAmount(rule, purchaseDate, rule.amount).toFixed(2),
           });
         }
       }

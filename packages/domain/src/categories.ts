@@ -15,7 +15,70 @@ export type CategoryCreateDraft = {
   type: CategoryType;
   icon: string | null;
   isSystem: boolean;
+  parentId?: string | null;
 };
+
+export type CategoryHierarchyNode = {
+  id: string;
+  type: CategoryType;
+  parentId?: string | null;
+  isSystem: boolean;
+};
+
+export class CategoryConstraintError extends Error {
+  constructor(
+    public readonly code:
+      | "category_invalid_parent"
+      | "category_has_children"
+      | "category_name_conflict"
+      | "category_in_use",
+  ) {
+    super(code);
+  }
+}
+
+export function assertCategoryHierarchy(input: {
+  id?: string;
+  type: CategoryType;
+  parentId: string | null;
+  categories: readonly CategoryHierarchyNode[];
+}) {
+  const children = input.categories.filter(
+    (category) => category.parentId === input.id && input.id !== undefined,
+  );
+  if (
+    children.length &&
+    (input.parentId !== null || children.some((child) => child.type !== input.type))
+  ) {
+    throw new CategoryConstraintError("category_has_children");
+  }
+  if (!input.parentId) return;
+  const parent = input.categories.find((category) => category.id === input.parentId);
+  if (
+    !parent ||
+    parent.id === input.id ||
+    parent.parentId ||
+    parent.isSystem ||
+    parent.type !== input.type
+  ) {
+    throw new CategoryConstraintError("category_invalid_parent");
+  }
+}
+
+export function expandCategoryIds(
+  categories: readonly Pick<CategoryHierarchyNode, "id" | "parentId">[],
+  selectedIds: readonly string[],
+) {
+  const selected = new Set(selectedIds);
+  return [
+    ...new Set([
+      ...selectedIds,
+      ...categories
+        .filter((category) => category.parentId && selected.has(category.parentId))
+        .map((category) => category.id),
+    ]),
+  ];
+}
 
 export function createCategoryDraft(
   input: Omit<CategoryCreateDraft, "isSystem">,

@@ -11,6 +11,10 @@ import {
   resolveCardClosingRule,
 } from "@openmonetis/domain/cards";
 import {
+  type DueDateRulesReader,
+  emptyDueDateRulesReader,
+} from "@openmonetis/domain/due-date-rules";
+import {
   addMonthsToPeriod,
   deriveTransactionPeriod,
   getPeriodEndDate,
@@ -68,6 +72,9 @@ type CardInvoiceStateRecord = {
   paymentStatus: "pending" | "paid";
   closingDate: string | null;
   dueDate: string | null;
+  originalDueDate?: string | null;
+  dueDateRuleExcluded?: boolean;
+  dueDateAdjustment?: import("@openmonetis/domain/due-date-rules").DueDateAdjustmentDetails | null;
   datesCustomized: boolean;
 };
 
@@ -142,6 +149,7 @@ function toCardOutput(
 export function createCardsService(
   repository: CardsRepository,
   getToday: () => string = getCurrentDateInBrazil,
+  dueDateRules: DueDateRulesReader = emptyDueDateRulesReader,
 ) {
   async function assertAccountOwnership(accountId: string, userId: string) {
     if (!(await repository.accountExistsForUser(accountId, userId))) {
@@ -151,6 +159,7 @@ export function createCardsService(
 
   async function summarizeCards(cards: CardRecord[], userId: string, period: string) {
     if (!cards.length) return [];
+    const dueDateRuleVersions = await dueDateRules.listVersions(userId);
     const cardId = cards.length === 1 ? cards[0]?.id : undefined;
     const [persistedMovements, invoiceStates, invoicePayments, recurringRules] = await Promise.all([
       repository.listMovementsByUser(userId, cardId),
@@ -188,6 +197,11 @@ export function createCardsService(
         const invoiceState = states.find((state) => state.period === invoicePeriod);
         return calculateCardInvoiceSummary({
           period: invoicePeriod,
+          cardId: card.id,
+          dueDateRuleVersions,
+          persistedOriginalDueDate: invoiceState?.originalDueDate,
+          persistedDueDateAdjustment: invoiceState?.dueDateAdjustment,
+          dueDateRuleExcluded: invoiceState?.dueDateRuleExcluded,
           limit: Number(card.limit),
           closingDay: card.closingDay,
           closingRule: resolveCardClosingRule(card),

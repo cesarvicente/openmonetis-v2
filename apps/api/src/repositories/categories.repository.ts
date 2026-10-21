@@ -1,5 +1,6 @@
 import { budgets, categories, db, recurringTransactionRules, transactions } from "@openmonetis/db";
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { CategoryConstraintError, expandCategoryIds } from "@openmonetis/domain/categories";
+import { and, asc, eq, inArray, type SQLWrapper, sql } from "drizzle-orm";
 import type { CategoriesRepository } from "../services/categories.service";
 
 export const categoriesRepository = {
@@ -7,8 +8,10 @@ export const categoriesRepository = {
     await db.insert(categories).values(data).onConflictDoNothing();
   },
   async insert(data) {
-    const [category] = await db.insert(categories).values(data).returning();
-    return category;
+    return categoryWrite(data.userId, async (tx) => {
+      const [category] = await tx.insert(categories).values(data).returning();
+      return category;
+    });
   },
   listByUser(userId) {
     return db
@@ -40,23 +43,27 @@ export const categoriesRepository = {
     return category ?? null;
   },
   async updateForUser(id, userId, data) {
-    const [category] = await db
-      .update(categories)
-      .set({ ...data, updatedAt: new Date() })
-      .where(
-        and(eq(categories.id, id), eq(categories.userId, userId), eq(categories.isSystem, false)),
-      )
-      .returning();
-    return category ?? null;
+    return categoryWrite(userId, async (tx) => {
+      const [category] = await tx
+        .update(categories)
+        .set({ ...data, updatedAt: new Date() })
+        .where(
+          and(eq(categories.id, id), eq(categories.userId, userId), eq(categories.isSystem, false)),
+        )
+        .returning();
+      return category ?? null;
+    });
   },
   async deleteForUser(id, userId) {
-    const [category] = await db
-      .delete(categories)
-      .where(
-        and(eq(categories.id, id), eq(categories.userId, userId), eq(categories.isSystem, false)),
-      )
-      .returning();
-    return category ?? null;
+    return categoryWrite(userId, async (tx) => {
+      const [category] = await tx
+        .delete(categories)
+        .where(
+          and(eq(categories.id, id), eq(categories.userId, userId), eq(categories.isSystem, false)),
+        )
+        .returning();
+      return category ?? null;
+    });
   },
   async hasFinancialReferencesForUser(id, userId) {
     const [budgetRows, transactionRows, recurringRows] = await Promise.all([
@@ -93,7 +100,61 @@ export const findSystemCategoryByNameForUser = (name: string, userId: string) =>
 export function listCategoriesByIdsForUser(ids: string[], userId: string) {
   if (!ids.length) return [];
   return db
-    .select({ id: categories.id, name: categories.name, type: categories.type })
+    .select({
+      id: categories.id,
+      name: categories.name,
+      type: categories.type,
+      isSystem: categories.isSystem,
+    })
     .from(categories)
     .where(and(eq(categories.userId, userId), inArray(categories.id, ids)));
+}
+
+type CategoryTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
+async function categoryWrite<T>(
+  userId: string,
+  operation: (tx: CategoryTransaction) => Promise<T>,
+) {
+  try {
+    return await db.transaction(async (tx) => {
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${userId}, 0))`);
+      return operation(tx);
+    });
+  } catch (error) {
+    const wrapped = error as {
+      code?: string;
+      constraint?: string;
+      cause?: { code?: string; constraint?: string };
+    };
+    const cause = wrapped.cause ?? wrapped;
+    if (cause.code === "23505") throw new CategoryConstraintError("category_name_conflict");
+    if (cause.code === "23514" && cause.constraint?.startsWith("categories_")) {
+      throw new CategoryConstraintError(
+        cause.constraint === "categories_children_check"
+          ? "category_has_children"
+          : "category_invalid_parent",
+      );
+    }
+    if (cause.code === "23503") throw new CategoryConstraintError("category_in_use");
+    throw error;
+  }
+}
+
+export async function listCategoryFamilyIdsForUser(ids: string[], userId: string) {
+  if (!ids.length) return ids;
+  const rows = await db
+    .select({ id: categories.id, parentId: categories.parentId })
+    .from(categories)
+    .where(eq(categories.userId, userId));
+  return expandCategoryIds(rows, ids);
+}
+
+// The correlated lookup preserves one row per transaction and always scopes the parent to its owner.
+export function categoryLabelSql(category: {
+  name: SQLWrapper;
+  parentId: SQLWrapper;
+  userId: SQLWrapper;
+}) {
+  return sql<string>`case when ${category.parentId} is null then ${category.name}
+    else concat((select p.name from categories p where p.id = ${category.parentId} and p.user_id = ${category.userId}), ' › ', ${category.name}) end`;
 }
