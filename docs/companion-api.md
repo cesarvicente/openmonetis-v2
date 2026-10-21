@@ -1,8 +1,14 @@
 # Contrato de compatibilidade do Companion
 
-Este documento descreve o protocolo legado usado pelo OpenMonetis Companion Android. A referência de
-compatibilidade atual é o Companion `1.0.4`. O OpenAPI publicado em `/openapi.json` é o contrato de
-máquina; este documento registra as exceções, os limites operacionais e a política de evolução.
+Este documento descreve o protocolo usado pelo OpenMonetis Companion Android. O protocolo base tem
+como referência histórica o Companion `1.0.4`; a compatibilidade de timestamps também contempla o
+formato legado enviado até `1.5.2` e o formato explícito `timestampFormatVersion: 2` dos clientes
+corrigidos. Essas referências não constituem uma matriz de versões suportadas do aplicativo.
+
+A suíte `apps/api/src/routes/companion.contract.test.ts`, executada por `pnpm test`, verifica os
+payloads e as respostas do protocolo; não executa binários Android. Uma mudança incompatível exige
+validar também os clientes conforme a política de evolução abaixo. O OpenAPI publicado em
+`/openapi.json` é o contrato de máquina; este documento registra as exceções e limites operacionais.
 
 Somente estas rotas pertencem à integração:
 

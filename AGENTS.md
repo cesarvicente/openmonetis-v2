@@ -121,12 +121,12 @@ Regras adicionais de padronização:
 ## 7. Segurança (não negociável)
 
 - Todo endpoint financeiro exige sessão autenticada; toda query/update/delete filtra por `userId`; mutations validam ownership de todo ID relacionado.
-- Nunca expor `userId`, tokens, hashes, stack traces ou paths internos em resposta pública.
+- Nunca expor `userId`, digests, hashes, segredos da instalação, stack traces ou paths internos em resposta pública. Tokens do Companion e de convites entre pessoas são entregues somente na criação autorizada pela sessão web, sem logs, persistência no cliente ou recuperação posterior do valor original.
 - Todo input externo validado com Zod antes do service; Drizzle sempre parametrizado (SQL raw só com justificativa, nunca com input concatenado).
 - CORS com credenciais nunca usa `*`; endpoints privados enviam `Cache-Control: private, no-store`; login/signup/mutations têm rate limit.
 - Produção exige `DATABASE_URL`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `WEB_URL`, `CORS_ORIGIN` sem placeholder; cookies com `httpOnly`, `sameSite`, `secure`.
 - Erros internos logados só no servidor; cliente recebe mensagem genérica. Variáveis `VITE_`/`NEXT_PUBLIC_` nunca contêm segredo.
-- Uploads futuros: limite de tamanho, whitelist de MIME, validação pós-upload, ownership. Nova dependência é avaliada antes de instalar (evitar pacotes recentes/pouco usados/typosquatting).
+- Uploads de anexos: limite de tamanho, whitelist de MIME, validação pós-upload de metadados e assinatura do conteúdo, ownership e bucket privado. O navegador envia o arquivo por URL S3 assinada; configurar CORS do bucket para a origem web. Nova dependência é avaliada antes de instalar (evitar pacotes recentes/pouco usados/typosquatting).
 
 ## 8. Idioma
 
@@ -154,6 +154,7 @@ Nenhuma regra financeira existe fora do domain.
 
 - Toda transação pertence a uma pessoa (`people`/`person`/`personId`); criação de usuário gera pessoa `admin` padrão, que não pode ser removida.
 - Recorrência não tem quantidade fixa: tem `frequency` (weekly, monthly, bimonthly, quarterly, semiannual, annual), é regra expandida por período consultado, nunca materializada em lista finita.
+- `recurrenceEndDate` é um prazo final opcional e inclusivo, independente do limite de vigência de cada versão da série. Edições e ações datadas preservam o histórico; baixas e exceções são guardadas por ocorrência. Consulte `docs/recurring-transactions.md` e `docs/settlements.md`.
 - Geração/contabilização/vencimento/status de recorrência vivem no domain (ver OCP, seção 6).
 
 ## 12. Frontend (TanStack Start)
@@ -162,7 +163,7 @@ Nenhuma regra financeira existe fora do domain.
   estado remoto. Dados financeiros e persistentes vêm do backend; estado efêmero de interface pode
   permanecer local ao cliente.
 - Formulários usam TanStack Form (`useForm`, `form.Field` e `form.Subscribe`) integrado aos schemas Zod de `packages/validators`; não implementar formulários com um `useState` monolítico nem duplicar validação contratual manualmente.
-- Em React 19.2, preferir os comportamentos nativos dos hooks adequados ao problema (ex.: `useId` para associações acessíveis, estado de submissão do próprio form e identidade por `key` para reinicialização) em vez de sincronizar props e estado derivado com `useEffect`.
+- Na versão de React declarada pelo workspace, preferir os comportamentos nativos dos hooks adequados ao problema (ex.: `useId` para associações acessíveis, estado de submissão do próprio form e identidade por `key` para reinicialização) em vez de sincronizar props e estado derivado com `useEffect`.
 - Mensagens de validação e erro exibidas na UI devem ser breves e em PT-BR; nunca apresentar diretamente mensagens técnicas, internas ou em inglês recebidas de validators/API.
 - Imagens de conteúdo no React usam `Image` de `@unpic/react`, sempre com `width` e `height` (ou `aspectRatio`) explícitos e `alt` adequado; não usar `<img>` diretamente. Primitives de bibliotecas que controlam carregamento/fallback internamente (ex.: `AvatarImage`) e SVGs decorativos de componentes são exceções.
 - shadcn/ui por padrão — instalar componente faltante antes de criar um próprio; customizar só quando não existir opção shadcn ou a composição for específica da feature.

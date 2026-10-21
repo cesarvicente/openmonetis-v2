@@ -45,6 +45,10 @@ aponta para `http://api:7001` dentro da rede privada.
 Entradas externas são validadas por schemas Zod antes do service. Endpoints financeiros retornam o
 envelope `{ data, error }`; erros públicos usam `{ error: true, message, code? }`.
 
+`GET /transactions/installments/preview?amount=3` exige sessão e retorna opções de 2 a 60 parcelas,
+com `count`, `minimumAmount` e `maximumAmount` por opção. O domínio distribui os centavos; a web
+consulta a prévia por TanStack Query e apenas formata os valores. A prévia não persiste dados.
+
 ## Organização por feature
 
 Uma feature mantém o mesmo termo de domínio em todas as camadas aplicáveis:
@@ -73,7 +77,7 @@ recorte da feature ou do padrão global, em vez de gerar um padrão local implí
 - Toda leitura, atualização e remoção filtra pelo usuário autenticado.
 - IDs relacionados são validados por ownership antes de qualquer mutation.
 - Produção exige segredos independentes, CORS explícito e HTTPS na origem web.
-- O frontend não recebe `userId`, hashes, tokens, stack traces ou detalhes internos.
+- O frontend não recebe `userId`, hashes, digests, segredos da instalação, stack traces ou detalhes internos. Tokens do Companion e de convites entre pessoas são entregues somente na criação autorizada pela sessão web e descartados da interface ao encerrar o fluxo; o valor original não pode ser recuperado depois.
 - Migrations são forward-only e precisam ser revisadas antes da publicação.
 
 ## Da V1 para a V2
@@ -96,7 +100,7 @@ explícitos.
 | Regras financeiras | próximas das features | package domain puro |
 | Banco | Drizzle dentro da aplicação | repositories exclusivos da API |
 | Contratos | principalmente internos ao web | HTTP documentado por OpenAPI |
-| Execução | um processo principal | imagens web, API e migrator |
+| Execução | um processo principal | imagens web, API e migrator; worker diário reutiliza a imagem da API |
 | Schema | migrations e uso histórico de push | migrations versionadas e forward-only |
 
 O repositório original continua sendo referência de produto e fluxo, nunca autoridade de modelagem.
@@ -108,4 +112,10 @@ Cada funcionalidade portada deve ser reavaliada antes de entrar na V2.
 - O Companion Android é externo ao monorepo e usa endpoints de compatibilidade.
 - Não existe package SDK; o OpenAPI é a base para um cliente futuro.
 - A suíte automatizada cobre regras de domínio, services, contratos HTTP, middlewares de segurança
-  e apresentação do cliente. Os gates de CI são `pnpm check`, `pnpm test` e `pnpm build`.
+  e apresentação do cliente. A CI executa `pnpm check`, `pnpm test`, `pnpm build` e as cinco suítes
+  de integração com PostgreSQL descritas em [CONTRIBUTING.md](../CONTRIBUTING.md#testes-de-integração).
+- Recorrências distinguem série, versões e estados por ocorrência; o prazo final é opcional e
+  inclusivo. Veja [recorrências](recurring-transactions.md), [baixas efetivas](settlements.md) e
+  [regras de vencimento](due-date-rules.md).
+- Prévias financeiras também são calculadas pela API. O formulário consulta as opções de parcelas
+  por TanStack Query e apenas formata os valores retornados pelo domínio.
