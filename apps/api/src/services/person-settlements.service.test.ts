@@ -119,6 +119,8 @@ test("includes the person's recurring allocation in the requested period", async
         startDate: "2026-08-05",
         endDate: null,
         frequency: "monthly",
+        paymentMethod: "boleto",
+        card: null,
         splits: [
           { personId: "00000000-0000-4000-8000-000000000012", amount: "-180.00" },
           { personId, amount: "-120.00" },
@@ -176,6 +178,7 @@ test("summarizes outstanding balances by person and sorts the largest first", as
 
   assert.equal(summary.totalReceivableAmount, 100);
   assert.equal(summary.totalCreditAmount, 50);
+  assert.equal(summary.pendingCount, 1);
   assert.deepEqual(
     summary.items.map((item) => [item.personName, item.balance.status]),
     [
@@ -184,4 +187,102 @@ test("summarizes outstanding balances by person and sorts the largest first", as
     ],
   );
   assert.equal(summary.items[1]?.personStatus, "inactive");
+});
+
+test("does not assign next month's card recurrence alongside the current invoice", async () => {
+  const person = {
+    id: personId,
+    name: "Camila",
+    avatarUrl: null,
+    role: "external" as const,
+    status: "active" as const,
+  };
+  const repository: PersonSettlementsRepository = {
+    findPersonForUser: async () => person,
+    listExternalPeopleForUser: async () => [person],
+    listBalanceEntriesForPerson: async (_personId, _userId, requestedPeriod) =>
+      requestedPeriod === "2026-10" ? [{ kind: "expense", amount: "4270.80" }] : [],
+    listSettlementsForPerson: async () => [],
+    listRecurringBalanceRulesForPeriod: async () => [
+      {
+        id: "spotify-rule",
+        seriesId: "spotify-series",
+        anchorDate: "2026-10-23",
+        personId: "admin",
+        amount: "-40.90",
+        startDate: "2026-10-23",
+        endDate: null,
+        frequency: "monthly",
+        paymentMethod: "credit_card",
+        card: {
+          closingDay: 4,
+          closingRuleType: "fixedDay",
+          closingOffsetDays: null,
+          closingOffsetMode: null,
+          closingDayPurchasesNextInvoice: true,
+          dueDay: 11,
+        },
+        splits: [
+          { personId: "admin", amount: "-13.50" },
+          { personId, amount: "-27.40" },
+        ],
+      },
+    ],
+    createSettlement: async () => null,
+    deleteSettlementForUser: async () => null,
+  };
+  const service = createPersonSettlementsService(repository);
+
+  const october = await service.getSnapshot(personId, userId, "2026-10");
+  const octoberSummary = await service.getSummary(userId, "2026-10");
+  const november = await service.getSnapshot(personId, userId, "2026-11");
+  const novemberSummary = await service.getSummary(userId, "2026-11");
+
+  assert.equal(october.balance.assignedAmount, 4270.8);
+  assert.equal(octoberSummary.totalReceivableAmount, 4270.8);
+  assert.equal(november.balance.assignedAmount, 27.4);
+  assert.equal(novemberSummary.totalReceivableAmount, 27.4);
+});
+
+test("keeps fully settled people in the summary and skips people without activity", async () => {
+  const settledPersonId = "00000000-0000-4000-8000-000000000030";
+  const idlePersonId = "00000000-0000-4000-8000-000000000031";
+  const toPerson = (id: string, name: string) => ({
+    id,
+    name,
+    avatarUrl: null,
+    role: "external" as const,
+    status: "active" as const,
+  });
+  const repository: PersonSettlementsRepository = {
+    findPersonForUser: async () => null,
+    listExternalPeopleForUser: async () => [
+      toPerson(settledPersonId, "Ana"),
+      toPerson(idlePersonId, "Bia"),
+      toPerson(personId, "Camila"),
+    ],
+    listBalanceEntriesForPerson: async (requestedPersonId) =>
+      requestedPersonId === idlePersonId ? [] : [{ kind: "expense", amount: "100.00" }],
+    listSettlementsForPerson: async (requestedPersonId) =>
+      requestedPersonId === settledPersonId
+        ? [{ ...settlement, personId: settledPersonId, amount: "100.00" }]
+        : requestedPersonId === personId
+          ? [settlement]
+          : [],
+    listRecurringBalanceRulesForPeriod: async () => [],
+    createSettlement: async () => null,
+    deleteSettlementForUser: async () => null,
+  };
+
+  const summary = await createPersonSettlementsService(repository).getSummary(userId, period);
+
+  assert.deepEqual(
+    summary.items.map((item) => [item.personName, item.balance.status]),
+    [
+      ["Camila", "receivable"],
+      ["Ana", "settled"],
+    ],
+  );
+  assert.equal(summary.totalReceivableAmount, 50);
+  assert.equal(summary.pendingCount, 1);
 });

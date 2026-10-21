@@ -35,15 +35,34 @@
     "lint": "biome check . && pnpm lint:ui",
     "lint:ui": "pnpm --filter @openmonetis/web lint:ui",
     "release:check": "node scripts/validate-release.mjs",
-    "test": "tsx --test packages/domain/src/accounts.test.ts packages/domain/src/cards.test.ts apps/api/src/auth.validation.test.ts apps/api/src/middlewares/password-change.test.ts apps/api/src/middlewares/security.test.ts apps/api/src/repositories/releases-changelog.test.ts apps/api/src/routes/companion.contract.test.ts apps/api/src/services/cards.service.test.ts apps/api/src/services/accounts.service.test.ts apps/api/src/services/categories.service.test.ts apps/api/src/services/category-trends.service.test.ts apps/api/src/services/dashboard.service.test.ts apps/api/src/services/device-tokens.service.test.ts apps/api/src/services/external-expenses.service.test.ts apps/api/src/services/goals.service.test.ts apps/api/src/services/inbox-rules.domain.test.ts apps/api/src/services/inbox-rules.service.test.ts apps/api/src/services/inbox.service.test.ts apps/api/src/services/installments.service.test.ts apps/api/src/services/invoices.service.test.ts apps/api/src/services/notes.service.test.ts apps/api/src/services/people.service.test.ts apps/api/src/services/person-settlements.service.test.ts apps/api/src/services/recurring-expenses.service.test.ts apps/api/src/services/preferences.service.test.ts apps/api/src/services/settings.service.test.ts apps/api/src/services/transactions.service.test.ts apps/web/src/features/device-tokens/device-tokens.presentation.test.ts apps/web/src/features/inbox/inbox.presentation.test.ts apps/web/src/features/transactions/components/transaction-form.validation.test.ts apps/web/src/features/transactions/transactions.presentation.test.ts apps/web/src/lib/api-proxy.test.ts apps/web/src/lib/security.test.ts packages/db/src/database-url.test.ts packages/domain/src/bills.test.ts packages/domain/src/budgets.test.ts packages/domain/src/goals.test.ts packages/domain/src/recurring-expenses.test.ts packages/domain/src/transactions.test.ts",
-    "typecheck": "pnpm -r typecheck"
+    "test": "node scripts/run-tests.mjs",
+    "test:tags:integration": "TAGS_INTEGRATION_TEST=1 tsx --test apps/api/src/repositories/tags.repository.integration.test.ts",
+    "typecheck": "pnpm -r typecheck && pnpm --filter @openmonetis/web exec tsc -p ../../tsconfig.tests.json",
+    "test:categories:integration": "CATEGORIES_INTEGRATION_TEST=1 tsx --test apps/api/src/repositories/categories.repository.integration.test.ts",
+    "test:recurring:integration": "RECURRING_INTEGRATION_TEST=1 tsx --test apps/api/src/repositories/recurring-transactions.repository.integration.test.ts",
+    "test:settlements:integration": "SETTLEMENTS_INTEGRATION_TEST=1 tsx --test apps/api/src/repositories/settlements.repository.integration.test.ts",
+    "test:auth:integration": "AUTH_INTEGRATION_TEST=1 tsx --test apps/api/src/auth.integration.test.ts",
+    "test:transactions:integration": "TRANSACTIONS_INTEGRATION_TEST=1 tsx --test apps/api/src/transactions.integration.test.ts",
+    "test:connections:integration": "CONNECTIONS_INTEGRATION_TEST=1 tsx --test apps/api/src/person-connections.integration.test.ts",
+    "test:imports:integration": "IMPORTS_INTEGRATION_TEST=1 tsx --test apps/api/src/imports.integration.test.ts",
+    "test:settings:integration": "SETTINGS_INTEGRATION_TEST=1 tsx --test apps/api/src/settings.integration.test.ts",
+    "test:ownership:integration": "OWNERSHIP_INTEGRATION_TEST=1 tsx --test apps/api/src/ownership.integration.test.ts",
+    "test:migrations:integration": "MIGRATIONS_INTEGRATION_TEST=1 tsx --test apps/api/src/migrations.integration.test.ts",
+    "test:storage:integration": "STORAGE_INTEGRATION_TEST=1 tsx --test apps/api/src/storage.integration.test.ts",
+    "test:e2e": "playwright test",
+    "test:coverage": "c8 node scripts/run-tests.mjs",
+    "test:integration": "node scripts/run-integration-tests.mjs",
+    "test:financial-integrity:integration": "FINANCIAL_INTEGRITY_INTEGRATION_TEST=1 tsx --test apps/api/src/financial-integrity.integration.test.ts",
+    "test:storage:live": "REAL_STORAGE_INTEGRATION_TEST=1 tsx --test apps/api/src/storage-real.integration.test.ts"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.14",
+    "@playwright/test": "1.63.0",
+    "c8": "10.1.3",
     "tsx": "^4.23.13"
   },
   "packageManager": "pnpm@11.25.0",
   "engines": {
-    "node": ">=20"
+    "node": ">=22.12.0"
   }
 }

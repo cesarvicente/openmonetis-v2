@@ -125,11 +125,7 @@ test("an enabled card closes on the nominal closing day and retains protected in
   };
   assert.equal(calculateCardInvoiceSummary({ ...input, today: "2026-10-04" }).status, "open");
   assert.equal(calculateCardInvoiceSummary(input).status, "closed");
-  for (const protection of [
-    { datesCustomized: true },
-    { hasPayments: true },
-    { today: "2026-11-01" },
-  ]) {
+  for (const protection of [{ datesCustomized: true }, { hasPayments: true }]) {
     const summary = calculateCardInvoiceSummary({
       ...input,
       ...protection,

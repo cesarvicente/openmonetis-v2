@@ -2,6 +2,7 @@
   "extends": "../../tsconfig.json",
   "include": ["src/**/*.ts"],
   "compilerOptions": {
+    "types": ["node"],
     "declaration": true,
     "declarationMap": true,
     "noEmit": true

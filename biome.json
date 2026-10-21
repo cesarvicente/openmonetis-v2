@@ -9,6 +9,9 @@
       "!**/.vinxi",
       "!**/.tanstack",
       "!**/.turbo",
+      "!**/coverage",
+      "!**/playwright-report",
+      "!**/test-results",
       "!**/drizzle",
       "!**/public/flags/*.svg",
       "!**/src/routeTree.gen.ts"

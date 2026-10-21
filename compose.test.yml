@@ -1,0 +1,5 @@
+services:
+  s3:
+    image: adobe/s3mock:4.5.0@sha256:c7e19931d107941feae26b5b9c5a2e331f2a2ff661dc64b4afb3fb10bb10ae22
+    ports:
+      - "127.0.0.1:19000:9090"

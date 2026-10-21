@@ -18,8 +18,15 @@ test("balance adjustments identify their internal balance correction", () => {
 });
 
 test("installment labels do not hide cent redistribution", () => {
-  assert.equal(formatInstallmentOption(3, 2), "2x de R$\u00a01,50");
-  assert.equal(formatInstallmentOption(3, 7), "7 parcelas · de R$\u00a00,42 a R$\u00a00,43");
+  assert.equal(
+    formatInstallmentOption(2, { count: 2, minimumAmount: 1.5, maximumAmount: 1.5 }),
+    "2x de R$\u00a01,50",
+  );
+  assert.equal(
+    formatInstallmentOption(7, { count: 7, minimumAmount: 0.42, maximumAmount: 0.43 }),
+    "7 parcelas · de R$\u00a00,42 a R$\u00a00,43",
+  );
+  assert.equal(formatInstallmentOption(7), "7x");
 });
 
 test("transaction dates describe their financial meaning", () => {
@@ -102,4 +109,19 @@ test("settlement copy distinguishes receipts, payments and invoice-controlled am
     "invoice",
   );
   assert.equal(validateTransactionsSearch({ sort: "invalid" }).sort, undefined);
+});
+
+test("tag filters keep stable identifiers when labels are renamed or deleted", () => {
+  const id = "a0000000-0000-4000-8000-000000000001";
+  assert.equal(validateTransactionsSearch({ tags: `${id},${id.toUpperCase()}` }).tags, id);
+  assert.equal(validateTransactionsSearch({ tags: "viagem" }).tags, undefined);
+  assert.equal(validateTransactionsSearch({ tags: "" }).tags, undefined);
+});
+test("untagged URL filters normalize booleans and clear conflicting tag selections", () => {
+  const id = "a0000000-0000-4000-8000-000000000001";
+  assert.equal(validateTransactionsSearch({ withoutTags: "true", tags: id }).tags, undefined);
+  assert.equal(validateTransactionsSearch({ withoutTags: "true" }).withoutTags, true);
+  assert.equal(validateTransactionsSearch({ withoutTags: true }).withoutTags, true);
+  assert.equal(validateTransactionsSearch({ withoutTags: "false", tags: id }).tags, id);
+  assert.equal(validateTransactionsSearch({ withoutTags: "false" }).withoutTags, undefined);
 });

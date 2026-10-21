@@ -27,6 +27,7 @@ jobs:
       - name: Validate tag, packages and changelog
         run: |
           git fetch origin main
+          test "$(git cat-file -t "refs/tags/$GITHUB_REF_NAME")" = tag
           git merge-base --is-ancestor "$GITHUB_SHA" origin/main
           node scripts/validate-release.mjs --tag "$GITHUB_REF_NAME"
 

@@ -1,0 +1,14 @@
+{
+  "all": true,
+  "include": ["packages/domain/src/**/*.ts", "apps/api/src/services/**/*.ts"],
+  "exclude": ["**/*.test.ts"],
+  "extension": [".ts"],
+  "reporter": ["text-summary", "html", "lcov", "json-summary"],
+  "reports-dir": "coverage",
+  "exclude-after-remap": true,
+  "check-coverage": true,
+  "lines": 91,
+  "statements": 91,
+  "branches": 82,
+  "functions": 89
+}

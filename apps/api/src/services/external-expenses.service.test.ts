@@ -4,6 +4,7 @@ import {
   calculateExternalInstallmentAllocationTotal,
   calculateExternalInstallmentTotal,
   canUpdateExternalExpenseSnapshot,
+  externalExpenseSourceKinds,
   preserveExternalExpenseInstallmentBoundary,
   selectNewExternalExpenseAssignmentKeys,
 } from "@openmonetis/domain/external-expenses";
@@ -12,6 +13,7 @@ import {
   allocateInstallmentShares,
   buildTrackedInstallmentSchedule,
 } from "@openmonetis/domain/transactions";
+import { ExternalExpenseOutputSchema } from "@openmonetis/validators/external-expenses";
 import type { TransactionInput, TransactionOutput } from "@openmonetis/validators/transactions";
 import {
   createExternalExpensesService,
@@ -54,6 +56,7 @@ function expense(overrides: Partial<ExternalExpenseRecord> = {}): ExternalExpens
     installmentCount: null,
     currentInstallment: null,
     sourceLabel: "Fatura Visa",
+    categoryIcon: null,
     establishmentLogoDomain: null,
     sourceLogoUrl: null,
     sourceCardBrand: "visa",
@@ -363,6 +366,31 @@ test("pending listing exposes the establishment logo selected by its owner", asy
 
   assert.equal(result.items[0]?.establishmentLogoUrl, "https://logos.example/example.com");
 });
+
+for (const sourceKind of externalExpenseSourceKinds) {
+  for (const categoryIcon of ["shopping-cart", null]) {
+    test(`${sourceKind} exposes the category icon ${categoryIcon} in list and details`, async () => {
+      const service = createExternalExpensesService(
+        repository(expense({ sourceKind, categoryIcon })).implementation,
+        {
+          transactionCreator: {
+            async createTransactionFromExternalExpense() {
+              throw new Error("must not be called");
+            },
+          },
+        },
+      );
+
+      const result = await service.list({ view: "pending", page: 1, pageSize: 20 }, recipientId);
+      const detail = await service.get(expenseId, recipientId);
+
+      assert.equal(ExternalExpenseOutputSchema.parse(result.items[0]).categoryIcon, categoryIcon);
+      assert.equal(ExternalExpenseOutputSchema.parse(detail).categoryIcon, categoryIcon);
+      assert.equal("ownerUserId" in detail, false);
+      assert.equal("recipientUserId" in detail, false);
+    });
+  }
+}
 
 test("pending external expenses create one aggregated import notification", () => {
   const notifications = buildNotifications({

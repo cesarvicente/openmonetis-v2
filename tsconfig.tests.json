@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "types": ["node"],
+    "typeRoots": ["./apps/web/node_modules/@types"]
+  },
+  "include": ["playwright.config.ts", "apps/web/e2e/**/*.ts"]
+}

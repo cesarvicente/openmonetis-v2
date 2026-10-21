@@ -22,6 +22,10 @@ jobs:
     timeout-minutes: 20
 
     services:
+      s3:
+        image: adobe/s3mock:4.5.0@sha256:c7e19931d107941feae26b5b9c5a2e331f2a2ff661dc64b4afb3fb10bb10ae22
+        ports:
+          - 19000:9090
       postgres:
         image: postgres:16-bookworm
         env:
@@ -61,7 +65,49 @@ jobs:
       - name: Run tests
         env:
           TEST_DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/openmonetis_test
-        run: pnpm test
+        run: pnpm test:coverage
 
       - name: Build applications
         run: pnpm build
+
+      - name: Test registration policy against PostgreSQL
+        env:
+          TEST_DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/openmonetis_test
+        run: pnpm test:auth:integration
+
+      - name: Test financial persistence against PostgreSQL
+        env:
+          TEST_DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/openmonetis_test
+        run: |
+          pnpm test:categories:integration
+          pnpm test:tags:integration
+          pnpm test:recurring:integration
+          pnpm test:settlements:integration
+          pnpm test:transactions:integration
+          pnpm test:financial-integrity:integration
+          pnpm test:connections:integration
+          pnpm test:imports:integration
+          pnpm test:settings:integration
+          pnpm test:ownership:integration
+          pnpm test:migrations:integration
+          pnpm test:storage:integration
+
+      - name: Install Chromium for browser tests
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Test financial flows and passkeys in Chromium
+        env:
+          TEST_DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/openmonetis_test
+        run: pnpm test:e2e
+
+      - name: Upload coverage and browser diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports
+          path: |
+            coverage/
+            playwright-report/
+            test-results/
+          retention-days: 7
+          if-no-files-found: ignore

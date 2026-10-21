@@ -356,3 +356,128 @@ test("rule filtering excludes a matching rule when an earlier rule filled its on
   await service.list({ status: "pending", page: 1, pageSize: 20, ruleId: laterRuleId }, userId);
   assert.deepEqual(matchingIds, []);
 });
+
+test("inbox details and snapshots hide internal metadata and expose decimal amounts", async () => {
+  const service = createInboxService(
+    createRepository({
+      findByIdForUser: async (id, owner) => {
+        assert.equal(id, inboxId);
+        assert.equal(owner, userId);
+        return createRecord();
+      },
+      snapshotForUser: async () => ({
+        items: [createRecord({ parsedAmount: null })],
+        pendingCount: 1,
+      }),
+    }),
+  );
+  const result = await service.get(inboxId, userId);
+  assert.equal(result.parsedAmount, 10);
+  assert.equal("payloadFingerprint" in result, false);
+  assert.equal("userId" in result, false);
+  assert.equal((await service.snapshot(userId, 1)).recentItems[0].parsedAmount, null);
+});
+
+for (const status of ["pending", "discarded", "processed"] as const)
+  test(`removing ${status} inbox items respects state and ownership`, async () => {
+    let deleted = 0;
+    const service = createInboxService(
+      createRepository({
+        findByIdForUser: async () => createRecord({ status }),
+        deleteForUser: async (id, owner) => {
+          assert.equal(id, inboxId);
+          assert.equal(owner, userId);
+          deleted++;
+          return true;
+        },
+      }),
+    );
+    if (status === "pending") {
+      await assert.rejects(service.remove(inboxId, userId), {
+        code: "pending_inbox_item_read_only",
+      });
+      assert.equal(deleted, 0);
+    } else {
+      assert.deepEqual(await service.remove(inboxId, userId), { id: inboxId });
+      assert.equal(deleted, 1);
+    }
+  });
+
+test("inbox deletion detects a concurrent removal", async () => {
+  const service = createInboxService(
+    createRepository({
+      findByIdForUser: async () => createRecord({ status: "discarded" }),
+      deleteForUser: async () => false,
+    }),
+  );
+  await assert.rejects(service.remove(inboxId, userId), { code: "inbox_item_not_found" });
+});
+
+test("discard and restore pass expected state and reject a concurrent transition", async () => {
+  const calls: unknown[] = [];
+  const repo = createRepository({
+    findByIdForUser: async () => createRecord(),
+    transitionForUser: async (transition) => {
+      calls.push(transition);
+      return null;
+    },
+  });
+  const service = createInboxService(repo, { now: () => now });
+  await assert.rejects(service.discard(inboxId, userId), { code: "inbox_item_state_conflict" });
+  assert.deepEqual(calls, [
+    {
+      id: inboxId,
+      userId,
+      expectedStatus: "pending",
+      targetStatus: "discarded",
+      transactionId: null,
+      changedAt: now,
+    },
+  ]);
+  repo.findByIdForUser = async () => createRecord({ status: "discarded" });
+  repo.transitionForUser = async (transition) => createRecord({ status: transition.targetStatus });
+  assert.equal((await service.restore(inboxId, userId)).status, "pending");
+});
+
+for (const operation of ["get", "discard", "remove"] as const)
+  test(`missing or unowned inbox item rejects ${operation}`, async () => {
+    const service = createInboxService(createRepository());
+    await assert.rejects(service[operation](inboxId, userId), { code: "inbox_item_not_found" });
+  });
+
+test("processing rejects foreign transactions before changing inbox state", async () => {
+  let transitions = 0;
+  const service = createInboxService(
+    createRepository({
+      transitionForUser: async () => {
+        transitions++;
+        return createRecord();
+      },
+    }),
+  );
+  await assert.rejects(service.process(inboxId, "foreign", userId), {
+    code: "transaction_not_found",
+  });
+  assert.equal(transitions, 0);
+});
+
+test("ingestion rejects future notification timestamps before persistence", async () => {
+  let writes = 0;
+  const service = createInboxService(
+    createRepository({
+      insertOrFind: async () => {
+        writes++;
+        throw new Error("Unexpected");
+      },
+    }),
+    { now: () => now },
+  );
+  await assert.rejects(
+    service.ingest(
+      { ...input(), notificationTimestamp: "2030-01-01T00:00:00Z" },
+      { userId, deviceTokenId },
+    ),
+    { code: "inbox_notification_timestamp_invalid" },
+  );
+  assert.equal(writes, 0);
+});

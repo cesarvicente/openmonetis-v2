@@ -1,16 +1,231 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  allocateInstallmentShares,
+  allocateRefundByResponsibility,
+  assertTransferWithinAvailableBalance,
+  buildTrackedInstallmentSchedule,
+  buildTransferPostings,
+  calculateRefund,
   deriveTransactionPostingDate,
   getPeriodEndDate,
+  InsufficientTransferBalanceError,
   isTransactionSelectionItemSelectable,
   listRecurrenceDatesInPeriod,
+  previewInstallmentOptions,
   rebalanceTwoAmountShares,
   rebalanceTwoPercentageShares,
+  resolveEditedTransactionPeriod,
   selectRecurringRuleVersionsToUpdate,
+  splitAmountEqually,
+  splitAmountIntoInstallments,
   summarizeTransactionSelection,
   type TransactionSelectionItem,
 } from "./transactions";
+
+test("transfers conserve cents between distinct source and destination accounts", () => {
+  for (const amount of [0.01, 0.3, 10.01, 999_999_999.99]) {
+    const postings = buildTransferPostings({
+      sourceAccountId: "source",
+      destinationAccountId: "destination",
+      amount,
+    });
+    assert.deepEqual(postings, [
+      { accountId: "source", amount: -amount, direction: "outgoing" },
+      { accountId: "destination", amount, direction: "incoming" },
+    ]);
+    assert.equal(
+      postings.reduce((total, posting) => total + Math.round(posting.amount * 100), 0),
+      0,
+    );
+  }
+});
+
+test("transfers reject missing accounts, identical accounts and invalid amounts", () => {
+  for (const [sourceAccountId, destinationAccountId] of [
+    ["", "destination"],
+    ["source", ""],
+    ["same", "same"],
+  ]) {
+    assert.throws(() =>
+      buildTransferPostings({ sourceAccountId, destinationAccountId, amount: 1 }),
+    );
+  }
+  for (const amount of [0, -1, NaN, Infinity, -Infinity]) {
+    assert.throws(
+      () =>
+        buildTransferPostings({
+          sourceAccountId: "source",
+          destinationAccountId: "destination",
+          amount,
+        }),
+      RangeError,
+    );
+  }
+});
+
+test("transfer balance checks allow the exact balance and tolerate floating point representation", () => {
+  for (const [amount, availableBalance] of [
+    [10.01, 10.01],
+    [0.3, 0.1 + 0.2],
+    [0.01, 100],
+  ]) {
+    assert.doesNotThrow(() => assertTransferWithinAvailableBalance({ amount, availableBalance }));
+  }
+});
+
+test("transfer balance checks reject overspending, negative balances and nonfinite values", () => {
+  for (const [amount, availableBalance] of [
+    [10.02, 10.01],
+    [0.01, 0],
+    [0.01, -1],
+    [0, 100],
+    [-1, 100],
+    [NaN, 100],
+    [Infinity, 100],
+    [1, NaN],
+    [1, Infinity],
+  ]) {
+    assert.throws(
+      () => assertTransferWithinAvailableBalance({ amount, availableBalance }),
+      InsufficientTransferBalanceError,
+    );
+  }
+});
+
+test("partial and final refunds consume the remaining original amount exactly", () => {
+  assert.deepEqual(
+    calculateRefund({
+      originalAmount: "-10.01",
+      previousRefunds: ["3.33", 3.33],
+      refundAmount: 3.35,
+    }),
+    {
+      originalAmount: 10.01,
+      refundedAmount: 6.66,
+      refundableAmount: 3.35,
+      refundAmount: 3.35,
+      remainingRefundableAmount: 0,
+    },
+  );
+  assert.equal(
+    calculateRefund({ originalAmount: -0.3, previousRefunds: [0.1], refundAmount: 0.2 })
+      .remainingRefundableAmount,
+    0,
+  );
+});
+
+test("refunds reject empty, nonfinite, exhausted and excessive amounts", () => {
+  for (const refundAmount of [0, NaN, Infinity, 10.02]) {
+    assert.throws(
+      () => calculateRefund({ originalAmount: -10.01, previousRefunds: [], refundAmount }),
+      RangeError,
+    );
+  }
+  assert.throws(
+    () => calculateRefund({ originalAmount: 0, previousRefunds: [], refundAmount: 1 }),
+    RangeError,
+  );
+  assert.throws(
+    () => calculateRefund({ originalAmount: -10.01, previousRefunds: [10.01], refundAmount: 0.01 }),
+    RangeError,
+  );
+});
+
+test("refund allocations preserve responsibility and redistribute every remaining cent", () => {
+  assert.deepEqual(
+    allocateRefundByResponsibility(3.33, "admin", [
+      { personId: "admin", amount: "-6.00" },
+      { personId: "external", amount: "-4.01" },
+    ]),
+    [
+      { personId: "admin", amount: 1.99 },
+      { personId: "external", amount: 1.34 },
+    ],
+  );
+  for (const refundAmount of [0.01, 0.02, 3.33, 10.01]) {
+    const allocations = allocateRefundByResponsibility(refundAmount, "admin", [
+      { personId: "admin", amount: 6 },
+      { personId: "external", amount: 4.01 },
+    ]);
+    assert.equal(
+      allocations.reduce((total, share) => total + Math.round(share.amount * 100), 0),
+      Math.round(refundAmount * 100),
+    );
+  }
+});
+
+test("refunds without splits belong to the primary person and empty responsibility is rejected", () => {
+  assert.deepEqual(allocateRefundByResponsibility(10.01, "admin", []), [
+    { personId: "admin", amount: 10.01 },
+  ]);
+  assert.throws(
+    () => allocateRefundByResponsibility(1, "admin", [{ personId: "external", amount: 0 }]),
+    RangeError,
+  );
+});
+
+test("installment previews preserve cent redistribution across the supported counts", () => {
+  const options = previewInstallmentOptions(3);
+  assert.equal(options.length, 59);
+  assert.deepEqual(options[0], { count: 2, minimumAmount: 1.5, maximumAmount: 1.5 });
+  assert.deepEqual(
+    options.find((option) => option.count === 7),
+    {
+      count: 7,
+      minimumAmount: 0.42,
+      maximumAmount: 0.43,
+    },
+  );
+  assert.deepEqual(options.at(-1), { count: 60, minimumAmount: 0.05, maximumAmount: 0.05 });
+  assert.deepEqual(previewInstallmentOptions(0.01)[0], {
+    count: 2,
+    minimumAmount: 0,
+    maximumAmount: 0.01,
+  });
+});
+
+test("metadata edits preserve installment periods while schedule and invoice edits recalculate", () => {
+  const current = {
+    condition: "installment" as const,
+    paymentMethod: "pix" as const,
+    purchaseDate: "2026-10-10",
+    period: "2026-11",
+    dueDate: null,
+    cardId: null,
+  };
+  assert.equal(
+    resolveEditedTransactionPeriod({ current, updated: current, derivedPeriod: "2026-10" }),
+    "2026-11",
+  );
+  assert.equal(
+    resolveEditedTransactionPeriod({
+      current,
+      updated: { ...current, purchaseDate: "2026-12-10" },
+      derivedPeriod: "2026-12",
+    }),
+    "2026-12",
+  );
+  const card = { ...current, paymentMethod: "credit_card" as const, cardId: "card" };
+  assert.equal(
+    resolveEditedTransactionPeriod({
+      current: card,
+      updated: card,
+      invoicePeriod: "2026-12",
+      derivedPeriod: "2026-12",
+    }),
+    "2026-12",
+  );
+  assert.equal(
+    resolveEditedTransactionPeriod({
+      current: card,
+      updated: card,
+      invoicePeriod: null,
+      derivedPeriod: "2026-10",
+    }),
+    "2026-10",
+  );
+});
 
 test("posting date follows payment for settled boletos without moving their due period", () => {
   assert.equal(
@@ -151,4 +366,101 @@ test("two percentage shares complement the edited input without changing precisi
   for (const percentage of [-1, 101, NaN, Infinity]) {
     assert.throws(() => rebalanceTwoPercentageShares(percentage), RangeError);
   }
+});
+
+test("installment splits conserve both purchase totals and each person's responsibility", () => {
+  for (const total of [100.01, 199.99, 999_999.99]) {
+    for (const count of [2, 3, 7, 12, 60]) {
+      for (const peopleCount of [2, 3, 5]) {
+        const installments = splitAmountIntoInstallments(total, count);
+        const shares = splitAmountEqually(total, peopleCount);
+        const allocations = allocateInstallmentShares(installments, shares);
+        const cents = (amount: number) => Math.round(amount * 100);
+        assert.equal(
+          installments.reduce((sum, value) => sum + cents(value), 0),
+          cents(total),
+        );
+        allocations.forEach((row, index) => {
+          assert.equal(
+            row.reduce((sum, value) => sum + cents(value), 0),
+            cents(installments[index]),
+          );
+          assert.ok(row.every((value) => value >= 0.01));
+        });
+        shares.forEach((share, index) => {
+          assert.equal(
+            allocations.reduce((sum, row) => sum + cents(row[index]), 0),
+            cents(share),
+          );
+        });
+      }
+    }
+  }
+});
+
+test("installment allocation rejects mismatched totals and installments too small for every person", () => {
+  for (const [installments, shares] of [
+    [
+      [1, 1],
+      [1, 2],
+    ],
+    [
+      [0.01, 0.01],
+      [0.01, 0.01],
+    ],
+    [
+      [1, Infinity],
+      [1, 1],
+    ],
+    [[], [1, 1]],
+    [[2], [2]],
+  ])
+    assert.throws(() => allocateInstallmentShares(installments, shares), RangeError);
+});
+
+test("tracking a purchase from a later installment preserves numbering, month-end dates and pending siblings", () => {
+  const result = buildTrackedInstallmentSchedule({
+    totalAmount: 100.01,
+    installmentCount: 4,
+    startInstallment: 2,
+    basePeriod: "2020-01",
+    dueDate: "2020-01-31",
+    paymentMethod: "pix",
+    initialSettlement: true,
+  });
+  assert.deepEqual(result, [
+    {
+      currentInstallment: 2,
+      amount: 25,
+      period: "2020-01",
+      dueDate: "2020-01-31",
+      isSettled: true,
+    },
+    {
+      currentInstallment: 3,
+      amount: 25,
+      period: "2020-02",
+      dueDate: "2020-02-29",
+      isSettled: false,
+    },
+    {
+      currentInstallment: 4,
+      amount: 25,
+      period: "2020-03",
+      dueDate: "2020-03-31",
+      isSettled: false,
+    },
+  ]);
+  assert.throws(
+    () =>
+      buildTrackedInstallmentSchedule({
+        totalAmount: 100,
+        installmentCount: 3,
+        startInstallment: 2,
+        trackedAmounts: [60, 60],
+        basePeriod: "2020-01",
+        paymentMethod: "pix",
+      }),
+    RangeError,
+  );
 });

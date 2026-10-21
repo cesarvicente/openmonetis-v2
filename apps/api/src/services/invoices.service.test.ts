@@ -275,3 +275,460 @@ test("reopening an invoice delegates reversal of every payment", async () => {
     reversedAmount: 750,
   });
 });
+
+test("undoing an invoice payment scopes every identifier and returns its decimal amount", async () => {
+  const calls: unknown[][] = [];
+  const service = createInvoicesService(
+    createRepository(() => undefined, {
+      deletePayment: async (...args) => {
+        calls.push(args);
+        return { id: paymentId, amount: "25.01" };
+      },
+    }),
+  );
+  assert.deepEqual(await service.undo(cardId, "2026-09", paymentId, userId), {
+    id: paymentId,
+    amount: 25.01,
+  });
+  assert.deepEqual(calls, [[userId, cardId, "2026-09", paymentId]]);
+});
+
+test("a missing, unowned or already reversed payment returns not found", async () => {
+  const service = createInvoicesService(
+    createRepository(() => undefined, { deletePayment: async () => null }),
+  );
+  await assert.rejects(service.undo(cardId, "2026-09", paymentId, userId), {
+    status: 404,
+    code: "invoice_payment_not_found",
+  });
+});
+
+for (const outcome of ["deleted", "has_payments", "not_found"] as const) {
+  test(`removing an invoice adjustment translates ${outcome} without requesting another mutation`, async () => {
+    const calls: unknown[][] = [];
+    const service = createInvoicesService(
+      createRepository(() => undefined, {
+        deleteAdjustment: async (...args) => {
+          calls.push(args);
+          return outcome;
+        },
+      }),
+    );
+    if (outcome === "deleted")
+      assert.deepEqual(await service.removeAdjustment(cardId, "2026-09", paymentId, userId), {
+        id: paymentId,
+      });
+    else
+      await assert.rejects(service.removeAdjustment(cardId, "2026-09", paymentId, userId), {
+        status: outcome === "has_payments" ? 409 : 404,
+        code:
+          outcome === "has_payments" ? "invoice_requires_reopen" : "invoice_adjustment_not_found",
+      });
+    assert.deepEqual(calls, [[userId, cardId, "2026-09", paymentId]]);
+  });
+}
+
+const changedDates = { closingDate: "2026-09-05", dueDate: "2026-09-12" };
+
+for (const allocations of [
+  [{ personId: adminPersonId, amount: 1000.01 }],
+  [{ personId: adminPersonId, amount: 0 }],
+  [{ personId: "unowned", amount: 1 }],
+  [
+    { personId: adminPersonId, amount: 1 },
+    { personId: adminPersonId, amount: 1 },
+  ],
+]) {
+  test(`invalid invoice allocations reject before ownership lookup and writes: ${JSON.stringify(allocations)}`, async () => {
+    const service = createInvoicesService(
+      createRepository(() => assert.fail("Unexpected payment write"), {
+        findOwnedContext: async () => {
+          throw new Error("Unexpected ownership lookup");
+        },
+      }),
+    );
+    await assert.rejects(
+      service.pay(cardId, "2026-09", { accountId, paidAt: "2026-09-10", allocations }, userId),
+      {
+        code: "invalid_invoice_payment_amount",
+        status: 400,
+      },
+    );
+  });
+}
+
+for (const [label, patch, code] of [
+  ["card", { card: null }, "card_not_found"],
+  ["primary person", { adminPersonId: null }, "person_not_found"],
+  ["participant", { people: [] }, "person_not_found"],
+  ["account", { account: null }, "account_not_found"],
+  ["category", { paymentCategoryId: null }, "payment_category_not_found"],
+] as Array<
+  [string, Partial<Awaited<ReturnType<InvoicesRepository["findOwnedContext"]>>>, string]
+>) {
+  test(`invoice payment rejects unavailable ${label} before writing`, async () => {
+    const repo = createRepository(() => assert.fail("Unexpected payment write"));
+    const find = repo.findOwnedContext;
+    repo.findOwnedContext = async (...args) => ({ ...(await find(...args)), ...patch });
+    const service = createInvoicesService(repo);
+    await assert.rejects(
+      service.pay(
+        cardId,
+        "2026-09",
+        {
+          accountId,
+          paidAt: "2026-09-10",
+          allocations: [{ personId: adminPersonId, amount: 100 }],
+        },
+        userId,
+      ),
+      { code },
+    );
+  });
+}
+
+test("invoice payment detects a concurrent payment without retrying the write", async () => {
+  let writes = 0;
+  const service = createInvoicesService(
+    createRepository(() => undefined, {
+      insertPayment: async () => {
+        writes++;
+        return null;
+      },
+    }),
+  );
+  await assert.rejects(
+    service.pay(
+      cardId,
+      "2026-09",
+      {
+        accountId,
+        paidAt: "2026-09-10",
+        allocations: [{ personId: adminPersonId, amount: 100 }],
+      },
+      userId,
+    ),
+    { status: 409, code: "invoice_payment_conflict" },
+  );
+  assert.equal(writes, 1);
+});
+
+for (const [date, code] of [
+  ["2999-01-01", "invoice_adjustment_date_future"],
+  ["2026-08-31", "invalid_invoice_adjustment_date"],
+]) {
+  test(`invoice adjustment rejects invalid date ${date} without reading or writing`, async () => {
+    const service = createInvoicesService(
+      createRepository(() => undefined, {
+        listCards: async () => {
+          throw new Error("Unexpected repository read");
+        },
+      }),
+      () => "2026-10-20",
+    );
+    await assert.rejects(
+      service.adjust(cardId, "2026-09", { date, amount: 100, personId: adminPersonId }, userId),
+      { code },
+    );
+  });
+}
+
+test("unchanged invoice total returns a no-op without persisting an adjustment", async () => {
+  const service = createInvoicesService(createRepository(() => undefined));
+  assert.deepEqual(
+    await service.adjust(
+      cardId,
+      "2026-09",
+      {
+        date: "2026-09-10",
+        amount: 10999.99,
+        personId: adminPersonId,
+      },
+      userId,
+    ),
+    {
+      id: null,
+      previousAmount: 10999.99,
+      currentAmount: 10999.99,
+      adjustmentAmount: 0,
+      type: null,
+    },
+  );
+});
+
+for (const [label, patch, code] of [
+  ["card", { card: null }, "card_not_found"],
+  ["person", { personId: null }, "person_not_found"],
+  ["category", { categoryId: null }, "invoice_adjustment_category_not_found"],
+] as const) {
+  test(`invoice adjustment rejects missing ${label}`, async () => {
+    const service = createInvoicesService(
+      createRepository(() => undefined, {
+        findAdjustmentContext: async () => ({
+          card: { id: cardId, name: "Card" },
+          personId: adminPersonId,
+          categoryId: "category",
+          ...patch,
+        }),
+      }),
+    );
+    await assert.rejects(
+      service.adjust(
+        cardId,
+        "2026-09",
+        {
+          date: "2026-09-10",
+          amount: 11000,
+          personId: adminPersonId,
+        },
+        userId,
+      ),
+      { code },
+    );
+  });
+}
+
+test("an allocation recorded without payment rows still prevents reducing below the paid total", async () => {
+  const service = createInvoicesService(
+    createRepository(() => undefined, {
+      listPaymentAllocations: async () => [{ cardId, personId: adminPersonId, amount: "500.00" }],
+    }),
+  );
+  await assert.rejects(
+    service.adjust(
+      cardId,
+      "2026-09",
+      {
+        date: "2026-09-10",
+        amount: 499.99,
+        personId: adminPersonId,
+      },
+      userId,
+    ),
+    { code: "invoice_adjustment_below_paid_amount" },
+  );
+});
+
+test("invoice adjustment handles a payment registered between the snapshot and insertion", async () => {
+  const drafts: Parameters<InvoicesRepository["insertAdjustment"]>[0][] = [];
+  const service = createInvoicesService(
+    createRepository(() => undefined, {
+      findAdjustmentContext: async () => ({
+        card: { id: cardId, name: "Card" },
+        personId: adminPersonId,
+        categoryId: "category",
+      }),
+      insertAdjustment: async (draft) => {
+        drafts.push(draft);
+        return null;
+      },
+    }),
+  );
+  await assert.rejects(
+    service.adjust(
+      cardId,
+      "2026-09",
+      {
+        date: "2026-09-10",
+        amount: 11000,
+        personId: adminPersonId,
+      },
+      userId,
+    ),
+    { status: 409, code: "invoice_requires_reopen" },
+  );
+  assert.equal(drafts.length, 1);
+  assert.equal(drafts[0].amount, "-0.01");
+  assert.equal(drafts[0].userId, userId);
+});
+
+test("recurring card purchases enter only their derived invoice through their inclusive end date", async () => {
+  const repo = createRepository(() => undefined, {
+    listMovements: async () => [],
+    listRecurringMovements: async (owner, end) => {
+      assert.equal(owner, userId);
+      assert.ok(end instanceof Date);
+      return [
+        {
+          cardId,
+          personId: adminPersonId,
+          personName: "Owner",
+          personAvatarUrl: null,
+          personRole: "admin",
+          amount: "-75.01",
+          anchorDate: "2026-08-20",
+          startDate: "2026-08-20",
+          endDate: "2026-09-20",
+          frequency: "monthly",
+          paymentMethod: "credit_card",
+          dueDate: null,
+          closingDay: 5,
+          closingRuleType: "fixedDay",
+          closingOffsetDays: null,
+          closingOffsetMode: null,
+          closingDayPurchasesNextInvoice: false,
+          dueDay: 10,
+        },
+      ];
+    },
+  });
+  const service = createInvoicesService(repo, () => "2026-10-20");
+  for (const period of ["2026-09", "2026-10"]) {
+    const snapshot = await service.get(period, userId);
+    assert.equal(snapshot.items.length, 1);
+    assert.equal(snapshot.items[0].amount, 75.01);
+  }
+  assert.equal((await service.get("2026-11", userId)).items.length, 0);
+});
+
+for (const operation of ["get", "pay", "adjust", "reopen"] as const) {
+  test(`invoice ${operation} propagates an I/O failure without retry`, async () => {
+    const failure = new Error("Database unavailable");
+    let attempts = 0;
+    const fail = async () => {
+      attempts++;
+      throw failure;
+    };
+    const service = createInvoicesService(
+      createRepository(() => undefined, {
+        ...(operation === "get" ? { listMovements: fail } : {}),
+        insertPayment: fail,
+        insertAdjustment: fail,
+        reopenInvoice: fail,
+        findAdjustmentContext: async () => ({
+          card: { id: cardId, name: "Card" },
+          personId: adminPersonId,
+          categoryId: "category",
+        }),
+      }),
+    );
+    const result =
+      operation === "get"
+        ? service.get("2026-09", userId)
+        : operation === "pay"
+          ? service.pay(
+              cardId,
+              "2026-09",
+              {
+                accountId,
+                paidAt: "2026-09-10",
+                allocations: [{ personId: adminPersonId, amount: 1 }],
+              },
+              userId,
+            )
+          : operation === "adjust"
+            ? service.adjust(
+                cardId,
+                "2026-09",
+                { date: "2026-09-10", amount: 11000, personId: adminPersonId },
+                userId,
+              )
+            : service.reopen(cardId, "2026-09", userId);
+    await assert.rejects(result, (error) => error === failure);
+    assert.equal(attempts, 1);
+  });
+}
+test("invoice date changes apply the domain guard to the locked persistence state", async () => {
+  const drafts: Parameters<InvoicesRepository["upsertDates"]>[0][] = [];
+  const service = createInvoicesService(
+    createRepository(() => undefined, {
+      upsertDates: async (draft, assertEditable) => {
+        assertEditable({
+          target: "invoice",
+          isSettled: false,
+          hasPayments: false,
+          datesCustomized: false,
+        });
+        drafts.push(draft);
+        return true;
+      },
+    }),
+  );
+  assert.deepEqual(
+    await service.updateDates(cardId, "2026-09", changedDates, userId),
+    changedDates,
+  );
+  assert.deepEqual(drafts, [{ userId, cardId, period: "2026-09", ...changedDates }]);
+});
+
+for (const state of [
+  { isSettled: true },
+  { isSettled: false, hasPayments: true },
+  { isSettled: false, datesCustomized: true },
+]) {
+  test(`invoice date changes reject a locked state ${JSON.stringify(state)}`, async () => {
+    let committed = false;
+    const service = createInvoicesService(
+      createRepository(() => undefined, {
+        upsertDates: async (_draft, assertEditable) => {
+          assertEditable({ target: "invoice", ...state });
+          committed = true;
+          return true;
+        },
+      }),
+    );
+    await assert.rejects(service.updateDates(cardId, "2026-09", changedDates, userId), {
+      status: 409,
+      code: state.datesCustomized
+        ? "DUE_DATE_EXCEPTION_CUSTOM_DATES"
+        : "DUE_DATE_EXCEPTION_SETTLED",
+    });
+    assert.equal(committed, false);
+  });
+}
+
+for (const dueDate of ["2026-09-04", "2026-09-05"]) {
+  test(`invoice dates with due date ${dueDate} reject before persistence`, async () => {
+    const service = createInvoicesService(createRepository(() => undefined));
+    await assert.rejects(
+      service.updateDates(cardId, "2026-09", { ...changedDates, dueDate }, userId),
+      { status: 400, code: "invalid_invoice_dates" },
+    );
+  });
+}
+
+for (const missingAt of ["ownership", "write"] as const) {
+  test(`invoice dates reject a card missing at ${missingAt}`, async () => {
+    let writes = 0;
+    const service = createInvoicesService(
+      createRepository(() => undefined, {
+        ...(missingAt === "ownership" ? { listCards: async () => [] } : {}),
+        upsertDates: async () => {
+          writes++;
+          return false;
+        },
+      }),
+    );
+    await assert.rejects(service.updateDates(cardId, "2026-09", changedDates, userId), {
+      status: 404,
+      code: "card_not_found",
+    });
+    assert.equal(writes, missingAt === "ownership" ? 0 : 1);
+  });
+}
+
+for (const operation of ["undo", "removeAdjustment", "updateDates"] as const) {
+  test(`invoice ${operation} propagates persistence failures with no retries`, async () => {
+    const failure = new Error("Database unavailable");
+    let calls = 0;
+    const reject = async () => {
+      calls++;
+      throw failure;
+    };
+    const service = createInvoicesService(
+      createRepository(() => undefined, {
+        deletePayment: reject,
+        deleteAdjustment: reject,
+        upsertDates: reject,
+      }),
+    );
+    const result =
+      operation === "undo"
+        ? service.undo(cardId, "2026-09", paymentId, userId)
+        : operation === "removeAdjustment"
+          ? service.removeAdjustment(cardId, "2026-09", paymentId, userId)
+          : service.updateDates(cardId, "2026-09", changedDates, userId);
+    await assert.rejects(result, (error) => error === failure);
+    assert.equal(calls, 1);
+  });
+}

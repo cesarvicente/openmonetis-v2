@@ -99,3 +99,97 @@ test("invoice reductions lower expense trends without becoming income", async ()
     -20,
   );
 });
+
+test("grouped trends count direct, child, refund and recurrence amounts once across overlapping filters", async () => {
+  const parentId = "10000000-0000-4000-8000-000000000001";
+  const childId = "20000000-0000-4000-8000-000000000002";
+  const otherId = "30000000-0000-4000-8000-000000000003";
+  const categories = [
+    { categoryId: parentId, name: "Casa", icon: "home", type: "expense" as const, parentId: null },
+    { categoryId: childId, name: "Luz", icon: null, type: "expense" as const, parentId },
+    { categoryId: otherId, name: "Lazer", icon: null, type: "expense" as const, parentId: null },
+  ];
+  const entries = [
+    {
+      categoryId: parentId,
+      period: "2026-09",
+      amount: "50.10",
+      type: "expense" as const,
+      transactionType: "expense" as const,
+    },
+    {
+      categoryId: childId,
+      period: "2026-09",
+      amount: "200.20",
+      type: "expense" as const,
+      transactionType: "expense" as const,
+    },
+    {
+      categoryId: childId,
+      period: "2026-09",
+      amount: "20.05",
+      type: "expense" as const,
+      transactionType: "income" as const,
+      origin: "refund" as const,
+    },
+    {
+      categoryId: childId,
+      period: "2026-08",
+      amount: "100.00",
+      type: "expense" as const,
+      transactionType: "expense" as const,
+    },
+    {
+      categoryId: otherId,
+      period: "2026-09",
+      amount: "10.00",
+      type: "expense" as const,
+      transactionType: "expense" as const,
+    },
+  ];
+  const service = createCategoryTrendsService({
+    listCategoriesForUser: async () => categories,
+    listActualEntriesForUser: async (_user, _start, _end, ids) =>
+      entries.filter((row) => !ids.length || ids.includes(row.categoryId)),
+    listRecurringRulesForUser: async (_user, _end, ids) =>
+      !ids.length || ids.includes(childId)
+        ? [
+            {
+              categoryId: childId,
+              type: "expense",
+              amount: "100.00",
+              anchorDate: "2026-09-01",
+              startDate: "2026-09-01",
+              endDate: null,
+              frequency: "monthly",
+              paymentMethod: "pix",
+              dueDate: null,
+              status: "active",
+              card: null,
+            },
+          ]
+        : [],
+  });
+  const query = (categoryIds?: string) =>
+    ListCategoryTrendsQuerySchema.parse({
+      startPeriod: "2026-09",
+      endPeriod: "2026-09",
+      categoryIds,
+    });
+  const all = await service.list("owner", query());
+  assert.equal(all.summary.expenseAmount, 340.25);
+  assert.equal(all.categories.length, 2);
+  const group = all.categories.find((category) => category.categoryId === parentId);
+  assert.equal(group?.totalAmount, 330.25);
+  assert.equal(group?.values[0]?.previousAmount, 100);
+  assert.equal(group?.subcategories?.[0]?.totalAmount, 280.15);
+  assert.equal(group?.directCategory?.totalAmount, 50.1);
+  const filtered = await service.list("owner", query(`${parentId},${childId}`));
+  assert.equal(filtered.summary.expenseAmount, 330.25);
+  assert.equal(filtered.categories.length, 1);
+  const childOnly = await service.list("owner", query(childId));
+  assert.equal(childOnly.summary.expenseAmount, 280.15);
+  assert.equal(childOnly.categories[0]?.parentName, "Casa");
+  assert.equal(childOnly.categories[0]?.categoryId, childId);
+  assert.equal(childOnly.categories[0]?.subcategories, undefined);
+});

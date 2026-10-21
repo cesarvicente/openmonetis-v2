@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  getChangedTransactionInput,
   getDefaultTransactionFormValues,
   normalizeTransactionInput,
   type TransactionFormValues,
@@ -26,10 +27,46 @@ const paidBoleto = {
   installmentCount: "2",
   startInstallment: "1",
   recurrenceFrequency: "monthly",
+  recurrenceEndDate: "",
+  dueDateRuleExcluded: false,
+  recurrenceAnchorDate: "",
   isSettled: "true",
   note: "",
   splitShares: [],
+  tagIds: [],
 } satisfies TransactionFormValues;
+
+test("recurrence deadlines are optional, inclusive and validated in the form", () => {
+  const recurring: TransactionFormValues = {
+    ...paidBoleto,
+    condition: "recurring",
+    paymentMethod: "pix",
+    boletoPaymentDate: "",
+    recurrenceEndDate: "2026-08-20",
+  };
+  assert.equal(validateTransactionForm({ value: recurring }), undefined);
+  assert.equal(normalizeTransactionInput(recurring).recurrenceEndDate, "2026-08-20");
+  assert.equal(
+    normalizeTransactionInput({ ...recurring, recurrenceEndDate: "" }).recurrenceEndDate,
+    null,
+  );
+  assert.ok(
+    validateTransactionForm({ value: { ...recurring, recurrenceEndDate: "2026-08-19" } })?.fields
+      .recurrenceEndDate,
+  );
+  assert.equal(
+    normalizeTransactionInput({ ...paidBoleto, recurrenceEndDate: "2026-12-31" }).recurrenceEndDate,
+    null,
+  );
+  assert.deepEqual(
+    getChangedTransactionInput(
+      normalizeTransactionInput({ ...recurring, recurrenceEndDate: "" }),
+      { ...recurring, recurrenceEndDate: "" },
+      recurring,
+    ),
+    { recurrenceEndDate: null },
+  );
+});
 
 test("paid boleto form preserves a payment date before the due month", () => {
   const input = normalizeTransactionInput(paidBoleto);
@@ -37,6 +74,31 @@ test("paid boleto form preserves a payment date before the due month", () => {
   assert.equal(input.dueDate, "2026-09-03");
   assert.equal(input.boletoPaymentDate, "2026-08-20");
   assert.equal(validateTransactionForm({ value: paidBoleto }), undefined);
+});
+
+test("non-card expense forms retain optional due dates for payables, installments and recurring rules", () => {
+  for (const paymentMethod of ["pix", "debit_card", "cash", "bank_transfer", "benefits"] as const) {
+    for (const condition of ["single", "installment", "recurring"] as const) {
+      const values: TransactionFormValues = {
+        ...paidBoleto,
+        paymentMethod,
+        condition,
+        isSettled: "false",
+        boletoPaymentDate: "",
+      };
+      assert.equal(validateTransactionForm({ value: values }), undefined);
+      assert.equal(normalizeTransactionInput(values).dueDate, "2026-09-03");
+      assert.equal(normalizeTransactionInput({ ...values, dueDate: "" }).dueDate, null);
+    }
+  }
+  assert.equal(
+    normalizeTransactionInput({
+      ...paidBoleto,
+      paymentMethod: "credit_card",
+      cardId: paidBoleto.accountId,
+    }).dueDate,
+    null,
+  );
 });
 
 test("paid boleto form requires the effective payment date", () => {
@@ -55,5 +117,23 @@ test("new transactions start pending unless a caller provides another default", 
     getDefaultTransactionFormValues([], [], [], "expense", undefined, { isSettled: "true" })
       .isSettled,
     "true",
+  );
+});
+
+test("tag edits preserve unchanged scopes and send explicit removals", () => {
+  const tagId = "40000000-0000-4000-8000-000000000004";
+  const defaults = { ...paidBoleto, tagIds: [tagId] };
+  const renamed = { ...defaults, name: "Conta renomeada" };
+  const renamedInput = normalizeTransactionInput(renamed);
+  assert.deepEqual(renamedInput.tagIds, [tagId]);
+  assert.equal(getChangedTransactionInput(renamedInput, renamed, defaults).tagIds, undefined);
+  const removed = { ...defaults, tagIds: [] };
+  assert.deepEqual(
+    getChangedTransactionInput(normalizeTransactionInput(removed), removed, defaults).tagIds,
+    [],
+  );
+  assert.equal(
+    validateTransactionForm({ value: { ...defaults, tagIds: [tagId, tagId] } })?.fields.tagIds,
+    "Selecione até 20 etiquetas.",
   );
 });

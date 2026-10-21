@@ -12,6 +12,8 @@ dist-ssr
 .vinxi
 __unconfig*
 todos.json
+*.log
+.vite
 
 # local maintainer playbooks
 /deploy.md
@@ -27,3 +29,8 @@ todos.json
 
 # pnpm
 /.pnpm-store/
+
+# test artifacts
+/coverage/
+/playwright-report/
+/test-results/
