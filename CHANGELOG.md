@@ -7,6 +7,131 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-10-21
+
+Amplia a organização e o acompanhamento financeiro com etiquetas, subcategorias, baixas por
+valor efetivo e regras de vencimento, aprimora a gestão de recorrências e adiciona exportação
+de lançamentos, com novas validações de integração e navegador.
+
+### Adicionado
+
+- Testes de services de notificações, releases, estabelecimentos e conexões, além de novos cenários de notas e inbox; limites de cobertura de domínio/services elevados para 91% de linhas, 82% de ramificações e 89% de funções.
+- Ampliação dos testes de transações, parcelas e faturas para importação, estornos, transferências, baixas, ownership, estados inválidos e falhas de persistência; 622 testes sem banco, com cobertura de 94,32% das linhas de transações e 100% das linhas de parcelas e faturas.
+- Testes Chromium de passkeys com WebAuthn e autenticador virtual, rejeição de callbacks OAuth inválidos e suíte optativa para storage real.
+
+- Testes de consulta e desfazimento parcial/total de antecipações, desfazimento de pagamentos, remoção de ajustes e datas de faturas; cópias de lançamentos e recorrências com testes de ownership, falhas de persistência e isolamento do histórico.
+
+- Testes de conservação de centavos em parcelas e baixas, orçamentos, contas a pagar e relatórios recorrentes; integração da API verifica atomicidade, concorrência, exportações e permissões em operações financeiras.
+
+- Cobertura automatizada de anexos e protocolo S3, convites e conexões, importação OFX/Excel, reset/exclusão, ownership e upgrade com dados; testes Chromium para fluxos financeiros e relatórios de cobertura com limites mínimos na CI.
+
+- Testes da API montada com sessões reais e PostgreSQL para acesso anônimo, isolamento entre usuários, transferências, estornos e conflitos concorrentes; nova integração executada pela CI e guia de testes com as lacunas restantes.
+- Exportação de lançamentos em CSV e Excel (`.xlsx`), com todos os resultados do período, busca e filtros atuais, preservando a ordenação e os valores por pessoa nos lançamentos divididos.
+- Configuração `DISABLE_SIGNUP` para bloquear novos usuários por senha e Google, mantendo login existente; a web consulta a disponibilidade de cadastro pela API. O guia de produção descreve o primeiro usuário e o fechamento do cadastro.
+- Ajustes ganha personalizações e exceções de vencimento para boletos e faturas, com seleção de itens/cartões, calendário compartilhado, prévia e histórico de configurações.
+- Vencimentos ajustados recebem destaque com explicação dos dias não úteis e feriados, além de ações para manter a data original ou reativar o ajuste automático somente no lançamento, ocorrência ou mês da fatura.
+
+- Baixa de receitas e despesas com valor efetivo, data e conta, preservando os valores previstos, rateio proporcional em centavos, histórico de confirmações e desfazimentos e dados antigos sem data efetiva inventada.
+
+- Relatório de lançamentos recorrentes com abas de despesas e receitas, filtros de situação, meio e busca preservados na URL, projeções mensais e criação contextualizada.
+- Gestão de receitas recorrentes permite editar pelo formulário completo, pular a próxima ocorrência, pausar, retomar e encerrar, mantendo as séries encerradas disponíveis para consulta.
+- Data final opcional e inclusiva em receitas e despesas recorrentes, com edição do prazo para as próximas ocorrências ou toda a série e indicação nos detalhes.
+- Ação de pular ocorrência de receita ou despesa na lista de lançamentos e nos detalhes em telas pequenas.
+- Subcategorias em dois níveis, com criação dentro do grupo, edição da categoria principal e seleção com o caminho completo nos lançamentos e recorrências.
+- Filtros por categoria principal incluem suas filhas; relatórios e dashboard agrupam os totais sem duplicar lançamentos, com detalhamento por subcategoria e valores diretos no grupo.
+
+- Etiquetas por usuário, com cadastro, edição e exclusão, seleção múltipla em lançamentos e recorrências, filtros e relatório mensal de receitas, despesas e saldo por etiqueta.
+- Etiquetas acompanham parcelas, cópias e reembolsos; edições de recorrências preservam os escopos por ocorrência, futuras e série completa.
+
+### Alterado
+
+- Subcategorias em Categorias e Evolução por categoria usam o ícone da categoria principal com cores de fundo e ícone invertidas, sem linha vertical de hierarquia.
+- Tela de login simplificada com remoção do aviso de cadastro desabilitado e da seção "Não consegue acessar?".
+- Removidas as suítes que chamavam o Google real e suas configurações; a segurança OAuth continua verificada com provedor controlado, sem conta externa de teste.
+
+- Interface web usa DM Sans nos textos e títulos, com remoção dos arquivos e declarações da GT America e preservação da Aeonik Fono nos detalhes monoespaçados.
+- Logo em texto redesenhado com DM Sans Medium em vetor, mantendo nitidez em qualquer escala e adaptação aos temas claro e escuro.
+- O widget "Acertos por pessoas" mostra, em um único bloco por pessoa, o progresso dos repasses recebidos sobre o valor atribuído líquido de estornos, com o valor que falta e créditos quando houver. Pessoas já acertadas permanecem no fim da lista e o saldo por pessoa na API passa a incluir `dueAmount` e `coveredAmount`, e o resumo, `pendingCount`.
+- Indicador da aba ativa usa o mesmo azul do foco dos campos de formulário em todas as tabs com sublinhado.
+- Barras de progresso, incluindo o uso de limite dos cartões, usam segmentos verticais com pontas arredondadas, espaçamento definido e trilho suave, preservando as cores de status e a leitura dos percentuais em todo o sistema.
+- Suíte sem banco descobre automaticamente novos arquivos de teste nos workspaces, sem manter uma lista manual no `package.json`.
+- Widgets Condições de pagamento e Formas de pagamento permitem alternar entre lista e gráfico de pizza, seguindo o visual e o modo de privacidade dos gráficos por categoria.
+- Identificação de regras aplicadas na Caixa de entrada exibe o avatar da pessoa associada ao lado do nome da regra, com iniciais quando não há foto.
+- Barra de lançamentos agrupa exportação com importação de extrato e posiciona os filtros após a pesquisa.
+- Tabela de evolução por categoria uniformiza o alinhamento e o visual dos grupos, mostra a quantidade de subcategorias junto à expansão e usa recuo nos detalhes. Valores mensais e variações mantêm alinhamento consistente, com média e total identificados também nas telas menores.
+- Evolução por categoria usa peso normal nos valores e médio nos nomes, mantém categoria e meses visíveis durante a rolagem da tabela, reduz o destaque dos meses sem movimento e identifica o mês mais recente. O gráfico inicia com cinco categorias e permite ampliar para dez séries distintas.
+- Ações dos cards da Caixa de entrada usam botões consistentes no desktop e alvos de toque maiores no mobile; valor e botões permanecem alinhados quando há espaço.
+- A alteração da senha de acesso abre um formulário em modal a partir do botão abaixo do status da senha cadastrada.
+- Introdução das regras de vencimento integrada ao painel de Ajustes, seguindo a estrutura das demais seções.
+- Card de feriados nacionais em Ajustes apresenta navegação compacta por ano e lista de datas mais legível.
+- Subcategorias mantêm o padrão de lista do sistema, com recuo hierárquico, área de navegação ampliada, destaque discreto ao interagir e formulário de criação compacto.
+
+- Aba Companion padronizada com as demais configurações, com lista de aparelhos consistente com Segurança, instruções breves sempre visíveis e atalhos de instalação e Caixa de entrada.
+- Notas operacionais do changelog são preservadas em `upgradeNotes` na API e exibidas separadamente na web; contribuições e releases passam a revisar impactos no banco, contratos, ambiente e Compose.
+- Ajuste automático de vencimento passa a abranger todas as contas a pagar com data informada, incluindo Pix, débito, dinheiro, transferência e benefícios; personalizações, exceções e proteção de pagamentos usam o mesmo fluxo.
+- Hover de vencimentos mostra só a mudança de data e a direção do ajuste; o painel de clique resume o motivo e mantém a ação por item.
+- Boletos e faturas avançam automaticamente para o próximo dia útil, sem cadastro de regras. Ajustes reúne personalizações, exceções e feriados adicionais; remover uma personalização restaura o padrão automático. Datas e motivos são preservados após pagamentos, inclusive parciais.
+- Regras de vencimento usam vigência automática, revisão antes de salvar, busca de alvos e consulta dos feriados nacionais por nome e data; formulário adapta a inclusão de feriados ao espaço disponível e exibe os seletores em português.
+
+- Calendários individuais e agendamento por enésimo dia útil foram removidos das recorrências. Vencimentos ajustados preservam a data original e as baixas confirmadas; fechamento e composição de faturas mantêm o ciclo nominal.
+
+- Widget “Boletos” passa a ser “Contas a pagar”, com despesas por Pix, débito e outros meios que tenham vencimento, incluindo parcelas e recorrências. Formulários permitem informar ou remover o vencimento; avisos e links usam o filtro de contas a pagar e pagamentos exibem a data efetiva em todos os meios.
+- Extratos e saldos consideram a data e o valor efetivos da baixa; confirmações em uma ocorrência não alteram o valor das próximas recorrências. Mudanças financeiras em registros confirmados exigem desfazer a baixa.
+- Pagamento de contas usa o mesmo fluxo de baixa e permite registrar diferenças de valor; a lista inclui despesas com vencimento em outros meios de pagamento além de boleto.
+
+- A página de despesas recorrentes passa a ser “Lançamentos recorrentes”; cada série aparece uma única vez, com valor por ocorrência, frequência, próxima data e prazo final. O endereço antigo redireciona preservando os filtros.
+- Remoção da data final da recorrência usa um ícone discreto ao lado do campo, com dica de ação e texto de ajuda compacto.
+- Gestão de categorias com grupos expansíveis, contador de subcategorias e abertura automática durante a busca ou criação; seletor identifica categorias principais e seleciona novos cadastros sem perder os dados do lançamento.
+- Relatórios destacam o total de cada grupo e suavizam as subcategorias, com identificação explícita dos lançamentos registrados diretamente na categoria principal.
+- Campo de etiquetas integrado ao accordion do lançamento, antes da observação, com criação dentro do seletor e ícone de etiqueta padronizado.
+- Gerenciamento de etiquetas usa a barra de navegação mensal do sistema, com setas e seleção de mês, e exibe o ícone de etiqueta ao lado de cada nome.
+- Etiquetas selecionadas aparecem como chips removíveis; buscas vazias oferecem limpar a busca, e a gestão usa cartões em telas pequenas.
+- Relatório de etiquetas apresenta “Resultado” com explicação e os lançamentos podem ser filtrados por “Sem etiquetas”, inclusive recorrências.
+
+### Corrigido
+
+- Tabelas de evolução por categoria acompanham a altura do conteúdo, sem rolagem vertical interna limitada à altura da tela.
+- Cópia de compras parceladas usa o valor original da série e redistribui o rateio proporcionalmente, evitando acréscimo ou perda de centavos ao copiar parcelas arredondadas.
+
+- Baixas com valor insuficiente para o rateio retornam erro de validação identificado, sem gravar dados, em vez de erro interno.
+
+- Gatilho decorativo de descrições recentes declara sua semântica não nativa, eliminando o aviso de botão inválido encontrado pelos testes no navegador.
+
+- Reset remove também metas, etiquetas, séries de recorrência e histórico de baixas do titular, preservando os dados de outros usuários.
+
+- Edição de transferências preserva o identificador que une débito e crédito, mantendo a atualização e a exclusão dos dois lançamentos após alterações de valor.
+- Contrato OpenAPI de `GET /auth-config` declara acesso público, sem herdar a exigência de sessão.
+- Documentação corrige a unidade decimal de `settledAmount`, separa backup e restauração de PostgreSQL local e externo e detalha variáveis opcionais e a opção de desconsiderar feriados nacionais.
+- Documentação alinhada aos contratos de recorrências, baixas e vencimentos, com requisitos de Node.js, CORS do storage e testes de integração explícitos.
+- Prévia de parcelas calculada pela API e pelo domínio, preservando os valores e a distribuição de centavos exibidos no formulário sem cálculo financeiro no navegador.
+- Publicação valida tags anotadas e a CI executa também as integrações financeiras com PostgreSQL.
+- Logos dos lançamentos permanecem abaixo da barra fixa de seleção de mês durante a rolagem.
+- Acertos de pessoas contabilizam recorrências de cartão no mês da fatura, respeitando o fechamento e o rateio, sem antecipar cobranças do mês seguinte.
+- Removida a referência ao arquivo `SECURITY.md` inexistente no README.
+- Lançamentos usam o ícone da categoria como fallback do logo em listas, widgets, relatórios, detalhes, despesas externas e notificações; categorias sem ícone usam o símbolo genérico de categoria.
+- Edição da data ou frequência de recorrências com alterações anteriores permite aplicar a mudança desta ocorrência em diante, preservando o histórico e protegendo baixas confirmadas; o formulário oferece o alcance compatível com a API.
+- Pausar ou encerrar uma recorrência mantém as ocorrências anteriores e suas baixas; versões futuras deixam de ser projetadas a partir da data escolhida, respeitando o prazo da série.
+- Seletor de etiquetas segue a altura e a tipografia dos demais campos em formulários mobile.
+- Edição de etiquetas e outros dados descritivos preserva o período de parcelas quando o agendamento não é alterado.
+
+### Notas de atualização
+
+- Desenvolvimento: Node.js 22.12 ou superior é necessário para o TanStack Start usado pelo workspace. As treze suítes PostgreSQL aceitam `TEST_DATABASE_URL` e são executadas pela CI; localmente, consulte os requisitos em `CONTRIBUTING.md`.
+- Storage: configure o CORS do bucket para a origem HTTPS da web, permitindo o upload direto por `PUT` com `Content-Type`. `CORS_ORIGIN` configura apenas a API; o guia de produção inclui um exemplo para o bucket privado.
+- API: `GET /transactions/installments/preview?amount=3` fornece opções de 2 a 60 parcelas, com valores mínimo e máximo calculados no domínio. A rota exige sessão; atualize API e web para manter a prévia no formulário. As baixas aceitam `settledAmount`, `settledDate` e `accountId`, preservando `amount`; o filtro `payables=true` inclui todos os meios elegíveis com vencimento.
+- Banco e API: a migration `0012` adiciona `parent_id`, unicidade por grupo e proteção da hierarquia de categorias. Categorias existentes continuam como principais. Os contratos adicionam `parentId` e `parentName`; filtros de categoria principal incluem suas filhas e os relatórios expõem subcategorias e valores diretos do grupo. Categorias com filhas ou referências financeiras não podem ser excluídas.
+- Ambiente: `DISABLE_SIGNUP` é opcional e assume `false`. Para fechar novos cadastros, configure `true` no `.env` e execute `docker compose up -d --no-deps --force-recreate api`. Crie a primeira conta em acesso restrito antes de fechar o cadastro; contas existentes continuam entrando por senha, Google e passkey. Valores diferentes de `true`/`false` impedem a inicialização.
+- Compose: o serviço `api` recebe `DISABLE_SIGNUP`; atualize o arquivo Compose junto com a aplicação. Não é necessário recompilar a web. Os instaladores continuam usando a branch padrão e `latest`: A seleção de versões nos instaladores permanece pendente; versões fixas exigem alinhar manualmente checkout e `OPENMONETIS_VERSION`.
+- API: `GET /auth-config` é público e retorna apenas `signupEnabled` e `googleEnabled`, sem credenciais e sem cache; o OpenAPI declara `security: []` nessa operação. `GET /releases` adiciona `upgradeNotes` por versão; versões sem notas retornam uma lista vazia. Clientes devem tratar as notas como um campo adicional.
+- Banco: faça backup do PostgreSQL, do storage e da configuração antes de atualizar esta versão com as migrations acumuladas `0011`–`0017`. A `0014` adiciona dados de baixa e auditoria sem inventar datas antigas; a `0015` substitui os calendários por recorrência pelas regras gerais e remove `recurrence_schedule`, sem converter as configurações anteriores; a `0017` amplia o alvo das regras existentes de boleto para contas a pagar. Acompanhe `docker compose logs migrator` antes de validar a API. Reverter somente as imagens não desfaz as migrations; uma restauração exige o backup e a versão compatível com ele.
+- A migration `0016` adiciona a exceção por fatura e snapshots dos motivos de ajuste; exceções em recorrências podem herdar a série ou valer somente para a ocorrência. O contrato inclui `dueDateAdjustment` e `dueDateExceptionEditable`, e `PATCH /due-date-rules/exception` permite alternar o ajuste por item com validação de ownership e proteção de pagamentos.
+
+- O novo `GET /recurring-transactions/report` recebe `period` e `type` (`income` ou `expense`); os totais consideram a participação do titular pela data da ocorrência, enquanto a lista apresenta a situação atual de cada série. A consulta autenticada `GET /transactions/recurring-rules/{id}/occurrence` fornece os dados completos para edição.
+- A migration `0013` adiciona o prazo opcional das recorrências. Regras existentes continuam sem data final; saldos, faturas, contas a pagar, etiquetas e relatórios respeitam o prazo das novas regras.
+- O contrato de lançamentos aceita e retorna `recurrenceEndDate`. As ações datadas usam `POST /transactions/recurring-rules/{id}/actions`; a rota de status continua disponível e preserva o histórico anterior à data informada ou ao dia atual.
+- Execute as migrations antes de iniciar a nova API: foram adicionadas as tabelas de etiquetas e seus vínculos. Os lançamentos existentes permanecem sem etiquetas.
+- O contrato financeiro passa a aceitar e retornar `tagIds`, de forma aditiva; os endpoints `/tags` e `/tags/report` exigem sessão autenticada.
+
 ## [0.10.2] - 2026-10-04
 
 Corrige o vazamento de layout dos breadcrumbs e padroniza o fundo dos modais mobile,
@@ -453,7 +578,8 @@ API-first, com cliente web em PT-BR, domínio financeiro isolado e implantação
 - Backup e restauração definidos como operações de infraestrutura, cobrindo PostgreSQL, objetos do
   storage e segredos da implantação.
 
-[Unreleased]: https://github.com/felipegcoutinho/openmonetis-v2/compare/v0.10.2...HEAD
+[Unreleased]: https://github.com/felipegcoutinho/openmonetis-v2/compare/v0.11.0...HEAD
+[0.11.0]: https://github.com/felipegcoutinho/openmonetis-v2/compare/v0.10.2...v0.11.0
 [0.10.2]: https://github.com/felipegcoutinho/openmonetis-v2/compare/v0.10.1...v0.10.2
 [0.10.1]: https://github.com/felipegcoutinho/openmonetis-v2/compare/v0.10.0...v0.10.1
 [0.10.0]: https://github.com/felipegcoutinho/openmonetis-v2/compare/v0.9.0...v0.10.0

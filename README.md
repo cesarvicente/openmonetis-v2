@@ -11,7 +11,7 @@
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/licen%C3%A7a-Sustainable%20Use%201.0-f97316" alt="Licença Sustainable Use 1.0" /></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/version-0.10.2-f97316" alt="Versão 0.10.2" /></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/version-0.11.0-f97316" alt="Versão 0.11.0" /></a>
   <img src="https://img.shields.io/badge/Docker-self--hosted-2496ED?logo=docker&logoColor=white" alt="Aplicação self-hosted com Docker" />
 </p>
 
@@ -32,7 +32,7 @@
 - contas, cartões, faturas, transações e transferências;
 - parcelas, recorrências, orçamentos e contas a pagar;
 - pessoas, divisões, repasses e gastos compartilhados entre contas;
-- categorias, estabelecimentos, notas e checklists, além de anexos quando um storage S3 está
+- categorias e subcategorias, etiquetas, estabelecimentos, notas e checklists, além de anexos quando um storage S3 está
   configurado;
 - relatórios, dashboard mensal e widgets configuráveis;
 - importação por planilha e caixa de entrada do Companion Android com regras configuráveis de
@@ -59,6 +59,11 @@ irm https://github.com/felipegcoutinho/openmonetis-v2/raw/refs/heads/main/instal
 Abra [http://localhost:7002](http://localhost:7002) e crie sua conta. Antes de executar um script
 remoto, você pode revisar o [`install.sh`](install.sh) ou o [`install.ps1`](install.ps1).
 
+Os instaladores atuais usam a branch padrão e imagens `latest`; a fixação de versão nos scripts
+continua pendente. Em produção, use o procedimento manual do guia abaixo para alinhar a
+tag do checkout e a versão das imagens. Após criar a primeira conta, configure `DISABLE_SIGNUP=true`
+para fechar novos cadastros por senha e Google, mantendo o login das contas existentes.
+
 Para publicar a aplicação com HTTPS, storage privado e segredos próprios, consulte o
 [`guia de produção`](docs/production-deployment.md).
 
@@ -75,7 +80,7 @@ Para publicar a aplicação com HTTPS, storage privado e segredos próprios, con
 
 ## Desenvolvimento
 
-Tenha Node.js 20.19 ou 22.12 ou superior (LTS), Git e Docker com o plugin Compose instalados.
+Tenha Node.js 22.12 ou superior, preferencialmente uma versão LTS, Git e Docker com o plugin Compose instalados.
 
 ```bash
 git clone https://github.com/felipegcoutinho/openmonetis-v2.git
@@ -102,6 +107,9 @@ pnpm test
 pnpm build
 ```
 
+Os testes de integração com PostgreSQL têm comandos próprios e não fazem parte de `pnpm test`.
+Consulte os cenários e requisitos no [guia de contribuição](CONTRIBUTING.md#testes-de-integração).
+
 `pnpm lint` executa o Biome e a integração de `@shadcn/lint` via Oxlint no frontend.
 Para executar apenas essa integração, use `pnpm lint:ui`. O plugin está registrado em
 `apps/web/.oxlintrc.json`, inicialmente sem regras visuais ativadas; adicione as regras em
@@ -127,9 +135,14 @@ detalhes e as convenções no [`guia de arquitetura`](docs/architecture.md).
 - [`docs/production-deployment.md`](docs/production-deployment.md): instalação, atualização,
   segurança operacional e backups;
 - [`docs/architecture.md`](docs/architecture.md): camadas, decisões e estrutura do monorepo;
+- [`docs/environment-variables.md`](docs/environment-variables.md): configuração dos serviços e integrações;
+- [`docs/recurring-transactions.md`](docs/recurring-transactions.md): séries, versões, ocorrências e ações de recorrência;
+- [`docs/settlements.md`](docs/settlements.md): baixas efetivas, extratos e contas a pagar;
+- [`docs/due-date-rules.md`](docs/due-date-rules.md): calendário compartilhado, ajustes e exceções de vencimento;
 - [`docs/companion-api.md`](docs/companion-api.md): contrato do Companion;
-- [`CONTRIBUTING.md`](CONTRIBUTING.md): fluxo para contribuições;
-- [`SECURITY.md`](SECURITY.md): comunicação responsável de vulnerabilidades.
+- [`docs/device-token-secret.md`](docs/device-token-secret.md): geração e rotação do segredo do Companion;
+- [`docs/releases.md`](docs/releases.md): preparação, validação e publicação de versões;
+- [`CONTRIBUTING.md`](CONTRIBUTING.md): fluxo para contribuições.
 
 ## Licença
 
