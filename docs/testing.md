@@ -170,6 +170,9 @@ O relatório de etiquetas verifica o total das transferências sem duplicar os d
 preservando receitas, despesas e resultado nas visualizações desktop e celular, inclusive após
 recarregar a página e consultar outro mês.
 
+Os seletores responsivos também são verificados ao alternar entre desktop e celular com a lista
+aberta, sem perder o estado nem emitir avisos de controle do componente.
+
 Os três cenários de passkeys usam WebAuthn do Chromium com um autenticador virtual CTAP2 e
 verificação criptográfica real do Better Auth. Cobrem cadastro, login sem senha, rejeição da
 repetição da mesma resposta, renomeação, remoção, login com credencial revogada, isolamento

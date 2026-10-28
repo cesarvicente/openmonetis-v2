@@ -17,6 +17,11 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 - Fluxo de contribuição e release separa commits por mudança, com registros em `Unreleased`,
   do fechamento da versão, que consolida o changelog e valida o conjunto antes da publicação.
 
+### Corrigido
+
+- Seletores responsivos mantêm o estado de abertura ao alternar entre desktop e celular, sem
+  avisos de mudança entre estado controlado e não controlado.
+
 ### Notas de atualização
 
 - API: `GET /tags/report` inclui `transfers` em cada item, com zero quando não há transferências.

@@ -1,6 +1,5 @@
 import { Select as SelectPrimitive } from "@base-ui/react/select";
 import { createContext, useState } from "react";
-import { useIsMobile } from "@/hooks/useIsMobile";
 
 export const MobileSelectCloseContext = createContext<{ open: boolean; close: () => void } | null>(
   null,
@@ -9,21 +8,21 @@ export const MobileSelectCloseContext = createContext<{ open: boolean; close: ()
 export function MobileSelect<Value, Multiple extends boolean | undefined = false>(
   props: SelectPrimitive.Root.Props<Value, Multiple>,
 ) {
-  const mobile = useIsMobile();
   const [open, setOpen] = useState(props.defaultOpen ?? false);
   return (
     <MobileSelectCloseContext value={{ open: props.open ?? open, close: () => setOpen(false) }}>
       <SelectPrimitive.Root
         {...props}
-        {...(mobile && props.open === undefined
-          ? {
-              open,
-              onOpenChange: (nextOpen, details) => {
-                props.onOpenChange?.(nextOpen, details);
-                if (!details.isCanceled) setOpen(nextOpen);
-              },
-            }
-          : {})}
+        open={props.open ?? open}
+        onOpenChange={(nextOpen, details) => {
+          // Keep the popup open while its desktop/mobile presentation is replaced.
+          if (details.reason === "window-resize") {
+            details.cancel();
+            return;
+          }
+          props.onOpenChange?.(nextOpen, details);
+          if (!details.isCanceled && props.open === undefined) setOpen(nextOpen);
+        }}
       />
     </MobileSelectCloseContext>
   );
