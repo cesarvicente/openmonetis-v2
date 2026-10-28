@@ -7,11 +7,17 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-10-28
+
+Amplia os relatórios com Compromissos futuros e Distribuição financeira, adiciona transferências ao
+relatório de etiquetas, unifica o seletor de faixa de período e renova o tema escuro e os gráficos.
+
 ### Adicionado
 
 - Relatório Compromissos futuros, com o quanto da renda prevista já está comprometido em parcelas,
   recorrências e contas avulsas em uma faixa de até 24 meses escolhida pelo seletor de período,
-  índice de comprometimento e situação por mês, próximo alívio e parcelamentos que terminam no período.
+  índice de comprometimento e situação por mês, próximo alívio e parcelamentos que terminam no
+  período.
   Despesas avulsas de qualquer forma de pagamento entram no mês, estornos e descontos de
   antecipação são abatidos, contas fora do saldo total são ignoradas também nas parcelas e o
   próximo alívio considera só parcelas e recorrentes.
@@ -56,10 +62,12 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 - API: nova rota autenticada `GET /reports/financial-distribution`, com filtros `period`,
   `personScope` (padrão `admin`) e `mode` (padrão `actual`). Clientes podem consumir o relatório
   pelo contrato OpenAPI; não há migration ou nova configuração de ambiente.
-
 - API: `GET /tags/report` inclui `transfers` em cada item, com zero quando não há transferências.
   Clientes com validação estrita da resposta devem aceitar esse novo campo numérico, que não
   compõe `income`, `expenses` nem `balance`.
+- Atualização: não há migrations, variáveis de ambiente ou mudanças no Compose. Configure
+  `OPENMONETIS_VERSION=0.12.0` e atualize API, web e migrator juntos com `docker compose pull` e
+  `docker compose up -d`.
 
 ## [0.11.1] - 2026-10-21
 
@@ -653,7 +661,8 @@ API-first, com cliente web em PT-BR, domínio financeiro isolado e implantação
 - Backup e restauração definidos como operações de infraestrutura, cobrindo PostgreSQL, objetos do
   storage e segredos da implantação.
 
-[Unreleased]: https://github.com/felipegcoutinho/openmonetis-v2/compare/v0.11.1...HEAD
+[Unreleased]: https://github.com/felipegcoutinho/openmonetis-v2/compare/v0.12.0...HEAD
+[0.12.0]: https://github.com/felipegcoutinho/openmonetis-v2/compare/v0.11.1...v0.12.0
 [0.11.1]: https://github.com/felipegcoutinho/openmonetis-v2/compare/v0.11.0...v0.11.1
 [0.11.0]: https://github.com/felipegcoutinho/openmonetis-v2/compare/v0.10.2...v0.11.0
 [0.10.2]: https://github.com/felipegcoutinho/openmonetis-v2/compare/v0.10.1...v0.10.2
