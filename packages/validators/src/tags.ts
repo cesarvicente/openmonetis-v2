@@ -34,7 +34,16 @@ export const TagsReportOutputSchema = z
   .object({
     period: z.string(),
     items: z.array(
-      z.object({ tagId: z.uuid(), income: z.number(), expenses: z.number(), balance: z.number() }),
+      z.object({
+        tagId: z.uuid(),
+        income: z.number(),
+        expenses: z.number(),
+        transfers: z.number().nonnegative().openapi({
+          description:
+            "Total transferred between accounts, counting each outgoing posting once without affecting balance",
+        }),
+        balance: z.number(),
+      }),
     ),
   })
   .openapi("TagsReport");

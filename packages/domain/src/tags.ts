@@ -28,19 +28,20 @@ export type TaggedFinancialEntry = {
   allocation?: { amount: number } | null;
 };
 export function summarizeTags(tagIds: readonly string[], entries: readonly TaggedFinancialEntry[]) {
-  const totals = new Map(tagIds.map((id) => [id, { income: 0, expenses: 0 }]));
+  const totals = new Map(tagIds.map((id) => [id, { income: 0, expenses: 0, transfers: 0 }]));
   const seen = new Set<string>();
   for (const entry of entries) {
     if (seen.has(entry.id)) continue;
     seen.add(entry.id);
     if (
-      entry.type === "transfer" ||
       entry.origin === "invoicePayment" ||
       entry.origin === "accountBalanceAdjustment" ||
       entry.origin === "personSettlement"
     )
       continue;
     const amount = entry.allocation?.amount ?? entry.amount;
+    // Transfers have two opposite postings with the same tags. Count only the outgoing one.
+    const transferCents = entry.type === "transfer" ? Math.max(0, -Math.round(amount * 100)) : 0;
     const expenseCents = Math.round(calculateExpenseImpact({ ...entry, amount }) * 100);
     const incomeCents =
       entry.type === "income" && entry.origin === "regular"
@@ -51,6 +52,7 @@ export function summarizeTags(tagIds: readonly string[], entries: readonly Tagge
       if (total) {
         total.income += incomeCents;
         total.expenses += expenseCents;
+        total.transfers += transferCents;
       }
     }
   }
@@ -58,6 +60,7 @@ export function summarizeTags(tagIds: readonly string[], entries: readonly Tagge
     tagId,
     income: total.income / 100,
     expenses: total.expenses / 100,
+    transfers: total.transfers / 100,
     balance: (total.income - total.expenses) / 100,
   }));
 }

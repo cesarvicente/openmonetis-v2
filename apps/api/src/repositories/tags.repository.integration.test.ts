@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import test from "node:test";
+import { internalTransferCategoryName } from "@openmonetis/domain/categories";
 import {
   ListTransactionsQuerySchema,
   TransactionInputSchema,
@@ -210,9 +211,82 @@ test("tags persist across transaction and recurring scopes with database ownersh
       assert.equal(result.items.length, 1);
       assert.deepEqual(result.items[0].tagIds, [expected]);
     }
+    const [destination] = await db
+      .insert(schema.financialAccounts)
+      .values({ userId: owner.id, name: "Destination", type: "checking" })
+      .returning();
+    await db.insert(schema.categories).values({
+      userId: owner.id,
+      name: internalTransferCategoryName,
+      type: "income",
+      isSystem: true,
+    });
+    const [fundingCategory] = await db
+      .insert(schema.categories)
+      .values({ userId: owner.id, name: "Funding", type: "income" })
+      .returning();
+    await service.createTransaction({
+      ...TransactionInputSchema.parse({
+        type: "income",
+        paymentMethod: "pix",
+        name: "Transfer funding",
+        personId: person.id,
+        categoryId: fundingCategory.id,
+        accountId: account.id,
+        amount: 1000,
+        purchaseDate: "2026-09-01",
+        settledDate: "2026-09-01",
+        isSettled: true,
+      }),
+      userId: owner.id,
+    });
+    for (const [amount, isSettled] of [
+      [287.15, true],
+      [163.08, false],
+    ] as const) {
+      await service.createTransaction({
+        ...TransactionInputSchema.parse({
+          type: "transfer",
+          paymentMethod: "bank_transfer",
+          name: "Tagged transfer",
+          personId: person.id,
+          amount,
+          isSettled,
+          purchaseDate: "2026-10-16",
+          sourceAccountId: account.id,
+          destinationAccountId: destination.id,
+          tagIds: [first.id, second.id],
+        }),
+        userId: owner.id,
+      });
+    }
     const report = await tagService.report("2026-10", owner.id);
     assert.equal(report.items.find((row) => row.tagId === first.id)?.expenses, 250);
     assert.equal(report.items.find((row) => row.tagId === second.id)?.expenses, 100);
+    assert.deepEqual(
+      report.items.find((row) => row.tagId === first.id),
+      {
+        tagId: first.id,
+        income: 0,
+        expenses: 250,
+        transfers: 450.23,
+        balance: -250,
+      },
+    );
+    assert.deepEqual(
+      report.items.find((row) => row.tagId === second.id),
+      {
+        tagId: second.id,
+        income: 0,
+        expenses: 100,
+        transfers: 450.23,
+        balance: -100,
+      },
+    );
+    assert.ok(
+      (await tagService.report("2026-11", owner.id)).items.every((row) => row.transfers === 0),
+    );
+    assert.equal((await tagService.report("2026-10", stranger.id)).items[0].transfers, 0);
     const december = (
       await service.listTransactions(
         owner.id,

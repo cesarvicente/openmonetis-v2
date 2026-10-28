@@ -166,6 +166,10 @@ submissão duplicada; pagamento de fatura e seu efeito persistido. Requisições
 os dados de teste compartilham os cookies do contexto do navegador. O cenário de falha intercepta
 apenas a gravação que falha; as operações bem-sucedidas usam a API e o PostgreSQL reais.
 
+O relatório de etiquetas verifica o total das transferências sem duplicar os dois lançamentos,
+preservando receitas, despesas e resultado nas visualizações desktop e celular, inclusive após
+recarregar a página e consultar outro mês.
+
 Os três cenários de passkeys usam WebAuthn do Chromium com um autenticador virtual CTAP2 e
 verificação criptográfica real do Better Auth. Cobrem cadastro, login sem senha, rejeição da
 repetição da mesma resposta, renomeação, remoção, login com credencial revogada, isolamento
@@ -201,8 +205,8 @@ de funções. Esses limites preservam a base medida nesta etapa; alterações fu
 a cobertura onde mudam comportamento. O relatório mede somente a suíte sem banco, sem somar
 artificialmente as execuções de integração.
 
-Na última execução, os 622 testes sem banco passaram. A cobertura conjunta de domínio/services
-foi de **91,59% das linhas/statements, 82,61% das ramificações e 89,54% das funções**.
+Na última execução, os 624 testes sem banco passaram. A cobertura conjunta de domínio/services
+foi de **91,60% das linhas/statements, 82,64% das ramificações e 89,54% das funções**.
 
 | Service | Linhas | Ramificações | Funções |
 | --- | ---: | ---: | ---: |

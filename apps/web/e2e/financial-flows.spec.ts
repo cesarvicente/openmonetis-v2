@@ -226,3 +226,67 @@ test("paying an invoice updates its status and creates the account posting", asy
     ]),
   );
 });
+
+test("tag reports count transfers once on desktop and mobile without changing the result", async ({
+  page,
+}) => {
+  const request = page.request;
+  const user = await seed(request);
+  const tag = await data<{ id: string }>(request, "/tags", { name: "Viagem" });
+  const destination = await data<{ id: string }>(request, "/accounts", {
+    name: "Destination account",
+    type: "checking",
+  });
+  await data(request, "/transactions", {
+    type: "expense",
+    paymentMethod: "pix",
+    name: "Tagged expense",
+    amount: 25.5,
+    purchaseDate: "2026-10-16",
+    personId: user.personId,
+    categoryId: user.categoryId,
+    accountId: user.accountId,
+    tagIds: [tag.id],
+  });
+  for (const amount of [287.15, 163.08]) {
+    await data(request, "/transactions", {
+      type: "transfer",
+      paymentMethod: "bank_transfer",
+      name: "Tagged transfer",
+      amount,
+      purchaseDate: "2026-10-16",
+      personId: user.personId,
+      sourceAccountId: user.accountId,
+      destinationAccountId: destination.id,
+      tagIds: [tag.id],
+      isSettled: false,
+    });
+  }
+  await page.goto("/tags?period=2026-10");
+  await expect(
+    page.getByRole("columnheader", { name: "Transferências", exact: true }),
+  ).toBeVisible();
+  const row = page.getByRole("row").filter({ hasText: "Viagem" });
+  await expect(row.getByRole("cell").nth(1)).toHaveText(/R\$\s*0,00/);
+  await expect(row.getByRole("cell").nth(2)).toHaveText(/R\$\s*25,50/);
+  await expect(row.getByRole("cell").nth(3)).toHaveText(/R\$\s*450,23/);
+  await expect(row.getByRole("cell").nth(4)).toHaveText(/-R\$\s*25,50/);
+  await page.reload();
+  await expect(row.getByRole("cell").nth(3)).toHaveText(/R\$\s*450,23/);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  const card = page.getByRole("list", { name: "Etiquetas", exact: true }).getByRole("listitem");
+  await expect(card).toBeVisible();
+  const mobileValue = (label: string) =>
+    card
+      .locator("dl > div")
+      .filter({ has: page.locator("dt", { hasText: label }) })
+      .locator("dd");
+  await expect(mobileValue("Receitas")).toHaveText(/R\$\s*0,00/);
+  await expect(mobileValue("Despesas")).toHaveText(/R\$\s*25,50/);
+  await expect(mobileValue("Transferências")).toHaveText(/R\$\s*450,23/);
+  await expect(mobileValue("Resultado")).toHaveText(/-R\$\s*25,50/);
+  await page.goto("/tags?period=2026-11");
+  await expect(mobileValue("Transferências")).toHaveText(/R\$\s*0,00/);
+  await expect(mobileValue("Resultado")).toHaveText(/R\$\s*0,00/);
+});

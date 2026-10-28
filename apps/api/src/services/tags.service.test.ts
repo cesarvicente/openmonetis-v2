@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { OpenAPIHono } from "@hono/zod-openapi";
-import { CreateTagInputSchema, TagIdsSchema } from "@openmonetis/validators/tags";
+import {
+  CreateTagInputSchema,
+  TagIdsSchema,
+  TagsReportOutputSchema,
+} from "@openmonetis/validators/tags";
 import { errorHandler } from "../middlewares/errors";
 import { createTagsRoute } from "../routes/tags";
 import type { ApiVariables } from "../types/context";
@@ -40,9 +44,14 @@ function fixture() {
       return true;
     },
   };
-  return createTagsService(repository, async (userId) => {
+  return createTagsService(repository, async (userId, period) => {
     assert.equal(userId, owner);
-    return [{ id: "expense", type: "expense", origin: "regular", amount: -12.5, tagIds: [id] }];
+    assert.equal(period, "2026-10");
+    return [
+      { id: "expense", type: "expense", origin: "regular", amount: -12.5, tagIds: [id] },
+      { id: "outgoing", type: "transfer", origin: "regular", amount: -287.15, tagIds: [id] },
+      { id: "incoming", type: "transfer", origin: "regular", amount: 287.15, tagIds: [id] },
+    ];
   });
 }
 test("tag contracts reject duplicate IDs, excessive assignments and empty names", () => {
@@ -92,5 +101,9 @@ test("tag HTTP routes validate input, publish envelopes and expose the report", 
   assert.equal((await app.request("/tags/report?period=invalid")).status, 400);
   const report = await app.request("/tags/report?period=2026-10");
   assert.equal(report.status, 200);
-  assert.equal((await report.json()).data.items[0].balance, -12.5);
+  const reportData = TagsReportOutputSchema.parse((await report.json()).data);
+  assert.deepEqual(reportData, {
+    period: "2026-10",
+    items: [{ tagId: id, income: 0, expenses: 12.5, transfers: 287.15, balance: -12.5 }],
+  });
 });

@@ -16,6 +16,7 @@ import {
 const reportColumns = [
   { key: "income", label: "Receitas" },
   { key: "expenses", label: "Despesas" },
+  { key: "transfers", label: "Transferências" },
   { key: "balance", label: "Resultado" },
 ] as const;
 

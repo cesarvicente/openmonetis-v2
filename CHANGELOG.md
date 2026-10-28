@@ -7,10 +7,21 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 
 ## [Unreleased]
 
+### Adicionado
+
+- Coluna Transferências no relatório mensal de etiquetas, em desktop e celular, contando cada
+  movimentação entre contas uma vez, sem alterar receitas, despesas ou resultado.
+
 ### Alterado
 
 - Fluxo de contribuição e release separa commits por mudança, com registros em `Unreleased`,
   do fechamento da versão, que consolida o changelog e valida o conjunto antes da publicação.
+
+### Notas de atualização
+
+- API: `GET /tags/report` inclui `transfers` em cada item, com zero quando não há transferências.
+  Clientes com validação estrita da resposta devem aceitar esse novo campo numérico, que não
+  compõe `income`, `expenses` nem `balance`.
 
 ## [0.11.1] - 2026-10-21
 

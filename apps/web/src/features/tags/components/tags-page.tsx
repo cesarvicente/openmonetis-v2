@@ -87,9 +87,10 @@ export function TagsPage({
             />
           </div>
           <p className="text-muted-foreground text-sm">
-            Resultado é a diferença entre receitas e despesas do mês, incluindo pendências. Um
-            lançamento pode aparecer em mais de uma etiqueta; os totais das etiquetas não devem ser
-            somados.
+            Resultado é a diferença entre receitas e despesas do mês, incluindo pendências.
+            Transferências mostram o valor movimentado entre contas, contado uma vez por
+            transferência, sem afetar o resultado. Um lançamento pode aparecer em mais de uma
+            etiqueta; os totais das etiquetas não devem ser somados.
           </p>
           {query.isLoading ? <p role="status">Carregando etiquetas...</p> : null}
           {query.isError ? (
