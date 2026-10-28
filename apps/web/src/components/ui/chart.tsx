@@ -1,7 +1,7 @@
 import * as React from "react";
 import type { TooltipValueType } from "recharts";
 import * as RechartsPrimitive from "recharts";
-
+import { ChartLegendMarker } from "@/components/chart-legend-marker";
 import { cn } from "@/lib/utils";
 
 // Format: { THEME_NAME: CSS_SELECTOR }
@@ -190,12 +190,14 @@ function ChartTooltipContent({
                     {itemConfig?.icon ? (
                       <itemConfig.icon />
                     ) : (
-                      !hideIndicator && (
+                      !hideIndicator &&
+                      (indicator === "dot" ? (
+                        <ChartLegendMarker color={indicatorColor} />
+                      ) : (
                         <div
                           className={cn(
                             "shrink-0 rounded-[2px] border-(--color-border) bg-(--color-bg)",
                             {
-                              "h-2.5 w-2.5": indicator === "dot",
                               "w-1": indicator === "line",
                               "w-0 border-[1.5px] border-dashed bg-transparent":
                                 indicator === "dashed",
@@ -209,7 +211,7 @@ function ChartTooltipContent({
                             } as React.CSSProperties
                           }
                         />
-                      )
+                      ))
                     )}
                     <div
                       className={cn(
@@ -283,12 +285,7 @@ function ChartLegendContent({
               {itemConfig?.icon && !hideIcon ? (
                 <itemConfig.icon />
               ) : (
-                <div
-                  className="h-2 w-2 shrink-0 rounded-[2px]"
-                  style={{
-                    backgroundColor: item.color,
-                  }}
-                />
+                <ChartLegendMarker color={item.color} />
               )}
               {itemConfig?.label}
             </div>

@@ -2,6 +2,7 @@ import type { PersonSettlementSummaryItemOutput } from "@openmonetis/validators/
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { ArrowRight, HandCoins, RefreshCw } from "lucide-react";
+import { ChartLegendMarker } from "@/components/chart-legend-marker";
 import { MoneyValue } from "@/components/money-value";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -153,17 +154,14 @@ function PersonSettlementItem({
       <div className="grid grid-cols-2 gap-3 text-xs">
         <div className="min-w-0">
           <span className="flex items-center gap-1.5 text-muted-foreground">
-            <span aria-hidden="true" className="size-2 rounded-full bg-success" />
+            <ChartLegendMarker className="text-success" />
             Recebido
           </span>
           <MoneyValue amount={balance.coveredAmount} className="mt-1 font-medium text-sm" />
         </div>
         <div className="min-w-0 text-right">
           <span className="flex items-center justify-end gap-1.5 text-muted-foreground">
-            <span
-              aria-hidden="true"
-              className={cn("size-2 rounded-full", isCredit ? "bg-success" : "bg-warning")}
-            />
+            <ChartLegendMarker className={isCredit ? "text-success" : "text-warning"} />
             {isCredit ? "Crédito" : "Falta receber"}
           </span>
           <MoneyValue

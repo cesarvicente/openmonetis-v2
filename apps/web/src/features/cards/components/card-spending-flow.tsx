@@ -2,6 +2,7 @@ import type { CardOutput } from "@openmonetis/validators/cards";
 import { ChartNoAxesCombined } from "lucide-react";
 import { useState } from "react";
 import { Bar, CartesianGrid, ComposedChart, Line, ReferenceLine, XAxis } from "recharts";
+import { ChartLegendMarker } from "@/components/chart-legend-marker";
 import { MoneyValue } from "@/components/money-value";
 import { usePrivacyMode } from "@/components/privacy-provider";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -125,7 +126,7 @@ export function CardSpendingFlow({
                 </ChartContainer>
                 <div className="mt-2 flex items-center justify-center gap-4 text-muted-foreground text-xs">
                   <span className="flex items-center gap-1.5">
-                    <span aria-hidden="true" className="size-2 rounded-sm bg-brand/50" />
+                    <ChartLegendMarker className="text-brand/50" />
                     No dia
                   </span>
                   <span className="flex items-center gap-1.5">

@@ -1,6 +1,7 @@
 import type { InstallmentsReportOutput } from "@openmonetis/validators/installments";
 import { ChartColumn, Info } from "lucide-react";
 import { Bar, CartesianGrid, Cell, ComposedChart, Line, XAxis, YAxis } from "recharts";
+import { ChartLegendMarker } from "@/components/chart-legend-marker";
 import { MoneyValue } from "@/components/money-value";
 import { usePrivacyMode } from "@/components/privacy-provider";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -169,7 +170,7 @@ export function InstallmentsMonthlyChart({ report, isFetching }: InstallmentsMon
             )}
           >
             <span className="flex items-center gap-1.5">
-              <span className="size-2.5 rounded-sm bg-brand" />
+              <ChartLegendMarker className="text-brand" />
               Valor das parcelas
             </span>
             <span className="flex items-center gap-1.5">

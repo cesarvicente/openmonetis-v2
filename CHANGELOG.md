@@ -22,6 +22,10 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 
 ### Alterado
 
+- Tema escuro com tons quentes e maior contraste, fonte Geist na interface e marcadores de legenda
+  padronizados nos gráficos. Receitas, despesas e balanço do Dashboard aparecem em barras
+  empilhadas e os destaques da Distribuição financeira usam cartões compactos.
+
 - Fluxo de contribuição e release separa commits por mudança, com registros em `Unreleased`,
   do fechamento da versão, que consolida o changelog e valida o conjunto antes da publicação.
 

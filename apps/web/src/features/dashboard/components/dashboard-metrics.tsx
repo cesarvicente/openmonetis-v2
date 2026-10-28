@@ -279,7 +279,7 @@ function MetricComparison({
         <span
           className={cn(
             "inline-flex items-center gap-1 tabular-nums",
-            !subtle && "rounded-full bg-muted px-2 py-0.5 font-medium",
+            !subtle && "font-medium",
             !subtle && isPositive && "text-success",
             !subtle && isNegative && "text-destructive",
           )}

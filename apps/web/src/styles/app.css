@@ -111,31 +111,32 @@
 }
 
 .dark {
-  --background: oklch(17.722% 0.002 106.763);
-  --foreground: oklch(96.835% 0.00612 75.134);
-  --card: color-mix(in srgb, var(--foreground) 4%, var(--background));
+  --background: oklch(20.823% 0.00866 59.154); /* #1b1714 */
+  --foreground: oklch(96.936% 0.00962 72.662); /* #f9f4ee */
+  --card: oklch(24.084% 0.01032 80.604); /* #221f1a */
   --card-foreground: var(--foreground);
-  --popover: color-mix(in srgb, var(--foreground) 7%, var(--background));
+  --popover: oklch(26.709% 0.01085 73.458); /* #292520 */
   --popover-foreground: var(--foreground);
   --primary: var(--brand-strong);
   --primary-foreground: var(--palette-charcoal);
   --secondary: color-mix(in srgb, var(--foreground) 11%, var(--background));
   --secondary-foreground: var(--foreground);
   --muted: color-mix(in srgb, var(--foreground) 9%, var(--background));
-  --muted-foreground: color-mix(in srgb, var(--foreground) 68%, var(--background));
+  --muted-foreground: oklch(70.256% 0.00728 53.401); /* #a39e9b */
   --accent: color-mix(in srgb, var(--brand) 14%, var(--popover));
   --accent-foreground: var(--foreground);
-  --destructive: oklch(72.97% 0.16638 25.828);
+  --destructive: oklch(64.427% 0.14933 30.183); /* #d96554 */
   --info: oklch(74.732% 0.12972 272.274);
-  --success: oklch(76.781% 0.12333 156.578);
+  --success: oklch(66.632% 0.11324 147.513); /* #61a76b */
   --warning: oklch(81.758% 0.11763 68.9);
-  --brand-strong: oklch(76.042% 0.16904 61.306);
+  --brand-strong: oklch(74.356% 0.14984 57.814); /* #f1913e */
+  --brand: var(--brand-strong);
   --brand-foreground: var(--palette-charcoal);
-  --border: color-mix(in srgb, var(--foreground) 10%, var(--background));
+  --border: oklch(30.799% 0.0091 67.48); /* #332f2b */
   --input: color-mix(in srgb, var(--foreground) 25%, var(--background));
   --ring: var(--info);
   --overlay: color-mix(in srgb, black 58%, transparent);
-  --chart-1: oklch(78.088% 0.14307 51.443);
+  --chart-1: var(--brand-strong);
   --chart-2: oklch(74.537% 0.13059 270.931);
   --chart-3: var(--success);
   --chart-4: oklch(74.853% 0.11425 315.196);

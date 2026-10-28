@@ -3,7 +3,7 @@ import { Link } from "@tanstack/react-router";
 import { ChevronRight, Layers, TrendingDown, TrendingUp } from "lucide-react";
 import type { ReactNode } from "react";
 import { MoneyValue } from "@/components/money-value";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { CategoryIcon } from "@/features/categories/category-icons";
 import { distributionCategoryLabel } from "../financial-distribution.presentation";
 import { FinancialDistributionPercentage } from "./financial-distribution-percentage";
@@ -22,23 +22,19 @@ type TileProps = {
 
 function HighlightTile({ label, icon, title, amount, percentage, percentageLabel }: TileProps) {
   return (
-    <div className="grid min-w-0 content-between gap-4 rounded-lg border bg-muted/20 p-4">
-      <div className="grid gap-3">
-        <p className="flex items-center gap-2 text-muted-foreground text-xs">
-          <span aria-hidden="true" className="grid size-6 place-items-center rounded-full bg-muted">
-            {icon}
-          </span>
-          {label}
-        </p>
-        <div className="min-w-0 font-medium leading-snug">{title}</div>
-      </div>
-      <div className="grid gap-1">
-        <MoneyValue amount={amount} className="text-2xl" />
-        <span className="text-muted-foreground text-xs">
-          <FinancialDistributionPercentage value={percentage} /> {percentageLabel}
+    <Card className="min-w-0 gap-1 px-5 py-4">
+      <p className="flex items-center gap-1.5 text-muted-foreground text-xs">
+        <span aria-hidden="true" className="shrink-0">
+          {icon}
         </span>
-      </div>
-    </div>
+        {label}
+      </p>
+      <div className="min-w-0 py-1 font-medium text-sm leading-snug">{title}</div>
+      <MoneyValue amount={amount} className="font-semibold text-xl" />
+      <span className="text-muted-foreground text-xs">
+        <FinancialDistributionPercentage value={percentage} /> {percentageLabel}
+      </span>
+    </Card>
   );
 }
 
@@ -54,8 +50,8 @@ function CategoryTitle({
   const label = distributionCategoryLabel(category);
   const content = (
     <>
-      <span className="grid size-8 shrink-0 place-items-center rounded-full bg-muted text-muted-foreground">
-        <CategoryIcon name={category.icon} className="size-4" />
+      <span className="grid size-6 shrink-0 place-items-center rounded-full bg-muted text-muted-foreground">
+        <CategoryIcon name={category.icon} className="size-3.5" />
       </span>
       <span className="min-w-0 flex-1 truncate">{label}</span>
     </>
@@ -91,69 +87,61 @@ export function FinancialDistributionHighlights({ report, personScope }: Props) 
     );
 
   return (
-    <Card className="min-w-0 gap-0 pt-0">
-      <CardHeader className="border-b py-5">
-        <CardTitle>
-          <h2>Destaques do mês</h2>
-        </CardTitle>
-        <CardDescription>
-          As categorias que mais pesam nas suas receitas e despesas.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="pt-5">
-        {largestExpense || largestIncome ? (
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {largestExpense ? (
-              <HighlightTile
-                label="Maior categoria de despesa"
-                icon={<TrendingDown className="size-3.5" />}
-                title={
-                  <CategoryTitle
-                    category={largestExpense}
-                    period={report.period}
-                    personScope={personScope}
-                  />
-                }
-                amount={largestExpense.amount}
-                percentage={largestExpense.percentage}
-                percentageLabel="das despesas"
-              />
-            ) : null}
-            {leadingExpenses.length > 1 ? (
-              <HighlightTile
-                label="Duas maiores despesas juntas"
-                icon={<Layers className="size-3.5" />}
-                title={
-                  <p className="line-clamp-2">
-                    {leadingExpenses.map(distributionCategoryLabel).join(" e ")}
-                  </p>
-                }
-                amount={report.leadingExpensesAmount}
-                percentage={report.leadingExpensesPercentage}
-                percentageLabel="das despesas"
-              />
-            ) : null}
-            {largestIncome ? (
-              <HighlightTile
-                label="Maior fonte de receita"
-                icon={<TrendingUp className="size-3.5" />}
-                title={
-                  <CategoryTitle
-                    category={largestIncome}
-                    period={report.period}
-                    personScope={personScope}
-                  />
-                }
-                amount={largestIncome.amount}
-                percentage={largestIncome.percentage}
-                percentageLabel="das receitas"
-              />
-            ) : null}
-          </div>
-        ) : (
+    <section aria-label="Destaques do mês" className="min-w-0">
+      {largestExpense || largestIncome ? (
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {largestExpense ? (
+            <HighlightTile
+              label="Maior categoria de despesa"
+              icon={<TrendingDown className="size-3.5" />}
+              title={
+                <CategoryTitle
+                  category={largestExpense}
+                  period={report.period}
+                  personScope={personScope}
+                />
+              }
+              amount={largestExpense.amount}
+              percentage={largestExpense.percentage}
+              percentageLabel="das despesas"
+            />
+          ) : null}
+          {leadingExpenses.length > 1 ? (
+            <HighlightTile
+              label="Duas maiores despesas juntas"
+              icon={<Layers className="size-3.5" />}
+              title={
+                <p className="line-clamp-2">
+                  {leadingExpenses.map(distributionCategoryLabel).join(" e ")}
+                </p>
+              }
+              amount={report.leadingExpensesAmount}
+              percentage={report.leadingExpensesPercentage}
+              percentageLabel="das despesas"
+            />
+          ) : null}
+          {largestIncome ? (
+            <HighlightTile
+              label="Maior fonte de receita"
+              icon={<TrendingUp className="size-3.5" />}
+              title={
+                <CategoryTitle
+                  category={largestIncome}
+                  period={report.period}
+                  personScope={personScope}
+                />
+              }
+              amount={largestIncome.amount}
+              percentage={largestIncome.percentage}
+              percentageLabel="das receitas"
+            />
+          ) : null}
+        </div>
+      ) : (
+        <Card className="px-5 py-4">
           <p className="text-muted-foreground text-sm">Nenhuma movimentação neste período.</p>
-        )}
-      </CardContent>
-    </Card>
+        </Card>
+      )}
+    </section>
   );
 }

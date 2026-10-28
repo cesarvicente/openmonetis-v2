@@ -2,6 +2,7 @@ import type { AccountCashFlowOutput } from "@openmonetis/validators/accounts";
 import { useQuery } from "@tanstack/react-query";
 import { ChartNoAxesCombined } from "lucide-react";
 import { Bar, CartesianGrid, ComposedChart, Line, ReferenceLine, XAxis, YAxis } from "recharts";
+import { ChartLegendMarker } from "@/components/chart-legend-marker";
 import { MoneyValue } from "@/components/money-value";
 import { usePrivacyMode } from "@/components/privacy-provider";
 import { Button } from "@/components/ui/button";
@@ -232,19 +233,11 @@ function FlowChart({
       </ChartContainer>
       <div className="mt-2 flex items-center justify-center gap-4 text-muted-foreground text-xs">
         <span className="flex items-center gap-1.5">
-          <span
-            aria-hidden="true"
-            className="size-2 rounded-sm"
-            style={{ backgroundColor: chartConfig.income.color }}
-          />
+          <ChartLegendMarker color={chartConfig.income.color} />
           Entradas
         </span>
         <span className="flex items-center gap-1.5">
-          <span
-            aria-hidden="true"
-            className="size-2 rounded-sm"
-            style={{ backgroundColor: chartConfig.expenses.color }}
-          />
+          <ChartLegendMarker color={chartConfig.expenses.color} />
           Saídas
         </span>
         <span className="flex items-center gap-1.5">

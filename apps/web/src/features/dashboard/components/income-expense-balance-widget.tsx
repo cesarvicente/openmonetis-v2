@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { ArrowRight, LineChart, RefreshCw } from "lucide-react";
 import { Bar, CartesianGrid, ComposedChart, Line, ReferenceLine, XAxis } from "recharts";
+import { ChartLegendMarker } from "@/components/chart-legend-marker";
 import { MoneyValue } from "@/components/money-value";
 import { usePrivacyMode } from "@/components/privacy-provider";
 import { Button } from "@/components/ui/button";
@@ -121,7 +122,10 @@ function FinancialHistoryChart({
                 labelFormatter={(value) => formatDashboardPeriod(String(value))}
                 formatter={(value, name) => (
                   <div className="flex min-w-44 items-center justify-between gap-5">
-                    <span className="text-muted-foreground">
+                    <span className="flex items-center gap-2 text-muted-foreground">
+                      <ChartLegendMarker
+                        color={chartConfig[name as keyof typeof chartConfig]?.color}
+                      />
                       {chartConfig[name as keyof typeof chartConfig]?.label}
                     </span>
                     <MoneyValue amount={Number(value)} className="font-medium" />
@@ -131,17 +135,18 @@ function FinancialHistoryChart({
             }
             cursor={{ fill: "var(--muted)", opacity: 0.35 }}
           />
-          <Bar dataKey="income" fill="var(--color-income)" maxBarSize={40} radius={[3, 3, 0, 0]} />
+          <Bar dataKey="income" fill="var(--color-income)" maxBarSize={46} stackId="history" />
           <Bar
             dataKey="expenses"
             fill="var(--color-expenses)"
-            maxBarSize={40}
-            radius={[3, 3, 0, 0]}
+            maxBarSize={46}
+            radius={[4, 4, 0, 0]}
+            stackId="history"
           />
           <Line
             activeDot={{ r: 4 }}
             dataKey="balance"
-            dot={{ fill: "var(--color-balance)", r: 2.5 }}
+            dot={{ r: 2.5 }}
             stroke="var(--color-balance)"
             strokeWidth={2}
             type="linear"
@@ -149,10 +154,10 @@ function FinancialHistoryChart({
         </ComposedChart>
       </ChartContainer>
 
-      <div className="mt-2 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-muted-foreground text-xs">
-        <ChartLegendItem className="bg-success" label="Receita" />
-        <ChartLegendItem className="bg-destructive" label="Despesa" />
-        <ChartLegendItem className="h-0.5 rounded-none bg-brand" label="Balanço" />
+      <div className="mt-2 flex flex-wrap items-center justify-center gap-x-5 gap-y-1 text-muted-foreground text-xs">
+        {Object.values(chartConfig).map((item) => (
+          <ChartLegendItem color={item.color} key={item.label} label={item.label} />
+        ))}
       </div>
       {isPrivacyModeEnabled ? (
         <span className="sr-only">Gráfico oculto pelo modo privacidade.</span>
@@ -161,10 +166,10 @@ function FinancialHistoryChart({
   );
 }
 
-function ChartLegendItem({ className, label }: { className: string; label: string }) {
+function ChartLegendItem({ color, label }: { color: string; label: string }) {
   return (
     <span className="flex items-center gap-1.5">
-      <span aria-hidden="true" className={cn("size-2 rounded-sm", className)} />
+      <ChartLegendMarker color={color} />
       {label}
     </span>
   );

@@ -2,6 +2,7 @@ import type { DashboardPaymentStatusOutput } from "@openmonetis/validators/dashb
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { ArrowDownLeft, ArrowRight, ArrowUpRight, RefreshCw, WalletCards } from "lucide-react";
+import { ChartLegendMarker } from "@/components/chart-legend-marker";
 import { MoneyValue } from "@/components/money-value";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -129,14 +130,14 @@ function PaymentStatusSection({
       <div className="grid grid-cols-2 gap-3 text-xs">
         <div className="min-w-0">
           <span className="flex items-center gap-1.5 text-muted-foreground">
-            <span aria-hidden="true" className="size-2 rounded-full bg-success" />
+            <ChartLegendMarker className="text-success" />
             {confirmedLabel}
           </span>
           <MoneyValue amount={category.confirmed} className="mt-1 font-medium text-sm" />
         </div>
         <div className="min-w-0 text-right">
           <span className="flex items-center justify-end gap-1.5 text-muted-foreground">
-            <span aria-hidden="true" className="size-2 rounded-full bg-warning" />
+            <ChartLegendMarker className="text-warning" />
             {pendingLabel}
           </span>
           {adminPersonSlug ? (

@@ -1,5 +1,6 @@
 import { ChartPie } from "lucide-react";
 import { Pie, PieChart, Tooltip } from "recharts";
+import { ChartLegendMarker } from "@/components/chart-legend-marker";
 import { MoneyValue } from "@/components/money-value";
 import { usePrivacyMode } from "@/components/privacy-provider";
 import { type ChartConfig, ChartContainer } from "@/components/ui/chart";
@@ -96,11 +97,7 @@ export function DashboardDistributionChart({
       <div className="grid w-full grid-cols-2 gap-2 sm:w-auto sm:min-w-35 sm:grid-cols-1">
         {chartData.map((entry) => (
           <div className="flex items-center gap-2" key={entry.key}>
-            <span
-              aria-hidden="true"
-              className="size-3 shrink-0 rounded-sm"
-              style={{ backgroundColor: entry.fill }}
-            />
+            <ChartLegendMarker color={entry.fill} />
             <span className="truncate text-muted-foreground text-xs">{entry.label}</span>
           </div>
         ))}

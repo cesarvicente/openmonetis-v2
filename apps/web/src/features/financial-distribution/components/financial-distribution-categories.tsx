@@ -2,6 +2,7 @@ import type { FinancialDistributionOutput } from "@openmonetis/validators/financ
 import { Link } from "@tanstack/react-router";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { useState } from "react";
+import { ChartLegendMarker } from "@/components/chart-legend-marker";
 import { MoneyValue } from "@/components/money-value";
 import { usePrivacyMode } from "@/components/privacy-provider";
 import { Button } from "@/components/ui/button";
@@ -113,11 +114,7 @@ export function FinancialDistributionCategories({
         <CategoryIcon name={row.icon} className="size-4" />
       </span>
       {!row.detail && colors.has(row.key) ? (
-        <span
-          aria-hidden="true"
-          className="size-2 shrink-0 rounded-full"
-          style={{ backgroundColor: colors.get(row.key) }}
-        />
+        <ChartLegendMarker color={colors.get(row.key)} />
       ) : null}
       {row.categoryId && !("direct" in row) ? (
         <Link
@@ -175,7 +172,7 @@ export function FinancialDistributionCategories({
               Total de {type === "expense" ? "despesas" : "receitas"}
             </dt>
             <dd>
-              <MoneyValue amount={total} className="text-2xl" />
+              <MoneyValue amount={total} className="text-2xl font-semibold" />
             </dd>
           </dl>
           <div className="flex items-center gap-3">

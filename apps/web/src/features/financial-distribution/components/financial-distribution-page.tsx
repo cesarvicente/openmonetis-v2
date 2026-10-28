@@ -5,7 +5,6 @@ import {
   ArrowUpRight,
   Download,
   GitFork,
-  Info,
   PiggyBank,
   RefreshCw,
   RotateCcw,
@@ -25,7 +24,6 @@ import { Card } from "@/components/ui/card";
 import { SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { peopleQueryOptions } from "@/features/people/people.queries";
 import { cn } from "@/lib/utils";
 import { useExportFinancialDistributionMutation } from "../financial-distribution.mutations";
@@ -106,10 +104,10 @@ export function FinancialDistributionPage({ filters, onChange }: Props) {
           />
           <section
             aria-label="Filtros do relatório"
-            className="flex min-w-0 flex-col gap-3 rounded-lg border bg-card p-4 sm:flex-row sm:flex-wrap sm:items-end"
+            className="flex min-w-0 flex-col gap-4 rounded-lg border bg-card p-4 sm:flex-row sm:flex-wrap sm:items-end"
           >
             <div className="grid min-w-0 gap-1.5 sm:w-64">
-              <span className="text-muted-foreground text-xs">Pessoa</span>
+              <span className="font-medium text-muted-foreground text-xs">Pessoa</span>
               <Select
                 value={filters.personScope}
                 onValueChange={(value) => {
@@ -144,39 +142,29 @@ export function FinancialDistributionPage({ filters, onChange }: Props) {
               ) : null}
             </div>
             <div className="grid gap-1.5">
-              <span className="flex items-center gap-1 text-muted-foreground text-xs">
-                Composição
-                <Tooltip>
-                  <TooltipTrigger
-                    render={
-                      <button
-                        type="button"
-                        aria-label="Entenda a composição dos valores"
-                        className="rounded-full text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
-                      />
-                    }
-                  >
-                    <Info aria-hidden="true" className="size-3.5" />
-                  </TooltipTrigger>
-                  <TooltipContent className="max-w-72 text-pretty">
-                    {filters.mode === "actual"
-                      ? "Valores lançados no período, incluindo os valores efetivos das baixas. Lançado não significa pago."
-                      : "Valores lançados e ocorrências previstas de recorrências no período, sem duplicar as já confirmadas."}
-                  </TooltipContent>
-                </Tooltip>
-              </span>
-              <Tabs
-                value={filters.mode}
-                onValueChange={(value) => {
-                  if (value === "actual" || value === "forecast")
-                    onChange({ ...filters, mode: value });
-                }}
-              >
-                <TabsList aria-label="Composição dos valores">
-                  <TabsTrigger value="actual">Lançados</TabsTrigger>
-                  <TabsTrigger value="forecast">Com previsões</TabsTrigger>
-                </TabsList>
-              </Tabs>
+              <span className="font-medium text-muted-foreground text-xs">Composição</span>
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                <Tabs
+                  value={filters.mode}
+                  onValueChange={(value) => {
+                    if (value === "actual" || value === "forecast")
+                      onChange({ ...filters, mode: value });
+                  }}
+                >
+                  <TabsList aria-label="Composição dos valores">
+                    <TabsTrigger value="actual">Lançados</TabsTrigger>
+                    <TabsTrigger value="forecast">Com previsões</TabsTrigger>
+                  </TabsList>
+                </Tabs>
+                <p
+                  className="max-w-xs text-muted-foreground text-xs leading-snug"
+                  aria-live="polite"
+                >
+                  {filters.mode === "actual"
+                    ? "Só o que já foi lançado. Lançado não significa pago."
+                    : "Inclui recorrências previstas, sem duplicar as já lançadas."}
+                </p>
+              </div>
             </div>
             {filters.personScope !== "admin" || filters.mode !== "actual" ? (
               <Button
