@@ -3,6 +3,7 @@ import {
   ClipboardList,
   CreditCard,
   FileChartColumn,
+  GitFork,
   Goal,
   HandCoins,
   Inbox,
@@ -136,6 +137,13 @@ export const navSections: NavSection[] = [
   {
     label: "Relatórios",
     items: [
+      {
+        href: "/reports/financial-distribution",
+        label: "Distribuição financeira",
+        description: "Receitas e despesas por categoria",
+        icon: <GitFork className="size-4" aria-hidden="true" />,
+        preservePeriod: true,
+      },
       {
         href: "/reports/category-trends",
         label: "Evolução por categoria",

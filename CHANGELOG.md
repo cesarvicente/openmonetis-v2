@@ -9,6 +9,14 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 
 ### Adicionado
 
+- Relatório Distribuição financeira com fluxo entre receitas e categorias de despesa, saldo e
+  déficit do mês, filtros por pessoa e previsões, subcategorias e exportação CSV.
+  Inclui comparação com o mês anterior, taxa de poupança calculada pela API, destaques em largura
+  total, categorias menores agrupadas em "Outras categorias", versão em listas para telas
+  pequenas, destaque ao passar o mouse no gráfico e exportação do gráfico como imagem PNG.
+  Contas fora do saldo total são excluídas automaticamente, incluindo rendimentos, despesas
+  de cartão e recorrências, respeitando a conta efetiva das baixas.
+
 - Coluna Transferências no relatório mensal de etiquetas, em desktop e celular, contando cada
   movimentação entre contas uma vez, sem alterar receitas, despesas ou resultado.
 
@@ -23,6 +31,10 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
   avisos de mudança entre estado controlado e não controlado.
 
 ### Notas de atualização
+
+- API: nova rota autenticada `GET /reports/financial-distribution`, com filtros `period`,
+  `personScope` (padrão `admin`) e `mode` (padrão `actual`). Clientes podem consumir o relatório
+  pelo contrato OpenAPI; não há migration ou nova configuração de ambiente.
 
 - API: `GET /tags/report` inclui `transfers` em cada item, com zero quando não há transferências.
   Clientes com validação estrita da resposta devem aceitar esse novo campo numérico, que não

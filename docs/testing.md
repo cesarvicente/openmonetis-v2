@@ -31,6 +31,7 @@ pnpm test:recurring:integration
 pnpm test:settlements:integration
 pnpm test:transactions:integration
 pnpm test:financial-integrity:integration
+pnpm test:financial-distribution:integration
 pnpm test:connections:integration
 pnpm test:imports:integration
 pnpm test:settings:integration
@@ -122,7 +123,7 @@ O S3Mock não valida políticas IAM, privacidade do bucket ou expiração/autent
 A suíte verifica a geração das assinaturas, o prazo configurado e o protocolo de objetos; as
 políticas e o CORS do provedor real precisam da suíte optativa abaixo e de revisão operacional.
 
-Com PostgreSQL e S3Mock disponíveis, `pnpm test:integration` executa todas as treze suítes em
+Com PostgreSQL e S3Mock disponíveis, `pnpm test:integration` executa todas as quatorze suítes em
 processos separados e informa falha se qualquer uma não passar.
 
 ## Storage no provedor real
@@ -170,6 +171,10 @@ O relatório de etiquetas verifica o total das transferências sem duplicar os d
 preservando receitas, despesas e resultado nas visualizações desktop e celular, inclusive após
 recarregar a página e consultar outro mês.
 
+Distribuição financeira verifica fluxos e totais, previsões, subcategorias, filtros, exportações
+CSV e PNG, privacidade e visualização mobile. Sua integração verifica isolamento entre usuários,
+rateios, valores efetivos e contas excluídas, incluindo a conta de baixa das recorrências.
+
 Os seletores responsivos também são verificados ao alternar entre desktop e celular com a lista
 aberta, sem perder o estado nem emitir avisos de controle do componente.
 
@@ -208,8 +213,8 @@ de funções. Esses limites preservam a base medida nesta etapa; alterações fu
 a cobertura onde mudam comportamento. O relatório mede somente a suíte sem banco, sem somar
 artificialmente as execuções de integração.
 
-Na última execução, os 624 testes sem banco passaram. A cobertura conjunta de domínio/services
-foi de **91,60% das linhas/statements, 82,64% das ramificações e 89,54% das funções**.
+Na última execução, os 639 testes sem banco passaram. A cobertura conjunta de domínio/services
+foi de **91,76% das linhas/statements, 83,27% das ramificações e 89,72% das funções**.
 
 | Service | Linhas | Ramificações | Funções |
 | --- | ---: | ---: | ---: |

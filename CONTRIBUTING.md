@@ -67,7 +67,7 @@ limites atuais e as próximas prioridades.
 ### Testes de integração
 
 `pnpm test` executa a suíte sem banco; as integrações PostgreSQL são comandos separados. Execute as
-suítes relacionadas à mudança, além dos comandos acima. A CI executa todas as treze integrações.
+suítes relacionadas à mudança, além dos comandos acima. A CI executa todas as quatorze integrações.
 
 | Mudança | Comando | Cobertura principal |
 | --- | --- | --- |
@@ -78,6 +78,7 @@ suítes relacionadas à mudança, além dos comandos acima. A CI executa todas a
 | Baixas e vencimentos | `pnpm test:settlements:integration` | Valores efetivos, rateios, extratos, desfazimentos, regras de vencimento e snapshots. |
 | Transações e segurança HTTP | `pnpm test:transactions:integration` | API montada com sessões reais, bloqueio de acesso anônimo, isolamento entre usuários, transferências, estornos e concorrência. |
 | Integridade financeira | `pnpm test:financial-integrity:integration` | Baixas e rateios, lotes atômicos, parcelas, recorrências, exportações e permissões de faturas e orçamentos. |
+| Distribuição financeira | `pnpm test:financial-distribution:integration` | Recortes por pessoa, rateios, baixas, previsões, contas fora do saldo e isolamento entre usuários. |
 
 As suítes adicionais de conexões, importação, ajustes, ownership, migrations e storage estão
 listadas em [docs/testing.md](docs/testing.md). Para executar todas, use `pnpm test:integration`

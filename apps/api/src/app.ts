@@ -27,6 +27,7 @@ import { deviceTokensRepository } from "./repositories/device-tokens.repository"
 import { dueDateRulesRepository } from "./repositories/due-date-rules.repository";
 import { establishmentsRepository } from "./repositories/establishments.repository";
 import { externalExpensesRepository } from "./repositories/external-expenses.repository";
+import { financialDistributionRepository } from "./repositories/financial-distribution.repository";
 import { goalsRepository } from "./repositories/goals.repository";
 import { inboxRepository } from "./repositories/inbox.repository";
 import { inboxRulesRepository } from "./repositories/inbox-rules.repository";
@@ -65,6 +66,7 @@ import { createCompanionDeviceRoute, createDeviceTokensRoute } from "./routes/de
 import { createDueDateRulesRoute } from "./routes/due-date-rules";
 import { createEstablishmentsRoute } from "./routes/establishments";
 import { createExternalExpensesRoute } from "./routes/external-expenses";
+import { createFinancialDistributionRoute } from "./routes/financial-distribution";
 import { createGoalsRoute } from "./routes/goals";
 import { createCompanionInboxRoute, createInboxRoute } from "./routes/inbox";
 import { createInboxRulesRoute } from "./routes/inbox-rules";
@@ -101,6 +103,7 @@ import {
   createExternalExpensesService,
   synchronizeRecurringExternalExpenses,
 } from "./services/external-expenses.service";
+import { createFinancialDistributionService } from "./services/financial-distribution.service";
 import { createGoalsService } from "./services/goals.service";
 import { createInboxService } from "./services/inbox.service";
 import { createInboxRulesService } from "./services/inbox-rules.service";
@@ -608,6 +611,12 @@ app.route("/dashboard", dashboardRoute);
 app.route("/invoices", invoicesRoute);
 app.route("/establishments", establishmentsRoute);
 app.route("/attachments", attachmentsRoute);
+app.route(
+  "/reports/financial-distribution",
+  createFinancialDistributionRoute(
+    createFinancialDistributionService(financialDistributionRepository),
+  ),
+);
 app.route("/reports/category-trends", categoryTrendsRoute);
 app.route("/reports/installments", installmentsRoute);
 app.route("/settings", settingsRoute);

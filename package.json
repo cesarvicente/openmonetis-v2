@@ -52,6 +52,7 @@
     "test:e2e": "playwright test",
     "test:coverage": "c8 node scripts/run-tests.mjs",
     "test:integration": "node scripts/run-integration-tests.mjs",
+    "test:financial-distribution:integration": "FINANCIAL_DISTRIBUTION_INTEGRATION_TEST=1 tsx --test apps/api/src/financial-distribution.integration.test.ts",
     "test:financial-integrity:integration": "FINANCIAL_INTEGRITY_INTEGRATION_TEST=1 tsx --test apps/api/src/financial-integrity.integration.test.ts",
     "test:storage:live": "REAL_STORAGE_INTEGRATION_TEST=1 tsx --test apps/api/src/storage-real.integration.test.ts"
   },

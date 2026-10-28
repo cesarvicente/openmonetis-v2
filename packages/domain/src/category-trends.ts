@@ -29,6 +29,7 @@ export type CategoryTrendCategory = {
 };
 
 export type CategoryTrendActualEntry = {
+  excludeFromBalance?: boolean;
   categoryId: string;
   origin?: TransactionOrigin;
   transactionType: TransactionType;
@@ -38,6 +39,9 @@ export type CategoryTrendActualEntry = {
 };
 
 export type CategoryTrendRecurringRule = SettlementAwareRule & {
+  excludeFromBalance?: boolean;
+  occurrenceAccountExclusions?: Record<string, boolean>;
+  isSettled?: boolean | null;
   categoryId: string;
   type: CategoryTrendType;
   amount: string | number;
@@ -117,6 +121,8 @@ export function calculateCategoryTrends(input: {
   categories: readonly CategoryTrendCategory[];
   actualEntries: readonly CategoryTrendActualEntry[];
   recurringRules: readonly CategoryTrendRecurringRule[];
+  recurringOccurrenceScope?: "all" | "settled";
+  excludeHiddenAccounts?: boolean;
 }): CategoryTrendsReport {
   const periods = listPeriods(input.startPeriod, input.endPeriod);
   const lookbackPeriod = addMonthsToPeriod(input.startPeriod, -1);
@@ -150,8 +156,13 @@ export function calculateCategoryTrends(input: {
   const amountsByCategory = new Map<string, Map<string, CategoryPeriodAmounts>>();
 
   for (const entry of input.actualEntries) {
+    if (input.excludeHiddenAccounts && entry.excludeFromBalance) continue;
     if (entry.period < lookbackPeriod || entry.period > input.endPeriod) continue;
-    if (entry.origin === "invoicePayment" || entry.origin === "accountBalanceAdjustment") {
+    if (
+      entry.transactionType === "transfer" ||
+      entry.origin === "invoicePayment" ||
+      entry.origin === "accountBalanceAdjustment"
+    ) {
       continue;
     }
     const category = categoryById.get(entry.categoryId);
@@ -195,6 +206,16 @@ export function calculateCategoryTrends(input: {
         frequency: rule.frequency,
         period: purchasePeriod,
       })) {
+        if (
+          input.excludeHiddenAccounts &&
+          (rule.occurrenceAccountExclusions?.[purchaseDate] ?? rule.excludeFromBalance)
+        )
+          continue;
+        if (
+          input.recurringOccurrenceScope === "settled" &&
+          (rule.occurrenceOverrides?.[purchaseDate]?.isSettled ?? rule.isSettled) !== true
+        )
+          continue;
         const transactionPeriod = deriveTransactionPeriod({
           paymentMethod: rule.paymentMethod,
           purchaseDate,
