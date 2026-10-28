@@ -1,4 +1,5 @@
 import { resolveCardClosingRule } from "./cards";
+import { fromCents, toCents } from "./money";
 import {
   getRecurringDueDate,
   projectRecurringMonthAllocations,
@@ -69,14 +70,6 @@ export type PersonBalance = {
   creditAmount: number;
   status: PersonSettlementStatus;
 };
-
-function toCents(amount: number) {
-  return Math.round(amount * 100);
-}
-
-function fromCents(amount: number) {
-  return amount / 100;
-}
 
 export function calculatePersonBalance(entries: PersonBalanceEntry[]): PersonBalance {
   let assignedCents = 0;

@@ -1,4 +1,5 @@
 import { type DueDateRuleVersion, resolveDueDate } from "./due-date-rules";
+import { fromCents, toCents } from "./money";
 export const cardBrands = ["visa", "mastercard", "elo", "amex", "hipercard", "other"] as const;
 export const cardStatuses = ["active", "inactive"] as const;
 
@@ -329,12 +330,4 @@ function createClampedDate(year: number, monthIndex: number, day: number) {
 
 function toDateString(date: Date) {
   return date.toISOString().slice(0, 10);
-}
-
-function toCents(amount: number) {
-  return Math.round(amount * 100);
-}
-
-function fromCents(amount: number) {
-  return amount / 100;
 }

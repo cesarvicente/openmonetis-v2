@@ -1,5 +1,5 @@
+import { getCurrentPeriodInBrazil } from "@openmonetis/shared/date-time";
 import { createFileRoute } from "@tanstack/react-router";
-import { getCurrentPeriod } from "@/components/month-navigation";
 import { BudgetsPage } from "@/features/budgets/components/budgets-page";
 
 export const Route = createFileRoute("/budgets")({
@@ -11,7 +11,7 @@ export const Route = createFileRoute("/budgets")({
 function BudgetsRoute() {
   const search = Route.useSearch();
   const navigate = Route.useNavigate();
-  const period = search.period ?? getCurrentPeriod();
+  const period = search.period ?? getCurrentPeriodInBrazil();
 
   return (
     <BudgetsPage

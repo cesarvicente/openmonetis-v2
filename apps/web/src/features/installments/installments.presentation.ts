@@ -26,7 +26,7 @@ export function validateInstallmentsSearch(search: Record<string, unknown>): Ins
 
 export function resolveInstallmentsSearch(search: InstallmentsSearch): ListInstallmentsQuery {
   return {
-    period: search.period ?? getCurrentPeriod(),
+    period: search.period ?? getCurrentPeriodInBrazil(),
     status: search.status ?? "open",
   };
 }
@@ -82,7 +82,3 @@ export const installmentSeriesStatusLabels = {
   completed: "Concluída",
   incomplete: "Cronograma incompleto",
 } as const;
-
-function getCurrentPeriod() {
-  return getCurrentPeriodInBrazil();
-}

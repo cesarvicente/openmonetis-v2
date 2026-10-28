@@ -1,3 +1,4 @@
+import { addMonthsToPeriod } from "@openmonetis/domain/transactions";
 import {
   formatDateInBrazil,
   getCurrentPeriodInBrazil,
@@ -15,26 +16,8 @@ import { Button } from "@/components/ui/button";
 import { MonthPicker } from "@/components/ui/month-picker";
 import { cn } from "@/lib/utils";
 
-function periodToDate(period: string) {
-  return periodToSafeInstant(period);
-}
-
-function dateToPeriod(date: Date) {
-  return getCurrentPeriodInBrazil(date);
-}
-
-function shiftPeriod(period: string, amount: number) {
-  const [year, month] = period.split("-").map(Number);
-  const date = new Date(Date.UTC(year, month - 1 + amount, 1, 12));
-  return getCurrentPeriodInBrazil(date);
-}
-
-export function getCurrentPeriod() {
-  return getCurrentPeriodInBrazil();
-}
-
 function formatPeriod(period: string) {
-  const label = formatDateInBrazil(periodToDate(period), {
+  const label = formatDateInBrazil(periodToSafeInstant(period), {
     month: "long",
     year: "numeric",
   });
@@ -43,7 +26,7 @@ function formatPeriod(period: string) {
 }
 
 function formatCompactPeriod(period: string) {
-  const label = formatDateInBrazil(periodToDate(period), {
+  const label = formatDateInBrazil(periodToSafeInstant(period), {
     month: "short",
     year: "numeric",
   }).replace(" de ", " ");
@@ -65,7 +48,7 @@ export function MonthNavigation({
   period,
 }: MonthNavigationProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const currentPeriod = getCurrentPeriod();
+  const currentPeriod = getCurrentPeriodInBrazil();
   const selectedPeriod = isCalendarPeriod(period) ? period : currentPeriod;
   const periodLabel = formatPeriod(selectedPeriod);
 
@@ -105,8 +88,8 @@ export function MonthNavigation({
       >
         <MonthPicker
           key={selectedPeriod}
-          onMonthSelect={(date) => selectPeriod(dateToPeriod(date))}
-          selectedMonth={periodToDate(selectedPeriod)}
+          onMonthSelect={(date) => selectPeriod(getCurrentPeriodInBrazil(date))}
+          selectedMonth={periodToSafeInstant(selectedPeriod)}
         />
       </PopoverContent>
     </Popover>
@@ -128,7 +111,7 @@ export function MonthNavigation({
       <div className="flex min-w-0 items-center">
         <Button
           aria-label="Mês anterior"
-          onClick={() => selectPeriod(shiftPeriod(selectedPeriod, -1))}
+          onClick={() => selectPeriod(addMonthsToPeriod(selectedPeriod, -1))}
           size="icon-sm"
           type="button"
           variant="ghost"
@@ -140,7 +123,7 @@ export function MonthNavigation({
 
         <Button
           aria-label="Próximo mês"
-          onClick={() => selectPeriod(shiftPeriod(selectedPeriod, 1))}
+          onClick={() => selectPeriod(addMonthsToPeriod(selectedPeriod, 1))}
           size="icon-sm"
           type="button"
           variant="ghost"

@@ -1,3 +1,4 @@
+import { getCurrentPeriodInBrazil } from "@openmonetis/shared/date-time";
 import type {
   TransactionActionScope,
   TransactionOutput,
@@ -23,7 +24,6 @@ import {
 } from "../transactions.mutations";
 import {
   buildFilterSlugMap,
-  getCurrentPeriod,
   getTransactionMutationErrorMessage,
   parseFilterSlugs,
   type TransactionsSearch,
@@ -76,7 +76,7 @@ export function TransactionsContainer({
   const tagsQuery = useQuery(tagsQueryOptions());
   const peopleQuery = useQuery(peopleQueryOptions());
   const preferencesQuery = useQuery(userPreferencesQueryOptions());
-  const selectedPeriod = search.period ?? getCurrentPeriod();
+  const selectedPeriod = search.period ?? getCurrentPeriodInBrazil();
   const defaultPageSize = preferencesQuery.data?.transactionsPageSize ?? 30;
   const effectivePageSize = search.pageSize ?? defaultPageSize;
   const peopleSlugMap = buildFilterSlugMap(peopleQuery.data ?? []);

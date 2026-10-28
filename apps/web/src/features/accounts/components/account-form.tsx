@@ -10,6 +10,7 @@ import {
 import { useForm } from "@tanstack/react-form";
 import { useId, useState } from "react";
 import { toast } from "sonner";
+import { FieldError } from "@/components/forms/field-error";
 import { MobileFormState } from "@/components/forms/mobile-form-state";
 import { MobileSelect as Select } from "@/components/forms/mobile-select";
 import { MobileSelectContent as SelectContent } from "@/components/forms/mobile-select-content";
@@ -52,18 +53,6 @@ function getInitialValues(account?: AccountOutput | null): FormValues {
 
 function validationMessage(result: { success: boolean }, message: string) {
   return result.success ? undefined : message;
-}
-
-function FieldError({ errors }: { errors: unknown[] }) {
-  const message = errors.find((error): error is string => typeof error === "string");
-
-  if (!message) return null;
-
-  return (
-    <p aria-live="polite" className="text-destructive text-xs" role={message ? "alert" : undefined}>
-      {message}
-    </p>
-  );
 }
 
 export function AccountForm({ account, onCancel, onSubmit }: AccountFormProps) {

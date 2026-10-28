@@ -1,3 +1,4 @@
+import { fromCents, toCents } from "./money";
 import { addMonthsToPeriod } from "./transactions";
 
 export const accountTypes = [
@@ -206,12 +207,4 @@ export function calculateAccountPeriodSummary(input: {
     expenses: fromCents(expenseCents),
     balance: fromCents(balanceCents),
   };
-}
-
-function toCents(amount: number) {
-  return Math.round(amount * 100);
-}
-
-function fromCents(amount: number) {
-  return amount / 100;
 }

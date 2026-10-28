@@ -1,3 +1,4 @@
+import { getCurrentPeriodInBrazil } from "@openmonetis/shared/date-time";
 import type {
   AccountOutput,
   AddAccountYieldInput,
@@ -22,7 +23,6 @@ import { Navbar } from "@/components/navigation/navbar";
 import { TransactionsContainer } from "@/features/transactions/components/transactions-container";
 import {
   formatPeriod,
-  getCurrentPeriod,
   type TransactionsSearch,
 } from "@/features/transactions/transactions.presentation";
 import {
@@ -48,7 +48,7 @@ export function AccountStatementPage({
   search,
   onSearchChange,
 }: AccountStatementPageProps) {
-  const selectedPeriod = search.period ?? getCurrentPeriod();
+  const selectedPeriod = search.period ?? getCurrentPeriodInBrazil();
   const accountQuery = useQuery(accountQueryOptions(accountId, selectedPeriod));
   const adjustBalanceMutation = useAdjustAccountBalanceMutation();
   const addYieldMutation = useAddAccountYieldMutation();
@@ -213,7 +213,7 @@ function AccountStatementSummary({
               <TrendingUp aria-hidden="true" className="size-4" />
               Adicionar rendimento
             </FinancialSummaryAction>
-            {period <= getCurrentPeriod() ? (
+            {period <= getCurrentPeriodInBrazil() ? (
               <FinancialSummaryAction onClick={onAdjustBalance} type="button">
                 <Scale aria-hidden="true" className="size-4" />
                 Ajustar saldo

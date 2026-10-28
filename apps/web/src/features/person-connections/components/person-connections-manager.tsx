@@ -25,6 +25,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { getInitials } from "@/lib/name-presentation";
 import { useRevokePersonConnectionMutation } from "../person-connections.mutations";
 import { personConnectionsQueryOptions } from "../person-connections.queries";
 
@@ -198,14 +199,4 @@ function ConnectionsError({ onRetry }: { onRetry: () => void }) {
       </Button>
     </div>
   );
-}
-
-function getInitials(name: string) {
-  return name
-    .trim()
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((part) => part[0])
-    .join("")
-    .toUpperCase();
 }

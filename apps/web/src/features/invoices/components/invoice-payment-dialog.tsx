@@ -23,6 +23,7 @@ import { Label } from "@/components/ui/label";
 import { SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { parseCurrencyInput } from "@/features/accounts/accounts.presentation";
+import { formatCurrency } from "@/lib/money-presentation";
 import { usePayInvoiceMutation } from "../invoices.mutations";
 
 type InvoiceAccount = DashboardInvoicesOutput["accounts"][number];
@@ -410,8 +411,4 @@ function AccountOption({ account }: { account: InvoiceAccount }) {
       <span className="truncate">{account.name}</span>
     </span>
   );
-}
-
-function formatCurrency(value: number) {
-  return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }

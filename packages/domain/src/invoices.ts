@@ -1,3 +1,4 @@
+import { fromCents, toCents } from "./money";
 export type InvoicePersonMovement = {
   personId: string;
   personName: string;
@@ -98,11 +99,4 @@ export function createInvoiceAdjustmentDraft(
     amount: fromCents(-adjustmentCents).toFixed(2),
     type: "expense",
   };
-}
-
-function toCents(value: number) {
-  return Math.round(value * 100);
-}
-function fromCents(value: number) {
-  return value / 100;
 }

@@ -62,25 +62,17 @@ export function PeriodPicker({
         <MonthPicker
           key={value}
           onMonthSelect={(date) => {
-            onChange(dateToPeriod(date));
+            onChange(getCurrentPeriodInBrazil(date));
             setOpen(false);
           }}
-          selectedMonth={periodToDate(value)}
+          selectedMonth={periodToSafeInstant(value)}
         />
       </PopoverContent>
     </Popover>
   );
 }
 
-function periodToDate(period: string) {
-  return periodToSafeInstant(period);
-}
-
-function dateToPeriod(date: Date) {
-  return getCurrentPeriodInBrazil(date);
-}
-
 function formatPeriod(period: string) {
-  const label = formatDateInBrazil(periodToDate(period), { month: "long", year: "numeric" });
+  const label = formatDateInBrazil(periodToSafeInstant(period), { month: "long", year: "numeric" });
   return `${label.charAt(0).toLocaleUpperCase("pt-BR")}${label.slice(1)}`;
 }

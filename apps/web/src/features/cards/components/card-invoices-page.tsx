@@ -1,3 +1,4 @@
+import { getCurrentPeriodInBrazil } from "@openmonetis/shared/date-time";
 import type { CardOutput, ReplaceCardInput } from "@openmonetis/validators/cards";
 import type { AdjustInvoiceInput, DashboardInvoice } from "@openmonetis/validators/invoices";
 import type { PersonOutput } from "@openmonetis/validators/people";
@@ -53,7 +54,6 @@ import { peopleQueryOptions } from "@/features/people/people.queries";
 import { TransactionsContainer } from "@/features/transactions/components/transactions-container";
 import {
   formatPeriod,
-  getCurrentPeriod,
   type TransactionsSearch,
 } from "@/features/transactions/transactions.presentation";
 import { getCardBrandAsset } from "../card-brand-assets";
@@ -69,7 +69,7 @@ type CardInvoicesPageProps = {
 };
 
 export function CardInvoicesPage({ cardId, search, onSearchChange }: CardInvoicesPageProps) {
-  const selectedPeriod = search.period ?? getCurrentPeriod();
+  const selectedPeriod = search.period ?? getCurrentPeriodInBrazil();
   const cardQuery = useQuery(cardQueryOptions(cardId, selectedPeriod));
   const invoicesQuery = useQuery(invoicesQueryOptions(selectedPeriod));
   const peopleQuery = useQuery(peopleQueryOptions());
@@ -231,7 +231,7 @@ function CardInvoiceSummary({
         accentImage={card.logo}
         actions={
           <>
-            {card.status === "active" && period <= getCurrentPeriod() ? (
+            {card.status === "active" && period <= getCurrentPeriodInBrazil() ? (
               <FinancialSummaryAction
                 disabled={people.length === 0}
                 onClick={() => {

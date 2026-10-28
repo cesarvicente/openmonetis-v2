@@ -4,6 +4,7 @@ import {
   noteItemTextMaximumLength,
 } from "@openmonetis/validators/notes";
 import { Check, ListChecks, Plus, Trash2 } from "lucide-react";
+import { FieldError } from "@/components/forms/field-error";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -12,8 +13,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { noteCompletionCheckboxClassName } from "../notes.presentation";
 import type { useNoteForm } from "../useNoteForm";
-
-import { FieldError } from "./note-field-error";
 
 export function NoteChecklistEditor({
   newItemText,

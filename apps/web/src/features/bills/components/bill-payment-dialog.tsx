@@ -21,6 +21,7 @@ import { DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/co
 import { Label } from "@/components/ui/label";
 import { SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { EstablishmentLogo } from "@/features/establishments/components/establishment-logo";
+import { formatCurrency } from "@/lib/money-presentation";
 import { usePayBillMutation } from "../bills.mutations";
 import { billDueLabel } from "../bills.presentation";
 
@@ -272,8 +273,4 @@ function AccountOption({ account }: { account: BillAccount }) {
 
 function currentLocalDate() {
   return getCurrentDateInBrazil();
-}
-
-function formatCurrency(value: number) {
-  return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }

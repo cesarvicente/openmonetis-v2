@@ -3,13 +3,13 @@ import {
   noteContentMaximumLength,
   noteTitleMaximumLength,
 } from "@openmonetis/validators/notes";
+import { FieldError } from "@/components/forms/field-error";
 import { MobileFormState } from "@/components/forms/mobile-form-state";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useNoteForm } from "../useNoteForm";
 import { NoteChecklistEditor } from "./note-checklist-editor";
-import { FieldError } from "./note-field-error";
 import type { NoteFormProps } from "./note-form.types";
 import { NoteFormActions } from "./note-form-actions";
 import { NoteKindField } from "./note-kind-field";

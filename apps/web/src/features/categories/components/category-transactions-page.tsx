@@ -1,3 +1,4 @@
+import { getCurrentPeriodInBrazil } from "@openmonetis/shared/date-time";
 import type { CategoryOutput } from "@openmonetis/validators/categories";
 import { useQuery } from "@tanstack/react-query";
 import { CalendarDays, ChartNoAxesCombined, Tags, Users } from "lucide-react";
@@ -17,7 +18,6 @@ import { peopleQueryOptions } from "@/features/people/people.queries";
 import { TransactionsContainer } from "@/features/transactions/components/transactions-container";
 import {
   formatPeriod,
-  getCurrentPeriod,
   type TransactionsSearch,
 } from "@/features/transactions/transactions.presentation";
 import { categoryTypeLabels, getCategoryLabel } from "../categories.presentation";
@@ -60,7 +60,7 @@ export function CategoryTransactionsPage({
             onSearchChange={onSearchChange}
             scope={getCategoryTransactionsScope(
               categoryQuery.data,
-              search.period ?? getCurrentPeriod(),
+              search.period ?? getCurrentPeriodInBrazil(),
               search.personScope ?? "admin",
               (personScope) =>
                 onSearchChange({

@@ -1,4 +1,3 @@
-import { getCurrentPeriodInBrazil } from "@openmonetis/shared/date-time";
 import type { CategoryOutput } from "@openmonetis/validators/categories";
 import type { Dispatch, SetStateAction } from "react";
 import { getCategoryLabel } from "../../categories/categories.presentation";
@@ -47,10 +46,6 @@ export function normalizeText(value: string) {
     .replace(/[\u0300-\u036f]/g, "")
     .trim()
     .toLowerCase();
-}
-
-export function currentPeriod() {
-  return getCurrentPeriodInBrazil();
 }
 
 function normalizeCategoryPath(value: string) {

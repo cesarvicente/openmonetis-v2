@@ -1,7 +1,6 @@
 import {
   dateOnlyToSafeInstant,
   formatDateInBrazil,
-  getCurrentPeriodInBrazil,
   periodToSafeInstant,
 } from "@openmonetis/shared/date-time";
 import type {
@@ -251,10 +250,6 @@ export const recurrenceFrequencyLabels: Record<RecurrenceFrequency, string> = {
   semiannual: "Semestral",
   annual: "Anual",
 };
-
-export function getCurrentPeriod() {
-  return getCurrentPeriodInBrazil();
-}
 
 export function formatPeriod(period: string) {
   const label = formatDateInBrazil(periodToSafeInstant(period), {

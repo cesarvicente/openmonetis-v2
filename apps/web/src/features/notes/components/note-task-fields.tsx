@@ -1,12 +1,11 @@
 import { CreateNoteInputSchema, noteContentMaximumLength } from "@openmonetis/validators/notes";
+import { FieldError } from "@/components/forms/field-error";
 import { MobileDatePicker as DatePicker } from "@/components/forms/mobile-date-picker";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { noteCompletionCheckboxClassName } from "../notes.presentation";
 import type { useNoteForm } from "../useNoteForm";
-
-import { FieldError } from "./note-field-error";
 
 export function NoteTaskFields({
   isEditing,

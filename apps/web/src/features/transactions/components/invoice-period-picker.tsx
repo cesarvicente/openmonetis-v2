@@ -13,16 +13,8 @@ import {
 import { MonthPicker } from "@/components/ui/month-picker";
 import { cardInvoicePeriodQueryOptions } from "@/features/cards/cards.queries";
 
-function periodToDate(period: string) {
-  return periodToSafeInstant(period);
-}
-
-function dateToPeriod(date: Date) {
-  return getCurrentPeriodInBrazil(date);
-}
-
 function displayPeriod(period: string) {
-  return formatDateInBrazil(periodToDate(period), { month: "short", year: "numeric" });
+  return formatDateInBrazil(periodToSafeInstant(period), { month: "short", year: "numeric" });
 }
 
 export function InvoicePeriodPicker({
@@ -60,10 +52,10 @@ export function InvoicePeriodPicker({
         >
           <MonthPicker
             onMonthSelect={(date) => {
-              onChange(dateToPeriod(date));
+              onChange(getCurrentPeriodInBrazil(date));
               setOpen(false);
             }}
-            selectedMonth={effectivePeriod ? periodToDate(effectivePeriod) : undefined}
+            selectedMonth={effectivePeriod ? periodToSafeInstant(effectivePeriod) : undefined}
           />
         </PopoverContent>
       </Popover>

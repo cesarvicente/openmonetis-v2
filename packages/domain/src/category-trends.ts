@@ -1,5 +1,6 @@
 import type { CardClosingRule } from "./cards";
 import { expandCategoryIds, invoicePaymentCategoryName } from "./categories";
+import { fromCents } from "./money";
 import { getRecurringDueDate } from "./recurring-expenses";
 import { getOccurrenceAmount, type SettlementAwareRule } from "./settlements";
 import {
@@ -476,10 +477,6 @@ function toCents(amount: string | number) {
 function toSignedCents(amount: string | number) {
   const numericAmount = Number(amount);
   return Number.isFinite(numericAmount) ? Math.round(numericAmount * 100) : 0;
-}
-
-function fromCents(cents: number) {
-  return cents / 100;
 }
 
 function roundPercentage(value: number) {

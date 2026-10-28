@@ -1,3 +1,4 @@
+import { getCurrentPeriodInBrazil } from "@openmonetis/shared/date-time";
 import type { PersonOutput, ReplacePersonInput } from "@openmonetis/validators/people";
 import { useQuery } from "@tanstack/react-query";
 import { Image } from "@unpic/react";
@@ -24,7 +25,6 @@ import { PersonSettlementsCard } from "@/features/person-settlements/components/
 import { TransactionsContainer } from "@/features/transactions/components/transactions-container";
 import {
   formatPeriod,
-  getCurrentPeriod,
   type TransactionsSearch,
 } from "@/features/transactions/transactions.presentation";
 import { cn } from "@/lib/utils";
@@ -51,7 +51,7 @@ export type PersonDetailsSearch = TransactionsSearch & {
 export function PersonDetailsPage({ personId, search, onSearchChange }: PersonDetailsPageProps) {
   const personQuery = useQuery(personQueryOptions(personId));
   const connectionsQuery = useQuery(personConnectionsQueryOptions());
-  const selectedPeriod = search.period ?? getCurrentPeriod();
+  const selectedPeriod = search.period ?? getCurrentPeriodInBrazil();
   const resolvedPersonId = personQuery.data?.id ?? "";
   const summaryQuery = useQuery({
     ...personFinancialSummaryQueryOptions(resolvedPersonId, selectedPeriod),

@@ -1,4 +1,5 @@
 import { invoicePaymentCategoryName } from "@openmonetis/domain/categories";
+import { getCurrentPeriodInBrazil } from "@openmonetis/shared/date-time";
 import {
   ImportTransactionsInputSchema,
   type TransactionImportPreview,
@@ -7,7 +8,6 @@ import { useForm } from "@tanstack/react-form";
 
 import { useRef, useState } from "react";
 import {
-  currentPeriod,
   findCategoryByImportedName,
   getCommonRowValue,
   haveDifferentRowValues,
@@ -39,7 +39,7 @@ export function useTransactionImportReview({
     defaultValues: {
       destination: "",
       paymentMethod: "pix" as (typeof accountPaymentMethods)[number] | "credit_card",
-      invoicePeriod: currentPeriod(),
+      invoicePeriod: getCurrentPeriodInBrazil(),
     },
     onSubmit: async ({ value }) => {
       if (!preview) {
@@ -123,7 +123,7 @@ export function useTransactionImportReview({
       form.reset({
         destination,
         paymentMethod: result.isCreditCard ? "credit_card" : "pix",
-        invoicePeriod: result.period?.to.slice(0, 7) ?? currentPeriod(),
+        invoicePeriod: result.period?.to.slice(0, 7) ?? getCurrentPeriodInBrazil(),
       });
       setRows(
         result.transactions.map((transaction) => ({
