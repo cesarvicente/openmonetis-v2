@@ -1,8 +1,8 @@
 import type { CategoryTrendsOutput } from "@openmonetis/validators/category-trends";
 import { Link } from "@tanstack/react-router";
 import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, Info, Minus } from "lucide-react";
-import { useState } from "react";
-import { MoneyValue } from "@/components/money-value";
+import { type ComponentProps, useState } from "react";
+import { MoneyValue as BaseMoneyValue } from "@/components/money-value";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import {
@@ -47,12 +47,16 @@ function CategorySection({
   type: "income" | "expense";
 }) {
   const [expandedIds, setExpandedIds] = useState<Set<string>>(() => new Set());
+  const [sortKey, setSortKey] = useState<"totalAmount" | "averageAmount" | null>(null);
   type Row = CategoryTrendsOutput["categories"][number] & {
     isDetail?: boolean;
     isDirect?: boolean;
     parentIcon?: string | null;
   };
-  const rows: Row[] = categories.flatMap((category) => {
+  const sortedCategories = sortKey
+    ? [...categories].sort((left, right) => right[sortKey] - left[sortKey])
+    : categories;
+  const rows: Row[] = sortedCategories.flatMap((category) => {
     if (!expandedIds.has(category.categoryId)) return [category];
     const details: Row[] = (category.subcategories ?? []).map((child) => ({
       ...child,
@@ -72,6 +76,9 @@ function CategorySection({
       });
     return [category, ...details];
   });
+  function toggleSort(key: "totalAmount" | "averageAmount") {
+    setSortKey((current) => (current === key ? null : key));
+  }
   function toggleGroup(id: string) {
     setExpandedIds((current) => {
       const next = new Set(current);
@@ -178,11 +185,17 @@ function CategorySection({
                 </TableHead>
               ))}
               <TableHead
-                className="overflow-hidden border-l bg-muted/20 px-4 text-right text-xs"
+                className="sticky right-[128px] z-30 overflow-hidden border-l bg-card px-4 text-right text-xs"
+                aria-sort={sortKey === "averageAmount" ? "descending" : "none"}
                 scope="col"
               >
                 <span className="inline-flex items-center justify-end gap-1">
-                  Média
+                  <SortButton
+                    active={sortKey === "averageAmount"}
+                    onClick={() => toggleSort("averageAmount")}
+                  >
+                    Média
+                  </SortButton>
                   <Tooltip>
                     <TooltipTrigger
                       aria-label="Como a média é calculada"
@@ -195,10 +208,16 @@ function CategorySection({
                 </span>
               </TableHead>
               <TableHead
-                className="overflow-hidden bg-muted/20 px-4 text-right text-xs"
+                className="sticky right-0 z-30 overflow-hidden bg-card px-4 text-right text-xs"
+                aria-sort={sortKey === "totalAmount" ? "descending" : "none"}
                 scope="col"
               >
-                Total
+                <SortButton
+                  active={sortKey === "totalAmount"}
+                  onClick={() => toggleSort("totalAmount")}
+                >
+                  Total
+                </SortButton>
               </TableHead>
             </TableRow>
           </TableHeader>
@@ -240,7 +259,7 @@ function CategorySection({
                     />
                   </TableCell>
                 ))}
-                <TableCell className="overflow-hidden border-l bg-muted/10 px-4 py-3 text-right align-top">
+                <TableCell className="sticky right-[128px] z-10 overflow-hidden border-l bg-card px-4 py-3 text-right align-top">
                   <MoneyValue
                     amount={category.averageAmount}
                     className={cn(
@@ -250,7 +269,7 @@ function CategorySection({
                     )}
                   />
                 </TableCell>
-                <TableCell className="overflow-hidden bg-muted/10 px-4 py-3 text-right align-top">
+                <TableCell className="sticky right-0 z-10 overflow-hidden bg-card px-4 py-3 text-right align-top">
                   <MoneyValue
                     amount={category.totalAmount}
                     className={cn(
@@ -288,8 +307,8 @@ function CategorySection({
                   />
                 </TableCell>
               ))}
-              <TableCell />
-              <TableCell />
+              <TableCell className="sticky right-[128px] z-10 border-l bg-muted" />
+              <TableCell className="sticky right-0 z-10 bg-muted" />
             </TableRow>
           </TableFooter>
         </Table>
@@ -344,6 +363,41 @@ function CategorySection({
       </div>
     </section>
   );
+}
+
+function SortButton({
+  active,
+  children,
+  onClick,
+}: {
+  active: boolean;
+  children: React.ReactNode;
+  onClick: () => void;
+}) {
+  return (
+    <Button
+      aria-label={`Ordenar por ${children}`}
+      className={cn("gap-1 px-1.5", !active && "text-muted-foreground")}
+      onClick={onClick}
+      size="xs"
+      type="button"
+      variant="ghost"
+    >
+      {children}
+      {active ? <ArrowDown aria-hidden="true" className="size-3" /> : null}
+    </Button>
+  );
+}
+
+function MoneyValue(props: ComponentProps<typeof BaseMoneyValue>) {
+  if (props.amount === 0)
+    return (
+      <span className="text-muted-foreground/60">
+        <span aria-hidden="true">—</span>
+        <span className="sr-only">Sem movimento</span>
+      </span>
+    );
+  return <BaseMoneyValue {...props} />;
 }
 
 function TrendValueCell({

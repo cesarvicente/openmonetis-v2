@@ -20,13 +20,17 @@ import { cn } from "@/lib/utils";
 
 export function MultiFilterSelect({
   className,
+  hideLabel = false,
   label,
   options,
+  placeholder = "Todas",
   selected,
   onChange,
 }: {
   className?: string;
+  hideLabel?: boolean;
   label: string;
+  placeholder?: string;
   options: Array<{
     value: string;
     label: string;
@@ -49,7 +53,9 @@ export function MultiFilterSelect({
 
   return (
     <div className={cn("grid min-w-0 gap-2", className)}>
-      <span className="font-medium text-muted-foreground text-xs">{label}</span>
+      <span className={cn("font-medium text-muted-foreground text-xs", hideLabel && "sr-only")}>
+        {label}
+      </span>
       <Popover>
         <PopoverTrigger
           render={
@@ -71,7 +77,7 @@ export function MultiFilterSelect({
             ) : selected.length ? (
               `${selected.length} selecionado${selected.length > 1 ? "s" : ""}`
             ) : (
-              "Todas"
+              placeholder
             )}
           </span>
         </PopoverTrigger>

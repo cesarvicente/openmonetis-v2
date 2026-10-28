@@ -148,7 +148,7 @@ export function CategoryTrendsChart({ categories, periods }: CategoryTrendsChart
                 stroke={`var(--color-${category.categoryId})`}
                 strokeDasharray={index >= 5 ? "4 2" : undefined}
                 strokeWidth={1.5}
-                type="natural"
+                type="linear"
               />
             ))}
             <ChartLegend content={<ChartLegendContent />} />

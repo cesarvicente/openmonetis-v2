@@ -9,6 +9,13 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 
 ### Adicionado
 
+- Relatório Compromissos futuros, com o quanto da renda prevista já está comprometido em parcelas,
+  recorrências e contas avulsas em uma faixa de até 24 meses escolhida pelo seletor de período,
+  índice de comprometimento e situação por mês, próximo alívio e parcelamentos que terminam no período.
+  Despesas avulsas de qualquer forma de pagamento entram no mês, estornos e descontos de
+  antecipação são abatidos, contas fora do saldo total são ignoradas também nas parcelas e o
+  próximo alívio considera só parcelas e recorrentes.
+
 - Relatório Distribuição financeira com fluxo entre receitas e categorias de despesa, saldo e
   déficit do mês, filtros por pessoa e previsões, subcategorias e exportação CSV.
   Inclui comparação com o mês anterior, taxa de poupança calculada pela API, destaques em largura
@@ -21,6 +28,14 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
   movimentação entre contas uma vez, sem alterar receitas, despesas ou resultado.
 
 ### Alterado
+
+- Compromissos futuros e Evolução por categoria usam um seletor de período em uma única linha.
+  Ao clicar, é possível escolher o mês inicial e final em uma grade de meses ou por atalhos e
+  aplicar a seleção, com limite de 24 meses.
+
+- Evolução por categoria exibe totais de despesas e receitas e a maior alta do último mês, reúne
+  filtros e exportação em uma linha, ordena a tabela por média ou total com essas colunas fixas
+  e desenha o gráfico com linhas retas.
 
 - Tema escuro com tons quentes e maior contraste, fonte Geist na interface e marcadores de legenda
   padronizados nos gráficos. Receitas, despesas e balanço do Dashboard aparecem em barras
@@ -36,6 +51,8 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 
 ### Notas de atualização
 
+- API: nova rota autenticada `GET /reports/commitments`, com filtros `startPeriod` e `endPeriod`
+  (faixa inclusiva de até 24 meses). Não há migration ou nova configuração de ambiente.
 - API: nova rota autenticada `GET /reports/financial-distribution`, com filtros `period`,
   `personScope` (padrão `admin`) e `mode` (padrão `actual`). Clientes podem consumir o relatório
   pelo contrato OpenAPI; não há migration ou nova configuração de ambiente.

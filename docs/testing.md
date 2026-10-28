@@ -178,6 +178,10 @@ rateios, valores efetivos e contas excluídas, incluindo a conta de baixa das re
 Os seletores responsivos também são verificados ao alternar entre desktop e celular com a lista
 aberta, sem perder o estado nem emitir avisos de controle do componente.
 
+O seletor de período de Evolução por categoria e Compromissos futuros verifica a escolha dos meses
+em qualquer ordem, o descarte ao fechar, o limite de 24 meses, a persistência na URL e o popup no
+celular sem rolagem horizontal.
+
 Os três cenários de passkeys usam WebAuthn do Chromium com um autenticador virtual CTAP2 e
 verificação criptográfica real do Better Auth. Cobrem cadastro, login sem senha, rejeição da
 repetição da mesma resposta, renomeação, remoção, login com credencial revogada, isolamento
@@ -213,8 +217,8 @@ de funções. Esses limites preservam a base medida nesta etapa; alterações fu
 a cobertura onde mudam comportamento. O relatório mede somente a suíte sem banco, sem somar
 artificialmente as execuções de integração.
 
-Na última execução, os 639 testes sem banco passaram. A cobertura conjunta de domínio/services
-foi de **91,76% das linhas/statements, 83,27% das ramificações e 89,72% das funções**.
+Na última execução, os 650 testes sem banco passaram. A cobertura conjunta de domínio/services
+foi de **91,88% das linhas/statements, 83,46% das ramificações e 89,89% das funções**.
 
 | Service | Linhas | Ramificações | Funções |
 | --- | ---: | ---: | ---: |

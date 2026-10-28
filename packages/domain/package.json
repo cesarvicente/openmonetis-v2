@@ -8,6 +8,7 @@
     "./cards": "./src/cards.ts",
     "./categories": "./src/categories.ts",
     "./category-trends": "./src/category-trends.ts",
+    "./commitments": "./src/commitments.ts",
     "./financial-distribution": "./src/financial-distribution.ts",
     "./dashboard": "./src/dashboard.ts",
     "./installments": "./src/installments.ts",

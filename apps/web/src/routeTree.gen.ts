@@ -34,6 +34,7 @@ import { Route as CategoriesCategoryIdRouteImport } from './routes/categories_.$
 import { Route as PeoplePersonIdRouteImport } from './routes/people_.$personId'
 import { Route as PersonConnectionsAcceptRouteImport } from './routes/person-connections.accept'
 import { Route as ReportsCategoryTrendsRouteImport } from './routes/reports/category-trends'
+import { Route as ReportsCommitmentsRouteImport } from './routes/reports/commitments'
 import { Route as ReportsFinancialDistributionRouteImport } from './routes/reports/financial-distribution'
 import { Route as ReportsInstallmentsRouteImport } from './routes/reports/installments'
 import { Route as ReportsRecurringExpensesRouteImport } from './routes/reports/recurring-expenses'
@@ -165,6 +166,11 @@ const ReportsCategoryTrendsRoute = ReportsCategoryTrendsRouteImport.update({
   path: '/reports/category-trends',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ReportsCommitmentsRoute = ReportsCommitmentsRouteImport.update({
+  id: '/reports/commitments',
+  path: '/reports/commitments',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ReportsFinancialDistributionRoute =
   ReportsFinancialDistributionRouteImport.update({
     id: '/reports/financial-distribution',
@@ -220,6 +226,7 @@ export interface FileRoutesByFullPath {
   '/people/$personId': typeof PeoplePersonIdRoute
   '/person-connections/accept': typeof PersonConnectionsAcceptRoute
   '/reports/category-trends': typeof ReportsCategoryTrendsRoute
+  '/reports/commitments': typeof ReportsCommitmentsRoute
   '/reports/financial-distribution': typeof ReportsFinancialDistributionRoute
   '/reports/installments': typeof ReportsInstallmentsRoute
   '/reports/recurring-expenses': typeof ReportsRecurringExpensesRoute
@@ -252,6 +259,7 @@ export interface FileRoutesByTo {
   '/people/$personId': typeof PeoplePersonIdRoute
   '/person-connections/accept': typeof PersonConnectionsAcceptRoute
   '/reports/category-trends': typeof ReportsCategoryTrendsRoute
+  '/reports/commitments': typeof ReportsCommitmentsRoute
   '/reports/financial-distribution': typeof ReportsFinancialDistributionRoute
   '/reports/installments': typeof ReportsInstallmentsRoute
   '/reports/recurring-expenses': typeof ReportsRecurringExpensesRoute
@@ -285,6 +293,7 @@ export interface FileRoutesById {
   '/people_/$personId': typeof PeoplePersonIdRoute
   '/person-connections/accept': typeof PersonConnectionsAcceptRoute
   '/reports/category-trends': typeof ReportsCategoryTrendsRoute
+  '/reports/commitments': typeof ReportsCommitmentsRoute
   '/reports/financial-distribution': typeof ReportsFinancialDistributionRoute
   '/reports/installments': typeof ReportsInstallmentsRoute
   '/reports/recurring-expenses': typeof ReportsRecurringExpensesRoute
@@ -319,6 +328,7 @@ export interface FileRouteTypes {
     | '/people/$personId'
     | '/person-connections/accept'
     | '/reports/category-trends'
+    | '/reports/commitments'
     | '/reports/financial-distribution'
     | '/reports/installments'
     | '/reports/recurring-expenses'
@@ -351,6 +361,7 @@ export interface FileRouteTypes {
     | '/people/$personId'
     | '/person-connections/accept'
     | '/reports/category-trends'
+    | '/reports/commitments'
     | '/reports/financial-distribution'
     | '/reports/installments'
     | '/reports/recurring-expenses'
@@ -383,6 +394,7 @@ export interface FileRouteTypes {
     | '/people_/$personId'
     | '/person-connections/accept'
     | '/reports/category-trends'
+    | '/reports/commitments'
     | '/reports/financial-distribution'
     | '/reports/installments'
     | '/reports/recurring-expenses'
@@ -416,6 +428,7 @@ export interface RootRouteChildren {
   PeoplePersonIdRoute: typeof PeoplePersonIdRoute
   PersonConnectionsAcceptRoute: typeof PersonConnectionsAcceptRoute
   ReportsCategoryTrendsRoute: typeof ReportsCategoryTrendsRoute
+  ReportsCommitmentsRoute: typeof ReportsCommitmentsRoute
   ReportsFinancialDistributionRoute: typeof ReportsFinancialDistributionRoute
   ReportsInstallmentsRoute: typeof ReportsInstallmentsRoute
   ReportsRecurringExpensesRoute: typeof ReportsRecurringExpensesRoute
@@ -600,6 +613,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ReportsCategoryTrendsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/reports/commitments': {
+      id: '/reports/commitments'
+      path: '/reports/commitments'
+      fullPath: '/reports/commitments'
+      preLoaderRoute: typeof ReportsCommitmentsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/reports/financial-distribution': {
       id: '/reports/financial-distribution'
       path: '/reports/financial-distribution'
@@ -664,6 +684,7 @@ const rootRouteChildren: RootRouteChildren = {
   PeoplePersonIdRoute: PeoplePersonIdRoute,
   PersonConnectionsAcceptRoute: PersonConnectionsAcceptRoute,
   ReportsCategoryTrendsRoute: ReportsCategoryTrendsRoute,
+  ReportsCommitmentsRoute: ReportsCommitmentsRoute,
   ReportsFinancialDistributionRoute: ReportsFinancialDistributionRoute,
   ReportsInstallmentsRoute: ReportsInstallmentsRoute,
   ReportsRecurringExpensesRoute: ReportsRecurringExpensesRoute,

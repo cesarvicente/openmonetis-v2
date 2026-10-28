@@ -1,5 +1,6 @@
 import {
   ArrowLeftRight,
+  CalendarClock,
   ClipboardList,
   CreditCard,
   FileChartColumn,
@@ -149,6 +150,13 @@ export const navSections: NavSection[] = [
         label: "Evolução por categoria",
         description: "Evolução de categorias por período",
         icon: <FileChartColumn className="size-4" aria-hidden="true" />,
+        preservePeriod: true,
+      },
+      {
+        href: "/reports/commitments",
+        label: "Compromissos futuros",
+        description: "Quanto da renda já está comprometido",
+        icon: <CalendarClock className="size-4" aria-hidden="true" />,
         preservePeriod: true,
       },
       {

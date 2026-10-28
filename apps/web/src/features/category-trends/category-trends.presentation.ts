@@ -1,3 +1,4 @@
+import { addMonthsToPeriod } from "@openmonetis/domain/transactions";
 import {
   formatDateInBrazil,
   getCurrentPeriodInBrazil,
@@ -34,6 +35,19 @@ export function resolveCategoryTrendsSearch(search: CategoryTrendsSearch) {
   const categoryIds = normalizeCategoryIds(search.categoryIds);
   const endPeriod = search.endPeriod ?? search.period;
 
+  if (search.startPeriod && endPeriod) {
+    const start = new Date(periodToSafeInstant(search.startPeriod));
+    const end = new Date(periodToSafeInstant(endPeriod));
+    const months =
+      (end.getUTCFullYear() - start.getUTCFullYear()) * 12 +
+      end.getUTCMonth() -
+      start.getUTCMonth() +
+      1;
+    if (months >= 1 && months <= 24) {
+      return { startPeriod: search.startPeriod, endPeriod, categoryIds };
+    }
+  }
+
   if (endPeriod) {
     return { ...getCategoryTrendsPeriodRange("end", endPeriod), categoryIds };
   }
@@ -43,15 +57,9 @@ export function resolveCategoryTrendsSearch(search: CategoryTrendsSearch) {
   }
 
   return {
-    ...getCategoryTrendsPeriodRange("end", getCurrentPeriod()),
+    ...getCategoryTrendsPeriodRange("end", getCurrentPeriodInBrazil()),
     categoryIds,
   };
-}
-
-function addMonthsToPeriod(period: string, months: number) {
-  const [year, month] = period.split("-").map(Number);
-  const date = new Date(Date.UTC(year, month - 1 + months, 1));
-  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
 }
 
 export function formatTrendPeriod(period: string, short = false) {
@@ -99,6 +107,25 @@ export function getCategoryTrendWidgetItems(
   return limit === undefined ? items : items.slice(0, limit);
 }
 
+export function getCategoryTrendsSummary(report: CategoryTrendsOutput) {
+  const latestPeriod = report.periods.at(-1)?.period;
+  const sumByType = (type: "expense" | "income") =>
+    report.categories
+      .filter((category) => category.type === type)
+      .reduce((total, category) => total + category.totalAmount, 0);
+
+  return {
+    expenseAmount: sumByType("expense"),
+    incomeAmount: sumByType("income"),
+    latestPeriod,
+    biggestIncrease: latestPeriod
+      ? (getCategoryTrendWidgetItems(report.categories, latestPeriod).find(
+          ({ value }) => value.changeKind === "increase",
+        ) ?? null)
+      : null,
+  };
+}
+
 export function downloadCategoryTrendsCsv(report: CategoryTrendsOutput) {
   const rows = [
     ["Tipo", "Categoria", "Período", "Registrado", "Recorrente", "Total", "Variação"],
@@ -132,10 +159,6 @@ function normalizeCategoryIds(value: unknown) {
   if (typeof value !== "string") return [];
   const ids = [...new Set(value.split(",").filter((item) => uuidPattern.test(item)))];
   return ids.slice(0, 100);
-}
-
-export function getCurrentPeriod() {
-  return getCurrentPeriodInBrazil();
 }
 
 function formatCsvNumber(value: number) {

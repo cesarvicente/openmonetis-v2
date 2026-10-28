@@ -22,6 +22,7 @@ import {
   listCategoryFamilyIdsForUser,
 } from "./repositories/categories.repository";
 import { categoryTrendsRepository } from "./repositories/category-trends.repository";
+import { commitmentsRepository } from "./repositories/commitments.repository";
 import { dashboardRepository } from "./repositories/dashboard.repository";
 import { deviceTokensRepository } from "./repositories/device-tokens.repository";
 import { dueDateRulesRepository } from "./repositories/due-date-rules.repository";
@@ -61,6 +62,7 @@ import { createBudgetsRoute } from "./routes/budgets";
 import { createCardsRoute } from "./routes/cards";
 import { createCategoriesRoute } from "./routes/categories";
 import { createCategoryTrendsRoute } from "./routes/category-trends";
+import { createCommitmentsRoute } from "./routes/commitments";
 import { createDashboardRoute } from "./routes/dashboard";
 import { createCompanionDeviceRoute, createDeviceTokensRoute } from "./routes/device-tokens";
 import { createDueDateRulesRoute } from "./routes/due-date-rules";
@@ -92,6 +94,7 @@ import { createBudgetsService } from "./services/budgets.service";
 import { createCardsService } from "./services/cards.service";
 import { createCategoriesService } from "./services/categories.service";
 import { createCategoryTrendsService } from "./services/category-trends.service";
+import { createCommitmentsService } from "./services/commitments.service";
 import { createDashboardService } from "./services/dashboard.service";
 import { createDeviceTokensService } from "./services/device-tokens.service";
 import {
@@ -618,6 +621,10 @@ app.route(
   ),
 );
 app.route("/reports/category-trends", categoryTrendsRoute);
+app.route(
+  "/reports/commitments",
+  createCommitmentsRoute(createCommitmentsService(commitmentsRepository)),
+);
 app.route("/reports/installments", installmentsRoute);
 app.route("/settings", settingsRoute);
 app.route("/preferences", preferencesRoute);

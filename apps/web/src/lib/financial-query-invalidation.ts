@@ -9,6 +9,7 @@ const financialQueryRoots = new Set([
   "categories",
   "tags",
   "category-trends",
+  "commitments",
   "financial-distribution",
   "dashboard",
   "due-date-rules",

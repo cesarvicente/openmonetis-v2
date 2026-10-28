@@ -13,6 +13,7 @@ import { categoryTrendsQueryOptions } from "../category-trends.queries";
 import { CategoryTrendsChart } from "./category-trends-chart";
 import { CategoryTrendsFilters } from "./category-trends-filters";
 import { CategoryTrendsList } from "./category-trends-list";
+import { CategoryTrendsSummary } from "./category-trends-summary";
 
 type CategoryTrendsPageProps = {
   filters: ListCategoryTrendsQuery;
@@ -30,17 +31,6 @@ export function CategoryTrendsPage({ filters, onFiltersChange }: CategoryTrendsP
         <Navbar />
         <section className="app-page project-container min-w-0">
           <PageHeader
-            actions={
-              <Button
-                disabled={!report || exportMutation.isPending || reportQuery.isFetching}
-                onClick={() => report && exportMutation.mutate(report)}
-                type="button"
-                variant="outline"
-              >
-                <Download aria-hidden="true" />
-                {exportMutation.isPending ? "Exportando..." : "Exportar CSV"}
-              </Button>
-            }
             breadcrumbs={[
               { label: "Visão geral", href: "/dashboard" },
               { label: "Relatórios" },
@@ -53,13 +43,24 @@ export function CategoryTrendsPage({ filters, onFiltersChange }: CategoryTrendsP
 
           {report ? (
             <CategoryTrendsFilters
+              actions={
+                <Button
+                  disabled={exportMutation.isPending || reportQuery.isFetching}
+                  onClick={() => exportMutation.mutate(report)}
+                  type="button"
+                  variant="outline"
+                >
+                  <Download aria-hidden="true" />
+                  {exportMutation.isPending ? "Exportando..." : "Exportar CSV"}
+                </Button>
+              }
               categories={report.availableCategories}
               filters={filters}
               isFetching={reportQuery.isFetching}
               onChange={onFiltersChange}
             />
           ) : (
-            <Skeleton className="h-32 rounded-xl" />
+            <Skeleton className="h-10 w-full rounded-md sm:w-80" />
           )}
 
           {reportQuery.isLoading ? <CategoryTrendsSkeleton /> : null}
@@ -88,6 +89,7 @@ export function CategoryTrendsPage({ filters, onFiltersChange }: CategoryTrendsP
           {report && !reportQuery.isError ? (
             report.categories.length ? (
               <div className="grid gap-6" aria-busy={reportQuery.isFetching}>
+                <CategoryTrendsSummary report={report} />
                 <Tabs className="gap-0" defaultValue="table">
                   <TabsList variant="line">
                     <TabsTrigger value="table">
@@ -100,18 +102,13 @@ export function CategoryTrendsPage({ filters, onFiltersChange }: CategoryTrendsP
                     </TabsTrigger>
                   </TabsList>
                   <TabsContent className="pt-5" value="table">
-                    <div className="mb-4 grid gap-1 text-muted-foreground text-xs">
-                      <p>
-                        Variações em relação ao mês anterior. A média considera os meses com
-                        movimento.
-                      </p>
-                      {report.categories.some((category) => category.subcategories?.length) ? (
-                        <p>
-                          Expanda as categorias pela seta para ver as subcategorias incluídas no
-                          total.
-                        </p>
-                      ) : null}
-                    </div>
+                    <p className="mb-4 text-muted-foreground text-xs">
+                      Variações em relação ao mês anterior. A média considera os meses com
+                      movimento.
+                      {report.categories.some((category) => category.subcategories?.length)
+                        ? " Expanda a categoria para ver as subcategorias."
+                        : null}
+                    </p>
                     <CategoryTrendsList categories={report.categories} periods={report.periods} />
                   </TabsContent>
                   <TabsContent className="pt-5" value="chart">
