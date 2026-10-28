@@ -41,6 +41,13 @@ pnpm dev
 - Novas features mantêm o mesmo nome e seguem o shape padronizado nas camadas aplicáveis, sem criar
   arquivos vazios apenas para completar a estrutura.
 
+## Concluir uma mudança
+
+Revise e registre uma mudança por vez. Inclua implementação, testes e documentação em commits
+coesos, preservando alterações independentes para seus próprios commits. Registre mudanças
+notáveis e notas de atualização em `Unreleased`, sem alterar a versão dos pacotes ou o badge do
+README. É possível acumular esses commits localmente antes de preparar e publicar uma versão.
+
 ## Antes de enviar
 
 ```bash
@@ -87,8 +94,10 @@ Com `pnpm docker:db`, os testes usam a configuração local do `.env`. Para esco
 teste, configure `TEST_DATABASE_URL`; essa variável tem precedência sobre a conexão local em todas
 as suítes. Na CI, ela aponta para o PostgreSQL temporário do job.
 
-Mudanças destinadas a uma nova versão também devem seguir o fluxo documentado em
-[`docs/releases.md`](docs/releases.md). Preparar os metadados não autoriza criar ou enviar tags.
+O fechamento de uma versão parte dessas mudanças já commitadas e segue o fluxo documentado em
+[`docs/releases.md`](docs/releases.md), com nova validação do conjunto, consolidação do changelog
+e atualização sincronizada dos metadados em um commit de preparação da release. Preparar os
+metadados não autoriza criar ou enviar tags.
 
 Um pull request deve informar:
 

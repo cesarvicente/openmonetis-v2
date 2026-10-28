@@ -188,11 +188,14 @@ escopo.
 ## 15. Versionamento e Releases
 
 - Toda mudança notável entra em `CHANGELOG.md` seguindo Keep a Changelog; versões oficiais usam
-  SemVer estável.
+  SemVer estável. Durante o desenvolvimento, cada mudança notável é registrada em `Unreleased` e
+  commitada com seus testes e documentação, sem incrementar a versão.
 - Todos os `package.json` do workspace, a entrada do changelog e o badge do README usam sempre a
   mesma versão. Validar com `pnpm release:check`.
 - A `main` apenas valida. Imagens e GitHub Releases são publicadas exclusivamente por tags
   `vX.Y.Z`, conforme `docs/releases.md`.
+- O deploy parte de features já commitadas, define a versão pelo conjunto desde a última release,
+  consolida `Unreleased` e cria apenas o commit de preparação da versão antes da publicação.
 - Criar ou enviar uma tag publica artefatos externos e exige um pedido explícito e inequívoco para
   publicar uma versão. Pedidos para criar commit ou fazer push, isoladamente, não autorizam tag,
   imagens ou GitHub Release.
@@ -200,8 +203,13 @@ escopo.
 
 ## 16. Playbooks locais do mantenedor
 
+- A mensagem exata e autônoma **"Execute os commits"** ativa a skill privada
+  `$openmonetis-commits`, que deve reler e executar integralmente `commits.md` da raiz do projeto.
+  O fluxo revisa, documenta em `Unreleased`, valida e cria commits locais da mudança atual, sem
+  alterar a versão nem autorizar push, tag, release ou deploy.
 - A mensagem exata e autônoma **"Execute o deploy"** ativa a skill privada
   `$openmonetis-deploy`, que deve reler e executar integralmente `deploy.md` da raiz do projeto.
+  Exige features já commitadas; prepara e valida a versão final, faz push e acompanha a publicação.
 - A mensagem exata e autônoma **"Execute o cleanup"** ativa a skill privada
   `$openmonetis-cleanup` em modo de diagnóstico, sem alterar ou excluir arquivos.
 - A mensagem exata e autônoma **"Execute o cleanup apply"** ativa `$openmonetis-cleanup` em modo de
@@ -209,8 +217,8 @@ escopo.
 - Menções explicativas, condicionais ou entre aspas não acionam nenhum desses fluxos.
 - Se a skill ou seu playbook estiver ausente, vazio ou ilegível, interromper e informar o usuário;
   nunca reconstruir suas instruções por suposição.
-- `deploy.md`, `cleanup.md` e as duas skills são privados do mantenedor, ignorados pelo Git e não
-  fazem parte da documentação pública do OpenMonetis.
+- `commits.md`, `deploy.md`, `cleanup.md` e as três skills são privados do mantenedor, ignorados
+  pelo Git e não fazem parte da documentação pública do OpenMonetis.
 
 ## 17. Princípio Final
 

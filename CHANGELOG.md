@@ -7,6 +7,11 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 
 ## [Unreleased]
 
+### Alterado
+
+- Fluxo de contribuição e release separa commits por mudança, com registros em `Unreleased`,
+  do fechamento da versão, que consolida o changelog e valida o conjunto antes da publicação.
+
 ## [0.11.1] - 2026-10-21
 
 Corrige o timeout da publicação ARM64 com builds nativos por arquitetura e impede que falhas de

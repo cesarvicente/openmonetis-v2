@@ -16,8 +16,10 @@ todos.json
 .vite
 
 # local maintainer playbooks
+/commits.md
 /deploy.md
 /cleanup.md
+/.agents/skills/openmonetis-commits/
 /.agents/skills/openmonetis-deploy/
 /.agents/skills/openmonetis-cleanup/
 
