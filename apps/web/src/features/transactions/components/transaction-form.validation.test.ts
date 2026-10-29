@@ -70,6 +70,22 @@ test("recurrence deadlines are optional, inclusive and validated in the form", (
   );
 });
 
+test("editing only the name of an installment sends only the name", () => {
+  const installment: TransactionFormValues = {
+    ...paidBoleto,
+    condition: "installment",
+    paymentMethod: "pix",
+    boletoPaymentDate: "",
+    installmentCount: "3",
+  };
+  const renamed = { ...installment, name: "Nova descrição" };
+
+  assert.deepEqual(
+    getChangedTransactionInput(normalizeTransactionInput(renamed), renamed, installment),
+    { name: "Nova descrição" },
+  );
+});
+
 test("paid boleto form preserves a payment date before the due month", () => {
   const input = normalizeTransactionInput(paidBoleto);
 

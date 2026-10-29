@@ -225,6 +225,69 @@ test("financial mutations preserve cents, occurrence history and ownership", {
     );
 
     await t.test(
+      "renaming an installment series keeps each installment amount with its own cents",
+      async () => {
+        const own = await api.expense(owner, {
+          amount: 100.01,
+          condition: "installment",
+          installmentCount: 3,
+          isSettled: false,
+        });
+        const series = async () =>
+          (await Promise.all(["2020-01", "2020-02", "2020-03"].map(listing)))
+            .flatMap((result) => result.items)
+            .filter((item) => item.seriesId === own.seriesId)
+            .sort(
+              (left, right) => (left.currentInstallment ?? 0) - (right.currentInstallment ?? 0),
+            );
+        const before = await series();
+        assert.deepEqual(
+          before.map((item) => item.displayAmount),
+          [33.34, 33.34, 33.33],
+        );
+        const first = before[0];
+        const second = before[1];
+        const third = before[2];
+        assert.ok(first && second && third);
+        await api.data(
+          await api.request(`/transactions/${third.recordId}?scope=single`, owner, "PATCH", {
+            amount: 33.27,
+          }),
+        );
+        const adjusted = await series();
+        assert.deepEqual(
+          adjusted.map((item) => item.displayAmount),
+          [33.34, 33.34, 33.27],
+        );
+
+        await api.data(
+          await api.request(`/transactions/${first.recordId}?scope=series`, owner, "PATCH", {
+            name: "Renamed series",
+          }),
+        );
+        const renamed = await series();
+        assert.deepEqual(
+          renamed.map((item) => [item.name, item.displayAmount, item.period]),
+          adjusted.map((item) => ["Renamed series", item.displayAmount, item.period]),
+        );
+
+        await api.data(
+          await api.request(`/transactions/${second.recordId}?scope=future`, owner, "PATCH", {
+            name: "Renamed future",
+          }),
+        );
+        assert.deepEqual(
+          (await series()).map((item) => [item.name, item.displayAmount]),
+          [
+            ["Renamed series", 33.34],
+            ["Renamed future", 33.34],
+            ["Renamed future", 33.27],
+          ],
+        );
+      },
+    );
+
+    await t.test(
       "recurring settlement rejects foreign rules, foreign accounts and dates outside the series",
       async () => {
         const own = await api.expense(owner, {
