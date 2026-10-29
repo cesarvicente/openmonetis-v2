@@ -35,6 +35,5 @@ privada, sem cache. O OpenAPI descreve o contrato completo. A exportação CSV u
 identifica totais e detalhes de subcategorias separadamente.
 
 Validação: `pnpm test`, `pnpm test:financial-distribution:integration`,
-`pnpm exec playwright test financial-distribution.spec.ts`, `pnpm check`, `pnpm build` e
-`pnpm release:check`. Os testes de integração e navegador usam banco temporário, conforme
+`pnpm exec playwright test financial-distribution.spec.ts`, `pnpm check` e `pnpm build`. Os testes de integração e navegador usam banco temporário, conforme
 [Testes](testing.md).

@@ -53,4 +53,4 @@ baixa confirmada deve preservar o snapshot; desfazê-la libera a resolução pel
 - `pnpm test`: calendário, resolução de regras, ciclos de cartão e services.
 - `pnpm test:settlements:integration`: banco isolado, migrations, seleção de alvos, ownership, regras conflitantes, virada de mês, baixas e snapshots de boletos/recorrências/faturas.
 - `pnpm test:recurring:integration`: regressão de recorrências.
-- `pnpm check`, `pnpm build`, `pnpm release:check`.
+- `pnpm check`, `pnpm build`.

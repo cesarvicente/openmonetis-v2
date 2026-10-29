@@ -62,5 +62,5 @@ as [regras de vencimento](due-date-rules.md). O ciclo de uma série está descri
 5. Confira que registros legados sem data efetiva continuam identificados e contabilizados.
 
 Execute `pnpm test`, `pnpm test:settlements:integration` e, para recorrências,
-`pnpm test:recurring:integration`, além de `pnpm check`, `pnpm build` e `pnpm release:check`.
+`pnpm test:recurring:integration`, além de `pnpm check` e `pnpm build`.
 Os requisitos de banco estão em [CONTRIBUTING.md](../CONTRIBUTING.md#testes-de-integração).

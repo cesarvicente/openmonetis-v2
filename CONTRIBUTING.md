@@ -1,31 +1,24 @@
-# Contribuindo com o OpenMonetis
-
-O OpenMonetis é um projeto pessoal guiado pelo uso real do mantenedor. Sugestões e contribuições são
-bem-vindas, mas não formam um roadmap e podem não se encaixar na direção do repositório principal.
-
-## Antes de implementar
-
-- Explique o problema concreto e o fluxo desejado.
-- Verifique se a proposta preserva o modelo API-first.
-- Não copie automaticamente a modelagem do OpenMonetis V1; ele é somente referência de produto.
-- Para mudanças amplas, alinhe o recorte antes de investir em toda a implementação.
+# Guia de desenvolvimento
 
 As regras obrigatórias estão em [`AGENTS.md`](AGENTS.md) e a visão arquitetural em
 [`docs/architecture.md`](docs/architecture.md).
 
 ## Ambiente local
 
-Use Node.js 22.12 ou superior, preferencialmente uma versão LTS, e Docker com o plugin Compose.
+Use Node.js 22.12 ou superior e pnpm 11 (o `packageManager` do `package.json` fixa a versão).
+O banco de desenvolvimento fica no servidor Oracle e é acessado por túnel SSH; ele só escuta em
+`127.0.0.1` no servidor e nunca é exposto à internet.
 
 ```bash
-corepack enable
-corepack prepare pnpm@11.25.0 --activate
 pnpm install --frozen-lockfile
-cp .env.example .env
-pnpm docker:db
+cp .env.example .env    # depois preencha EXTERNAL_DATABASE_URL com a credencial do banco de dev
+pnpm db:tunnel          # terminal separado: porta local 7010 -> Postgres do Oracle
 pnpm db:migrate
 pnpm dev
 ```
+
+Sem acesso ao servidor, é possível usar um PostgreSQL local com Docker: deixe
+`EXTERNAL_DATABASE_URL` vazia e rode `pnpm docker:db` antes de `pnpm db:migrate`.
 
 ## Regras de implementação
 
@@ -43,31 +36,24 @@ pnpm dev
 
 ## Concluir uma mudança
 
-Revise e registre uma mudança por vez. Inclua implementação, testes e documentação em commits
-coesos, preservando alterações independentes para seus próprios commits. Registre mudanças
-notáveis e notas de atualização em `Unreleased`, sem alterar a versão dos pacotes ou o badge do
-README. É possível acumular esses commits localmente antes de preparar e publicar uma versão.
-
-## Antes de enviar
+Registre cada mudança notável em `Unreleased` no `CHANGELOG.md`, no mesmo commit da implementação,
+testes e documentação. Antes de commitar:
 
 ```bash
 pnpm check
 pnpm test
 pnpm build
-pnpm release:check
 ```
 
 A suíte automatizada cobre domínio, services, contratos HTTP, segurança e apresentação web.
-Descreva no pull request também os cenários manuais executados e os riscos não cobertos.
 O comando `pnpm test` descobre automaticamente arquivos `*.test.ts` e `*.test.tsx` em `src` dos
-workspaces, excluindo `*.integration.test.*`. Novos testes nessas pastas não precisam ser
-adicionados manualmente ao `package.json`. Consulte [o guia de testes](docs/testing.md) para os
+workspaces, excluindo `*.integration.test.*`. Consulte [o guia de testes](docs/testing.md) para os
 limites atuais e as próximas prioridades.
 
 ### Testes de integração
 
 `pnpm test` executa a suíte sem banco; as integrações PostgreSQL são comandos separados. Execute as
-suítes relacionadas à mudança, além dos comandos acima. A CI executa todas as quatorze integrações.
+suítes relacionadas à mudança, além dos comandos acima. A CI executa todas as integrações.
 
 | Mudança | Comando | Cobertura principal |
 | --- | --- | --- |
@@ -84,37 +70,11 @@ As suítes adicionais de conexões, importação, ajustes, ownership, migrations
 listadas em [docs/testing.md](docs/testing.md). Para executar todas, use `pnpm test:integration`
 com PostgreSQL e S3Mock disponíveis. `pnpm test:coverage` gera o relatório e verifica os limites
 mínimos de domínio/services; `pnpm test:e2e` inicia a aplicação isolada para os testes Chromium.
-Essa suíte inclui passkeys com autenticador virtual e verificação WebAuthn real. Os comandos
-optativos de storage real usam `pnpm test:storage:live`; consulte o guia para credenciais e limpeza.
 
 Cada suíte cria um banco exclusivo, aplica as migrations e o remove ao terminar. Use um PostgreSQL
-de desenvolvimento ou teste, com uma credencial que possa criar e remover bancos. Não execute com
-`NODE_ENV=production` nem aponte esses comandos para infraestrutura de produção.
-
-Com `pnpm docker:db`, os testes usam a configuração local do `.env`. Para escolher outro servidor de
-teste, configure `TEST_DATABASE_URL`; essa variável tem precedência sobre a conexão local em todas
-as suítes. Na CI, ela aponta para o PostgreSQL temporário do job.
-
-O fechamento de uma versão parte dessas mudanças já commitadas e segue o fluxo documentado em
-[`docs/releases.md`](docs/releases.md), com nova validação do conjunto, consolidação do changelog
-e atualização sincronizada dos metadados em um commit de preparação da release. Preparar os
-metadados não autoriza criar ou enviar tags.
-
-Um pull request deve informar:
-
-- problema resolvido;
-- decisão de domínio adotada;
-- alterações de contrato ou migration;
-- passos de validação;
-- capturas de tela quando houver mudança visual;
-- impactos de segurança, compatibilidade ou deploy.
+de desenvolvimento ou teste, com uma credencial que possa criar e remover bancos. Nunca aponte
+esses comandos para o banco de produção (`openmonetis`). Para escolher o servidor de teste,
+configure `TEST_DATABASE_URL`; essa variável tem precedência sobre a conexão do `.env`.
 
 Se houver migration, mudança de contrato, variável de ambiente ou alteração no Compose, inclua
-`### Notas de atualização` em `CHANGELOG.md` com as ações necessárias para o operador. Revise banco,
-API, ambiente e Compose conforme o modelo em [`docs/releases.md`](docs/releases.md#notas-de-atualização).
-
-## Licença das contribuições
-
-Ao enviar uma contribuição, você declara que possui autorização para disponibilizá-la e concorda
-que ela seja licenciada sob os mesmos termos da [Sustainable Use License 1.0](LICENSE) aplicada ao
-OpenMonetis.
+`### Notas de atualização` no `CHANGELOG.md` com as ações necessárias no servidor.

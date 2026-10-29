@@ -5,13 +5,13 @@
   "type": "module",
   "private": true,
   "license": "SEE LICENSE IN LICENSE",
-  "homepage": "https://github.com/felipegcoutinho/openmonetis-v2#readme",
+  "homepage": "https://github.com/cesarvicente/openmonetis-v2#readme",
   "bugs": {
-    "url": "https://github.com/felipegcoutinho/openmonetis-v2/issues"
+    "url": "https://github.com/cesarvicente/openmonetis-v2/issues"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/felipegcoutinho/openmonetis-v2.git"
+    "url": "git+https://github.com/cesarvicente/openmonetis-v2.git"
   },
   "scripts": {
     "build": "pnpm -r build",
@@ -21,6 +21,7 @@
     "db:migrate": "pnpm --filter @openmonetis/db db:migrate",
     "db:seed": "pnpm --filter @openmonetis/api db:seed",
     "db:studio": "pnpm --filter @openmonetis/db db:studio",
+    "db:tunnel": "ssh -N -o ExitOnForwardFailure=yes -o ServerAliveInterval=30 -L 7010:127.0.0.1:5433 oracle",
     "dev": "pnpm --parallel --filter @openmonetis/api --filter @openmonetis/web dev",
     "docker:build": "pnpm run \"/^docker:build:(api|migrator|web)$/\"",
     "docker:build:api": "docker build --target api --tag openmonetis-local/openmonetis-api:local .",
@@ -34,7 +35,6 @@
     "format": "biome format --write .",
     "lint": "biome check . && pnpm lint:ui",
     "lint:ui": "pnpm --filter @openmonetis/web lint:ui",
-    "release:check": "node scripts/validate-release.mjs",
     "test": "node scripts/run-tests.mjs",
     "test:tags:integration": "TAGS_INTEGRATION_TEST=1 tsx --test apps/api/src/repositories/tags.repository.integration.test.ts",
     "typecheck": "pnpm -r typecheck && pnpm --filter @openmonetis/web exec tsc -p ../../tsconfig.tests.json",
