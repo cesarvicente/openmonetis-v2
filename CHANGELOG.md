@@ -48,6 +48,8 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 ### Corrigido
 
 - `drizzle.config.ts` e os testes de integração carregam `.env` e migrations também no Windows.
+- O campo "Conta da baixa" ao registrar pagamento ou recebimento de um lançamento mostrava o ID da
+  conta em vez do nome.
 
 ### Removido
 

@@ -40,6 +40,7 @@ export function TransactionSettlementDialog({
   const id = useId();
   const income = target.type === "income";
   const multiple = (target.ids?.length ?? 0) > 1;
+  const activeAccounts = accounts.filter((account) => !account.isArchived);
   const form = useForm({
     defaultValues: {
       settledDate: getCurrentDateInBrazil(),
@@ -146,6 +147,10 @@ export function TransactionSettlementDialog({
                   {multiple ? "Conta para todos os lançamentos" : "Conta da baixa"}
                 </Label>
                 <Select
+                  items={activeAccounts.map((account) => ({
+                    value: account.id,
+                    label: account.name,
+                  }))}
                   value={field.state.value}
                   onValueChange={(value) => value && field.handleChange(value)}
                 >
@@ -153,13 +158,11 @@ export function TransactionSettlementDialog({
                     <SelectValue placeholder="Selecione a conta" />
                   </SelectTrigger>
                   <SelectContent>
-                    {accounts
-                      .filter((account) => !account.isArchived)
-                      .map((account) => (
-                        <SelectItem key={account.id} value={account.id}>
-                          {account.name}
-                        </SelectItem>
-                      ))}
+                    {activeAccounts.map((account) => (
+                      <SelectItem key={account.id} value={account.id}>
+                        {account.name}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
