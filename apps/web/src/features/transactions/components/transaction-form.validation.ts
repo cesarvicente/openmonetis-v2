@@ -109,12 +109,15 @@ export function getDefaultTransactionFormValues(
     activePeople[0]?.id ??
     "";
   const accountId = defaults.accountId ?? activeAccounts[0]?.id ?? "";
+  const paymentMethod =
+    type === "transfer" ? "bank_transfer" : (defaults.paymentMethod ?? "credit_card");
+  const isSettled =
+    defaults.isSettled ?? (isSettledByDefault(type, paymentMethod) ? "true" : "false");
 
   return {
     type,
     condition: defaults.condition ?? "single",
-    paymentMethod:
-      type === "transfer" ? "bank_transfer" : (defaults.paymentMethod ?? "credit_card"),
+    paymentMethod,
     name: defaults.name ?? "",
     amount: defaults.amount ?? "",
     purchaseDate: defaults.purchaseDate ?? today,
@@ -128,18 +131,25 @@ export function getDefaultTransactionFormValues(
     destinationAccountId: "",
     dueDate: defaults.dueDate ?? "",
     dueDateRuleExcluded: defaults.dueDateRuleExcluded ?? false,
-    boletoPaymentDate:
-      defaults.boletoPaymentDate ??
-      (defaults.paymentMethod === "boleto" && defaults.isSettled !== "false" ? today : ""),
+    boletoPaymentDate: defaults.boletoPaymentDate ?? (isSettled === "true" ? today : ""),
     installmentCount: defaults.installmentCount ?? "2",
     startInstallment: defaults.startInstallment ?? "1",
     recurrenceFrequency: "monthly",
     recurrenceEndDate: "",
     recurrenceAnchorDate: "",
-    isSettled: defaults.isSettled ?? "false",
+    isSettled,
     note: "",
     splitShares: [],
   };
+}
+
+// Expenses and incomes paid outside a credit card usually happen at registration time, so the
+// settlement toggle starts enabled; transfers and card purchases keep their own flows.
+export function isSettledByDefault(
+  type: TransactionFormValues["type"],
+  paymentMethod: TransactionFormValues["paymentMethod"],
+) {
+  return type !== "transfer" && paymentMethod !== "credit_card";
 }
 
 export function getTransactionFormValuesFromTransaction(

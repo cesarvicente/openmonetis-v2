@@ -5,6 +5,7 @@ export const settingsTabs = [
   "due-date-rules",
   "security",
   "companion",
+  "api",
   "danger-zone",
 ] as const;
 export type SettingsTab = (typeof settingsTabs)[number];

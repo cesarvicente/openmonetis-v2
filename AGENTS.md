@@ -122,6 +122,9 @@ Regras adicionais de padronização:
 
 - Todo endpoint financeiro exige sessão autenticada; toda query/update/delete filtra por `userId`; mutations validam ownership de todo ID relacionado.
 - Dados da instalação que não pertencem a um usuário (ex.: `signup_allowlist`) só são expostos em rotas `/admin/*`, protegidas por `requireAuth` + `requireAdmin` (papel `admin` em `user.role`). O papel nunca é aceito como input do cliente.
+- Chaves de API (`Authorization: Bearer omk_…`) autenticam pelo mesmo `requireAuth` da sessão, sempre
+  com papel `member` e sem fallback para o cookie. Rotas de credenciais, conta e administração
+  (`/api-keys`, `/device-tokens`, `/settings`, `/admin`) usam também `requireSession`, que recusa chaves.
 - Nunca expor `userId`, digests, hashes, segredos da instalação, stack traces ou paths internos em resposta pública. Tokens do Companion e de convites entre pessoas são entregues somente na criação autorizada pela sessão web, sem logs, persistência no cliente ou recuperação posterior do valor original.
 - Todo input externo validado com Zod antes do service; Drizzle sempre parametrizado (SQL raw só com justificativa, nunca com input concatenado).
 - CORS com credenciais nunca usa `*`; endpoints privados enviam `Cache-Control: private, no-store`; login/signup/mutations têm rate limit.

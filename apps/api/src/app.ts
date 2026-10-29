@@ -6,11 +6,12 @@ import { bodyLimit } from "hono/body-limit";
 import { cors } from "hono/cors";
 import { auth, authConfiguration } from "./auth";
 import { requireAdmin } from "./middlewares/admin";
-import { requireAuth } from "./middlewares/auth";
+import { createRequireAuth, requireSession } from "./middlewares/auth";
 import { createRequireDeviceToken } from "./middlewares/device-auth";
 import { errorHandler, notFoundHandler } from "./middlewares/errors";
 import { createMutationRateLimit, privateCache, securityHeaders } from "./middlewares/security";
 import { accountsRepository, findAccountByIdForUser } from "./repositories/accounts.repository";
+import { apiKeysRepository } from "./repositories/api-keys.repository";
 import { attachmentsRepository } from "./repositories/attachments.repository";
 import { billsRepository } from "./repositories/bills.repository";
 import { budgetsRepository } from "./repositories/budgets.repository";
@@ -57,6 +58,7 @@ import { signupAllowlistRepository } from "./repositories/signup-allowlist.repos
 import { listTagsByIdsForUser, tagsRepository } from "./repositories/tags.repository";
 import * as transactionsRepository from "./repositories/transactions.repository";
 import { createAccountsRoute } from "./routes/accounts";
+import { createApiKeysRoute } from "./routes/api-keys";
 import { createAttachmentsRoute } from "./routes/attachments";
 import { createAuthConfigRoute } from "./routes/auth-config";
 import { createBillsRoute } from "./routes/bills";
@@ -90,6 +92,7 @@ import { createSignupAllowlistRoute } from "./routes/signup-allowlist";
 import { createTagsRoute } from "./routes/tags";
 import { createTransactionsRoute } from "./routes/transactions";
 import { createAccountsService } from "./services/accounts.service";
+import { createApiKeysService } from "./services/api-keys.service";
 import { createAttachmentsService } from "./services/attachments.service";
 import { createAuthConfigService } from "./services/auth-config.service";
 import { createBillsService } from "./services/bills.service";
@@ -140,6 +143,13 @@ app.openAPIRegistry.registerComponent("securitySchemes", "deviceBearer", {
   scheme: "bearer",
   bearerFormat: "OpenMonetis device token",
   description: "Revocable credential created by an authenticated OpenMonetis web session.",
+});
+app.openAPIRegistry.registerComponent("securitySchemes", "apiKeyBearer", {
+  type: "http",
+  scheme: "bearer",
+  bearerFormat: "OpenMonetis API key",
+  description:
+    "Revocable key created in Settings > API access. It reaches only the owner's financial data and cannot manage credentials, account settings or administration.",
 });
 app.openAPIRegistry.registerComponent("securitySchemes", "sessionCookie", {
   type: "apiKey",
@@ -302,6 +312,9 @@ const deviceTokensService = createDeviceTokensService(deviceTokensRepository, {
   secret: deviceTokenSecret,
 });
 const deviceTokensRoute = createDeviceTokensRoute(deviceTokensService);
+const apiKeysService = createApiKeysService(apiKeysRepository, { secret: deviceTokenSecret });
+const apiKeysRoute = createApiKeysRoute(apiKeysService);
+const requireAuth = createRequireAuth(apiKeysService);
 const companionDeviceRoute = createCompanionDeviceRoute();
 const inboxService = createInboxService(inboxRepository, {
   transactionCreator: transactionsService,
@@ -452,6 +465,8 @@ app.use("/settings", privateCache);
 app.use("/settings/*", privateCache);
 app.use("/settings", requireAuth);
 app.use("/settings/*", requireAuth);
+app.use("/settings", requireSession);
+app.use("/settings/*", requireSession);
 app.use(
   "/settings/*",
   createMutationRateLimit({
@@ -480,6 +495,8 @@ app.use("/device-tokens", privateCache);
 app.use("/device-tokens/*", privateCache);
 app.use("/device-tokens", requireAuth);
 app.use("/device-tokens/*", requireAuth);
+app.use("/device-tokens", requireSession);
+app.use("/device-tokens/*", requireSession);
 app.use(
   "/device-tokens",
   createMutationRateLimit({
@@ -496,6 +513,19 @@ app.use(
     key: (context) => `user:${context.get("userId")}`,
   }),
 );
+for (const path of ["/api-keys", "/api-keys/*"]) {
+  app.use(path, privateCache);
+  app.use(path, requireAuth);
+  app.use(path, requireSession);
+  app.use(
+    path,
+    createMutationRateLimit({
+      windowMs: 60_000,
+      max: 5,
+      key: (context) => `api-keys:${context.get("userId")}`,
+    }),
+  );
+}
 app.use("/inbox", privateCache);
 app.use("/inbox/*", privateCache);
 app.use("/inbox", requireAuth);
@@ -527,6 +557,7 @@ app.use("/notifications/*", requireAuth);
 for (const path of ["/admin", "/admin/*"]) {
   app.use(path, privateCache);
   app.use(path, requireAuth);
+  app.use(path, requireSession);
   app.use(path, requireAdmin);
   app.use(
     path,
@@ -650,6 +681,7 @@ app.route("/settings", settingsRoute);
 app.route("/preferences", preferencesRoute);
 app.route("/due-date-rules", dueDateRulesRoute);
 app.route("/device-tokens", deviceTokensRoute);
+app.route("/api-keys", apiKeysRoute);
 app.route("/inbox", inboxRoute);
 app.route("/inbox-rules", inboxRulesRoute);
 app.route("/notifications", notificationsRoute);
@@ -726,7 +758,7 @@ app.doc("/openapi.json", {
       description: "Same-origin OpenMonetis API proxy",
     },
   ],
-  security: [{ secureSessionCookie: [] }, { sessionCookie: [] }],
+  security: [{ secureSessionCookie: [] }, { sessionCookie: [] }, { apiKeyBearer: [] }],
 });
 
 app.onError(errorHandler);

@@ -1,3 +1,4 @@
+import { getCurrentDateInBrazil } from "@openmonetis/shared/date-time";
 import type { TransactionInput } from "@openmonetis/validators/transactions";
 import { useForm } from "@tanstack/react-form";
 import { useImperativeHandle, useMemo, useState } from "react";
@@ -7,6 +8,7 @@ import type { TransactionFormProps } from "./components/transaction-form.types";
 import {
   getDefaultTransactionFormValues,
   getTransactionFormValuesFromTransaction,
+  isSettledByDefault,
   type TransactionFormValues,
   validateTransactionForm,
 } from "./components/transaction-form.validation";
@@ -110,9 +112,24 @@ export function useTransactionForm({
     isSubmitting: () => form.state.isSubmitting,
   }));
 
+  function setDefaultSettlement(
+    type: TransactionFormValues["type"],
+    paymentMethod: TransactionFormValues["paymentMethod"],
+  ) {
+    // Editing hides the settlement toggle, so it must never turn a pending record into a paid one.
+    const isSettled = mode !== "edit" && isSettledByDefault(type, paymentMethod);
+    form.setFieldValue("isSettled", isSettled ? "true" : "false");
+    form.setFieldValue("boletoPaymentDate", isSettled ? getCurrentDateInBrazil() : "");
+  }
+
   function handleTypeChange(value: TransactionFormValues["type"]) {
+    const previousType = form.getFieldValue("type");
     form.setFieldValue("type", value);
     form.setFieldValue("categoryId", "");
+
+    if (previousType === "transfer" && value !== "transfer") {
+      setDefaultSettlement(value, form.getFieldValue("paymentMethod"));
+    }
 
     if (value === "transfer") {
       form.setFieldValue("paymentMethod", "bank_transfer");
@@ -148,8 +165,7 @@ export function useTransactionForm({
 
     form.setFieldValue("cardId", "");
     form.setFieldValue("accountId", form.getFieldValue("accountId") || activeAccounts[0]?.id || "");
-    form.setFieldValue("isSettled", "false");
-    form.setFieldValue("boletoPaymentDate", "");
+    setDefaultSettlement(form.getFieldValue("type"), value);
   }
 
   function handleCardChange(cardId: string) {

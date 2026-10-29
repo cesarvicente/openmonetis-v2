@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { getCurrentDateInBrazil } from "@openmonetis/shared/date-time";
 import {
   getChangedTransactionInput,
   getDefaultTransactionFormValues,
+  isSettledByDefault,
   normalizeTransactionInput,
   type TransactionFormValues,
   validateTransactionForm,
@@ -109,7 +111,7 @@ test("paid boleto form requires the effective payment date", () => {
   assert.equal(validation?.fields.boletoPaymentDate, "Informe uma data de pagamento válida.");
 });
 
-test("new transactions start pending unless a caller provides another default", () => {
+test("new card purchases and transfers start pending unless a caller provides another default", () => {
   assert.equal(getDefaultTransactionFormValues([], [], [], "expense").isSettled, "false");
   assert.equal(getDefaultTransactionFormValues([], [], [], "income").isSettled, "false");
   assert.equal(getDefaultTransactionFormValues([], [], [], "transfer").isSettled, "false");
@@ -118,6 +120,24 @@ test("new transactions start pending unless a caller provides another default", 
       .isSettled,
     "true",
   );
+});
+
+test("new transactions outside the credit card start settled today", () => {
+  const values = getDefaultTransactionFormValues([], [], [], "expense", undefined, {
+    paymentMethod: "pix",
+  });
+  assert.equal(values.isSettled, "true");
+  assert.equal(values.boletoPaymentDate, getCurrentDateInBrazil());
+  assert.equal(
+    getDefaultTransactionFormValues([], [], [], "expense", undefined, {
+      paymentMethod: "boleto",
+      isSettled: "false",
+    }).boletoPaymentDate,
+    "",
+  );
+  assert.equal(isSettledByDefault("income", "debit_card"), true);
+  assert.equal(isSettledByDefault("expense", "credit_card"), false);
+  assert.equal(isSettledByDefault("transfer", "bank_transfer"), false);
 });
 
 test("tag edits preserve unchanged scopes and send explicit removals", () => {

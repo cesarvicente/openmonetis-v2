@@ -53,6 +53,8 @@ servidor Oracle. A máquina de desenvolvimento não hospeda a aplicação.
   fluxo de revisão do Companion.
 - O único cliente implementado é o web. O Companion Android é um projeto externo que usa os
   endpoints de integração documentados.
+- Agentes de IA e scripts usam a API com [chaves de API](docs/api-keys.md) geradas em Ajustes,
+  restritas aos dados do próprio usuário.
 - Backup: preserve o PostgreSQL com `pg_dump`, o storage de anexos e os segredos da implantação.
 
 ## Desenvolvimento
@@ -113,6 +115,7 @@ detalhes e as convenções no [`guia de arquitetura`](docs/architecture.md).
 - [`docs/recurring-transactions.md`](docs/recurring-transactions.md): séries, versões, ocorrências e ações de recorrência;
 - [`docs/settlements.md`](docs/settlements.md): baixas efetivas, extratos e contas a pagar;
 - [`docs/due-date-rules.md`](docs/due-date-rules.md): calendário compartilhado, ajustes e exceções de vencimento;
+- [`docs/api-keys.md`](docs/api-keys.md): chaves de API para agentes e integrações;
 - [`docs/companion-api.md`](docs/companion-api.md): contrato do Companion;
 - [`docs/device-token-secret.md`](docs/device-token-secret.md): geração e rotação do segredo do Companion;
 - [`CONTRIBUTING.md`](CONTRIBUTING.md): guia de desenvolvimento e testes.

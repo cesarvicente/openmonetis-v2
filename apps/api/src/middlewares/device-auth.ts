@@ -1,6 +1,7 @@
 import { createMiddleware } from "hono/factory";
 import type { DeviceTokensService } from "../services/device-tokens.service";
 import type { ApiVariables } from "../types/context";
+import { extractBearerToken } from "../utils/bearer-token";
 
 export function createRequireDeviceToken(service: Pick<DeviceTokensService, "authenticate">) {
   return createMiddleware<{ Variables: ApiVariables }>(async (context, next) => {
@@ -18,9 +19,4 @@ export function createRequireDeviceToken(service: Pick<DeviceTokensService, "aut
     context.set("deviceTokenExpiresAt", principal.expiresAt);
     await next();
   });
-}
-
-function extractBearerToken(value: string | undefined) {
-  if (!value || value.length > 256) return null;
-  return /^Bearer ([^\s]+)$/i.exec(value)?.[1] ?? null;
 }

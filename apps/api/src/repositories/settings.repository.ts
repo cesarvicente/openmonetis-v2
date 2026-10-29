@@ -1,5 +1,6 @@
 import {
   account,
+  apiKeys,
   attachments,
   budgets,
   cards,
@@ -100,6 +101,7 @@ async function clearApplicationDataForUser(transaction: DatabaseTransaction, use
   await transaction.delete(inboxItems).where(eq(inboxItems.userId, userId));
   await transaction.delete(inboxRules).where(eq(inboxRules.userId, userId));
   await transaction.delete(deviceTokens).where(eq(deviceTokens.userId, userId));
+  await transaction.delete(apiKeys).where(eq(apiKeys.userId, userId));
   await transaction.delete(notificationStates).where(eq(notificationStates.userId, userId));
   await transaction.delete(userPreferences).where(eq(userPreferences.userId, userId));
   await transaction.delete(dueDateRuleVersions).where(eq(dueDateRuleVersions.userId, userId));

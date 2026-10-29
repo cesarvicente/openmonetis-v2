@@ -35,6 +35,7 @@
     "./inbox": "./src/inbox.ts",
     "./inbox-rules": "./src/inbox-rules.ts",
     "./device-tokens": "./src/device-tokens.ts",
+    "./api-keys": "./src/api-keys.ts",
     "./tags": "./src/tags.ts",
     "./recurring-transactions": "./src/recurring-transactions.ts",
     "./business-calendars": "./src/business-calendars.ts",

@@ -1053,6 +1053,36 @@ export const deviceTokens = pgTable(
   ],
 );
 
+export const apiKeys = pgTable(
+  "api_keys",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 80 }).notNull(),
+    keyDigest: varchar("key_digest", { length: 64 }).notNull(),
+    keyPrefix: varchar("key_prefix", { length: 12 }).notNull(),
+    lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+    expiresAt: timestamp("expires_at", { withTimezone: true }),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [
+    uniqueIndex("api_keys_key_digest_unique").on(table.keyDigest),
+    index("api_keys_user_id_created_at_idx").on(table.userId, table.createdAt),
+    check("api_keys_name_not_blank_check", sql`btrim(${table.name}) <> ''`),
+    check(
+      "api_keys_expiration_check",
+      sql`${table.expiresAt} is null or ${table.expiresAt} > ${table.createdAt}`,
+    ),
+  ],
+);
+
 export const inboxItems = pgTable(
   "inbox_items",
   {

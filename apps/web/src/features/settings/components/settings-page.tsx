@@ -1,6 +1,7 @@
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import {
   CalendarClock,
+  KeyRound,
   Settings,
   ShieldCheck,
   SlidersHorizontal,
@@ -10,7 +11,9 @@ import {
 import { ProtectedRoute } from "@/components/auth/protected-route";
 import { Navbar } from "@/components/navigation/navbar";
 import { PageHeader } from "@/components/page-header";
+import { SettingsPanel } from "@/components/settings-panel";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ApiKeySettings } from "@/features/api-keys/components/api-key-settings";
 import { DueDateRulesPage } from "@/features/due-date-rules/components/due-date-rules-page";
 import { PreferencesForm } from "@/features/preferences/components/preferences-form";
 import { type SettingsTab, settingsTabs } from "../settings.presentation";
@@ -66,6 +69,10 @@ export function SettingsPage() {
                     <Smartphone aria-hidden="true" />
                     Companion
                   </TabsTrigger>
+                  <TabsTrigger value="api">
+                    <KeyRound aria-hidden="true" />
+                    Acesso à API
+                  </TabsTrigger>
                   <TabsTrigger value="danger-zone">
                     <TriangleAlert aria-hidden="true" />
                     Ações perigosas
@@ -87,6 +94,12 @@ export function SettingsPage() {
             </TabsContent>
             <TabsContent className="pt-5" value="companion">
               <CompanionSettings />
+            </TabsContent>
+
+            <TabsContent className="pt-5" value="api">
+              <SettingsPanel>
+                <ApiKeySettings />
+              </SettingsPanel>
             </TabsContent>
 
             <TabsContent className="pt-5" value="security">

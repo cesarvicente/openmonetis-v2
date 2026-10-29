@@ -74,7 +74,7 @@ Em produção, use a origem HTTPS final, sem caminho, por exemplo
 | Variável | Descrição |
 | --- | --- |
 | `BETTER_AUTH_SECRET` | Assina e protege dados da autenticação. Deve ser exclusivo da instalação. |
-| `DEVICE_TOKEN_SECRET` | Protege os tokens usados pelo Companion Android. Alterá-lo invalida as credenciais existentes. |
+| `DEVICE_TOKEN_SECRET` | Protege os tokens usados pelo Companion Android e as [chaves de API](api-keys.md). Alterá-lo invalida as credenciais existentes. |
 | `PERSON_CONNECTION_SECRET` | Protege os tokens das conexões entre pessoas. Deve ser diferente dos demais segredos. |
 | `AUTH_SESSION_EXPIRES_IN_DAYS` | Quantidade de dias até a expiração da sessão. Deve ser um inteiro positivo. |
 | `AUTH_SESSION_UPDATE_AGE_HOURS` | Intervalo, em horas, para renovação da sessão. Deve ser um inteiro positivo. |

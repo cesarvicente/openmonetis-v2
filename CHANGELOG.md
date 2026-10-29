@@ -17,6 +17,10 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
   pelo Resend (`RESEND_API_KEY`, `EMAIL_FROM`).
 - Implantação no servidor Oracle: `scripts/deploy-oracle.sh`, Compose da aplicação e referências de
   banco, storage Garage e nginx em `deploy/oracle/`.
+- Chaves de API em Ajustes > Acesso à API: cada chave (`Authorization: Bearer omk_…`) acessa somente
+  os dados financeiros do próprio usuário, com validade de 30, 90 ou 365 dias ou sem expiração, e pode
+  ser revogada a qualquer momento. Chaves não gerenciam credenciais, ações perigosas nem o Painel
+  admin. Veja `docs/api-keys.md`.
 
 ### Notas de atualização
 
@@ -25,9 +29,14 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
   ou nenhum novo cadastro será aceito.
 - Configure `RESEND_API_KEY` e `EMAIL_FROM` (obrigatórias em produção) e, no web,
   `TRUSTED_CLIENT_IP_HEADER` com o cabeçalho sobrescrito pelo proxy reverso.
+- Migration `0019_api_keys` cria a tabela `api_keys`. As chaves são protegidas por
+  `DEVICE_TOKEN_SECRET`; alterá-lo invalida também as chaves de API.
 
 ### Alterado
 
+- No formulário de nova despesa ou receita, "Pagamento realizado"/"Recebimento realizado" já vem
+  marcado, com a data de hoje, para formas de pagamento fora do cartão de crédito. Transferências e a
+  edição de lançamentos não mudam.
 - O rate limit da autenticação passa a contar por IP do visitante, repassado pelo web a partir de um
   cabeçalho confiável do proxy reverso; antes, todos os visitantes dividiam um único limite.
 
