@@ -50,6 +50,9 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 - `drizzle.config.ts` e os testes de integração carregam `.env` e migrations também no Windows.
 - O campo "Conta da baixa" ao registrar pagamento ou recebimento de um lançamento mostrava o ID da
   conta em vez do nome.
+- A descrição nas tabelas de lançamentos (lançamentos, fatura do cartão, extrato da conta) e de
+  despesas externas era cortada em largura fixa mesmo com espaço livre; agora ocupa a coluna inteira
+  e só é abreviada quando não cabe.
 
 ### Removido
 

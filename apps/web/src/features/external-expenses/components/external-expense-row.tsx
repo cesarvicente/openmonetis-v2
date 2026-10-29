@@ -60,7 +60,7 @@ export function ExternalExpenseRow({
 
   return (
     <TableRow>
-      <TableCell>
+      <TableCell className="w-full max-w-0">
         <div className="flex min-w-56 items-center gap-2.5">
           <EstablishmentLogo
             categoryIcon={item.categoryIcon}
@@ -70,7 +70,9 @@ export function ExternalExpenseRow({
           />
           <span className="flex min-w-0 flex-col gap-0.5">
             <span className="flex min-w-0 items-center gap-1.5">
-              <span className="max-w-56 truncate font-medium">{item.snapshot.name}</span>
+              <span className="min-w-0 truncate font-medium" title={item.snapshot.name}>
+                {item.snapshot.name}
+              </span>
               {item.isDivided ? (
                 <Tooltip>
                   <TooltipTrigger

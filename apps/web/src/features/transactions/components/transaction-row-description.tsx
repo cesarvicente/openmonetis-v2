@@ -37,7 +37,7 @@ export function TransactionRowDescription({
   categoryLabel: string | null;
 }) {
   return (
-    <TableCell>
+    <TableCell className="w-full max-w-0">
       <div className="relative isolate flex min-w-64 items-center gap-2.5">
         {splitConnector && splitConnector !== "end" ? (
           <span
@@ -61,12 +61,12 @@ export function TransactionRowDescription({
           )}
         </span>
         <span className="flex min-w-0 flex-col gap-1">
-          <span className="flex h-5 items-center gap-1">
+          <span className="flex h-5 min-w-0 items-center gap-1">
             <Tooltip>
               <TooltipTrigger
                 render={
                   <button
-                    className="max-w-60 cursor-pointer truncate rounded-sm text-left font-medium hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    className="min-w-0 cursor-pointer truncate rounded-sm text-left font-medium hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     onClick={() => onView(transaction)}
                     type="button"
                   />
