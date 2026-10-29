@@ -1,308 +1,115 @@
-# Implantação em produção
+# Implantação em produção (servidor Oracle)
 
-Este guia descreve a topologia Docker Compose fornecida pelo repositório. Adapte firewall, proxy,
-storage, observabilidade e política de backup à infraestrutura da instalação.
+A aplicação roda no servidor Oracle (`ssh oracle`, Ubuntu 24.04 arm64) em
+`https://finance.cvicent.com.br`. A máquina de desenvolvimento apenas envia o código; as imagens
+são construídas no próprio servidor. Os arquivos de referência ficam em `deploy/oracle/`.
 
-> [!WARNING]
-> O projeto está em desenvolvimento ativo. Recomendo manter backups atualizados antes de realizar atualizações e evitar a exposição direta do PostgreSQL ou da API à internet.
-
-## Preparando o host de produção
-
-O host precisa de:
-
-- Docker Engine com o plugin Compose;
-- acesso ao `compose.yml` e ao `.env` de produção;
-- um proxy reverso com HTTPS na frente da porta web;
-- armazenamento persistente e uma rotina externa de backup.
-
-As imagens de release são publicadas no GitHub Container Registry pelo workflow acionado por tags.
-
-## Variáveis obrigatórias
-
-Consulte o [manual de variáveis de ambiente](environment-variables.md) para conhecer todas as
-opções disponíveis.
-
-Use a origem HTTPS final, sem path:
-
-```dotenv
-OPENMONETIS_URL=https://financas.exemplo.com
-BETTER_AUTH_URL=https://financas.exemplo.com
-WEB_URL=https://financas.exemplo.com
-CORS_ORIGIN=https://financas.exemplo.com
-```
-
-Gere segredos independentes. Não reutilize o mesmo valor entre variáveis. Para os três segredos da
-aplicação, use:
-
-```bash
-openssl rand -base64 48
-```
-
-Como a senha do PostgreSQL compõe uma URL interna, use um valor hexadecimal para evitar caracteres
-reservados:
-
-```bash
-openssl rand -hex 32
-```
-
-Configure ao menos:
-
-```dotenv
-BETTER_AUTH_SECRET=<segredo-exclusivo>
-DEVICE_TOKEN_SECRET=<segredo-exclusivo>
-PERSON_CONNECTION_SECRET=<segredo-exclusivo>
-POSTGRES_PASSWORD=<senha-forte>
-```
-
-Se usar um PostgreSQL externo, defina `EXTERNAL_DATABASE_URL`. Para anexos, configure juntos
-`S3_BUCKET`, `S3_ACCESS_KEY_ID` e `S3_SECRET_ACCESS_KEY`; `S3_ENDPOINT` é necessário somente para
-serviços compatíveis que não usam o endpoint padrão da AWS.
-
-Valide a configuração resolvida antes de iniciar:
-
-```bash
-docker compose config --quiet
-```
-
-## Primeira implantação
-
-Os instaladores atuais clonam a branch padrão e usam `latest` do `.env.example`. A seleção de versão
-nos instaladores continua pendente. Para uma implantação de produção com versão fixa,
-prepare manualmente o checkout da tag publicada e configure a mesma versão em `OPENMONETIS_VERSION`
-antes de executar os comandos abaixo. Por exemplo, checkout `v0.10.2` e imagens `0.10.2`.
-
-```bash
-docker compose pull
-docker compose up -d
-docker compose ps
-```
-
-A inicialização respeita esta ordem:
+## Topologia
 
 ```text
-db saudável -> migrator concluído -> API e worker diário iniciados -> web após API saudável
+Cloudflare (Full strict) ─> nginx :443 ─┬─> finance.cvicent.com.br       ─> web  127.0.0.1:7002 ─> api :7001
+                                        └─> finance-files.cvicent.com.br ─> Garage 127.0.0.1:3900
+
+rede Docker "openmonetis": openmonetis-pg · openmonetis-garage · api · recurring-worker · web · migrator
 ```
 
-Verifique os logs se algum serviço não alcançar o estado esperado:
+| Diretório no servidor | Projeto Compose | Conteúdo |
+| --- | --- | --- |
+| `/opt/openmonetis/db` | `openmonetis-db` | PostgreSQL 16 (`openmonetis-pg`), só em `127.0.0.1:5433`, limite de 768 MB. Bancos `openmonetis` (produção) e `openmonetis_dev`. |
+| `/opt/openmonetis/storage` | `openmonetis-storage` | Garage v2.4.1 (`openmonetis-garage`), bucket privado `openmonetis-attachments`, chave `openmonetis-app`. |
+| `/opt/openmonetis/app` | `openmonetis-app` | Código enviado (`src/`), `compose.yml` e `.env` da aplicação. |
+
+Banco e storage têm ciclo de vida próprio: um deploy da aplicação nunca recria esses containers.
+Nenhum deles publica porta fora de `127.0.0.1`.
+
+Segredos ficam apenas no servidor, com permissão `600`:
+
+- `/opt/openmonetis/db/.env`: senha do PostgreSQL;
+- `/opt/openmonetis/storage/.env`: `rpc_secret` e token de admin do Garage;
+- `/opt/openmonetis/storage/app-key.env`: credencial S3 da aplicação;
+- `/opt/openmonetis/app/.env`: variáveis da aplicação (modelo em `deploy/oracle/.env.example`).
+
+## Deploy
 
 ```bash
-docker compose logs migrator
-docker compose logs api
-docker compose logs recurring-worker
-docker compose logs web
+bash scripts/deploy-oracle.sh
 ```
 
-O `recurring-worker` sincroniza diariamente os lançamentos recorrentes compartilhados, a partir das
-03:00 no horário de Brasília. Boletos são
-disponibilizados no primeiro dia do mês do vencimento; cartão e demais meios ficam disponíveis na
-data de cada ocorrência. Se o serviço estiver indisponível no momento previsto, a execução seguinte
-recupera somente ocorrências elegíveis, sem criar duplicidades. Para boletos, uma série ou conexão
-ativada depois do primeiro dia do mês, mas até o vencimento nominal, permite o envio na data de
-ativação. Para os demais meios, a ativação precisa ocorrer até a data da ocorrência. Uma ativação
-posterior ao vencimento do boleto não recupera aquele boleto.
-
-Somente a porta do web deve ser publicada externamente. A porta do PostgreSQL fornecida pelo Compose
-fica vinculada a `127.0.0.1`; mantenha essa restrição ou remova completamente o mapeamento no host de
-produção.
-
-## Primeiro usuário e fechamento do cadastro
-
-1. Mantenha o acesso à instalação restrito ao host ou à rede privada durante o primeiro cadastro.
-2. Configure `DISABLE_SIGNUP=false` no `.env`, inicie os serviços e crie a primeira conta pela web,
-   com senha ou Google, caso o provedor esteja configurado.
-3. Defina `DISABLE_SIGNUP=true` e aplique a configuração:
+O script empacota a working tree (sem arquivos ignorados pelo Git), envia ao servidor, constrói as
+imagens, aplica as migrations pelo `migrator` e reinicia API, worker e web. Acompanhe com:
 
 ```bash
-docker compose config --quiet
-docker compose up -d --no-deps --force-recreate api
+ssh oracle "cd /opt/openmonetis/app && sudo docker compose ps && sudo docker compose logs --tail 50 api"
 ```
 
-Confirme que o login da conta criada funciona, que “Criar conta” desapareceu e que `/signup` informa
-“Cadastro desabilitado”. A API também bloqueia chamadas diretas e novos usuários via OAuth; Google
-e passkeys continuam disponíveis para contas existentes. Não existe exceção automática para banco
-vazio: com `DISABLE_SIGNUP=true`, o primeiro cadastro também é bloqueado.
+As migrations são forward-only. Faça backup antes de um deploy que inclua migration nova.
 
-Para adicionar outra conta, reabra temporariamente o cadastro em acesso restrito, crie a conta e
-feche novamente. Não use o seed de dados demonstrativos para criar o primeiro usuário de produção.
+## Primeiro acesso e cadastro
 
-## HTTPS e proxy reverso
+O cadastro só aceita e-mails da lista de autorizados (`SIGNUP_POLICY=allowlist`). Na inicialização,
+a API garante que `INITIAL_ADMIN_EMAIL` esteja na lista como administrador. Esse e-mail cria a conta,
+confirma o endereço pelo link enviado e passa a ver **Painel admin** no menu do usuário, onde
+gerencia os demais e-mails autorizados.
 
-O proxy deve:
+E-mails de confirmação e redefinição de senha saem pelo Resend, com remetente
+`noreply@cvicent.com.br` (domínio verificado no Resend).
 
-- terminar TLS com um certificado válido;
-- encaminhar todos os paths para o web na porta configurada por `APP_PORT`;
-- preservar `Host`, protocolo e cookies;
-- encaminhar as requisições JSON de preparação e confirmação de anexos;
-- redirecionar HTTP para HTTPS.
+## HTTPS, proxy e IP do visitante
 
-Não encaminhe `/api-proxy` diretamente para o container da API. O web implementa o proxy same-origin
-e adiciona o contexto esperado pela aplicação.
+- Certificado Let's Encrypt `finance` (DNS-01 via Cloudflare) cobre os dois hostnames, com renovação
+  automática.
+- `/etc/nginx/snippets/cloudflare-real-ip.conf` confia nas faixas da Cloudflare e usa
+  `CF-Connecting-IP`. O nginx sempre sobrescreve `X-Real-IP` com esse endereço; o web o repassa à API
+  (`TRUSTED_CLIENT_IP_HEADER=x-real-ip`) para o rate limit por IP do login. Se a Cloudflare mudar as
+  faixas, regenere o snippet a partir de `https://www.cloudflare.com/ips`.
+- Não encaminhe `/api-proxy` diretamente à API: o web faz o proxy same-origin.
 
-## Storage privado e CORS dos anexos
+## Anexos (Garage)
 
-O navegador pede uma URL assinada à API, envia o arquivo diretamente ao storage por `PUT` e pede à
-API a confirmação. A API verifica tamanho, MIME e assinatura do conteúdo antes de vincular o anexo.
-URLs de upload e download expiram em cinco minutos. O corpo do arquivo não passa pelo proxy web.
+O navegador recebe uma URL assinada da API e envia o arquivo direto a
+`https://finance-files.cvicent.com.br`; a assinatura inclui o `Host`, que o nginx preserva. O CORS
+do bucket aceita somente `PUT`, `GET` e `HEAD` da origem `https://finance.cvicent.com.br`. Os
+anexos têm limite de 50 MiB, abaixo do limite de upload do plano gratuito da Cloudflare.
 
-Além das credenciais S3, configure o CORS do bucket para a origem web. Exemplo para a configuração
-JSON de CORS do Amazon S3, substituindo a origem pela da instalação:
-
-```json
-[
-  {
-    "AllowedOrigins": ["https://financas.exemplo.com"],
-    "AllowedMethods": ["PUT", "GET", "HEAD"],
-    "AllowedHeaders": ["Content-Type"],
-    "MaxAgeSeconds": 300
-  }
-]
-```
-
-Em um serviço compatível, aplique a configuração equivalente e permita as requisições de preflight
-do navegador. `CORS_ORIGIN` configura somente a API; não configura o bucket. O endpoint do storage
-precisa ser acessível pelo navegador e pela API, usando HTTPS em produção. Preserve o bucket
-privado: URLs assinadas autorizam o acesso temporário sem tornar objetos públicos.
-
-A credencial da API precisa permitir gravar, consultar, ler, copiar e excluir os objetos de anexos.
-Valide um upload e um download pela origem HTTPS real; um erro de CORS pode impedir o envio mesmo
-quando as credenciais da API estão corretas.
-
-## Backup e restauração operacional
-
-O OpenMonetis não cria nem restaura backups pela interface. A recuperação completa da instalação
-depende de três conjuntos preservados pela infraestrutura:
-
-- dump do PostgreSQL;
-- objetos do bucket privado de anexos, mantendo as mesmas chaves;
-- segredos e configuração da implantação, armazenados fora do banco e do próprio backup.
-
-Para obter um ponto consistente entre banco e storage, interrompa escritas durante a cópia. Em uma
-instalação pelo Compose, pare a API, o worker e o web, mantendo o PostgreSQL disponível:
+Comandos administrativos do Garage:
 
 ```bash
-docker compose stop api recurring-worker web
+ssh oracle "sudo docker exec openmonetis-garage /garage status"
+ssh oracle "sudo docker exec openmonetis-garage /garage bucket info openmonetis-attachments"
 ```
 
-Escolha o procedimento conforme a conexão usada pela aplicação. Com `EXTERNAL_DATABASE_URL`
-preenchida, API e migrator usam o servidor externo; o serviço `db` pode continuar em execução,
-mas não é o banco usado pela aplicação. Não use os comandos de banco local nesse caso.
+## Backup e restauração
 
-### Backup do PostgreSQL local do Compose
-
-Sem `EXTERNAL_DATABASE_URL`, gere o dump no formato custom:
+Uma restauração completa precisa de três conjuntos: dump do PostgreSQL, dados do Garage e os
+arquivos de segredo listados acima. Para um ponto consistente, pare as escritas:
 
 ```bash
-docker compose exec -T db sh -c 'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Fc' \
+ssh oracle "cd /opt/openmonetis/app && sudo docker compose stop api recurring-worker web"
+ssh oracle "sudo docker exec openmonetis-pg pg_dump -U openmonetis -d openmonetis -Fc" \
   > openmonetis-$(date +%Y%m%d-%H%M%S).dump
+ssh oracle "sudo tar -czf - -C /var/lib/docker/volumes openmonetis-storage_meta openmonetis-storage_data" \
+  > openmonetis-storage-$(date +%Y%m%d-%H%M%S).tgz
+ssh oracle "cd /opt/openmonetis/app && sudo docker compose up -d"
 ```
 
-### Backup do PostgreSQL externo
-
-Use `pg_dump`, `pg_restore` e `psql` instalados em um host com acesso ao servidor externo. Prefira
-clientes da mesma versão principal do PostgreSQL. Exporte `PGHOST`, `PGPORT`, `PGDATABASE` e
-`PGUSER` com o mesmo destino de `EXTERNAL_DATABASE_URL`, além das opções TLS exigidas pelo provedor,
-como `PGSSLMODE` e `PGSSLROOTCERT`. Autentique com um arquivo `.pgpass` ou `PGPASSFILE`, protegido
-com permissão `0600` em sistemas Unix; não coloque a URL com senha na linha de comando.
-
-Antes do dump, confirme o servidor, o banco e o usuário efetivos. Esses comandos usam as variáveis
-de conexão do cliente PostgreSQL configuradas acima; não leem `EXTERNAL_DATABASE_URL` automaticamente:
-
-```bash
-psql -X --set=ON_ERROR_STOP=1 \
-  --command='SELECT current_database(), current_user, inet_server_addr(), inet_server_port();'
-pg_dump -Fc > openmonetis-$(date +%Y%m%d-%H%M%S).dump
-```
-
-### Conclusão do backup e restauração
-
-Confirme que `pg_dump` terminou com código de saída zero antes de considerar o dump válido. Uma
-falha pode deixar um arquivo vazio ou incompleto.
-
-Copie o bucket com a ferramenta do provedor e preserve, em um cofre separado, pelo menos as variáveis
-de autenticação, conexão entre pessoas, Companion e storage. Depois que banco e objetos estiverem
-seguros, reinicie os serviços:
-
-```bash
-docker compose up -d
-```
-
-O dump contém hashes de senha, passkeys, sessões e credenciais persistidas. Trate-o como segredo,
-criptografe-o em repouso, mantenha-o fora do host da aplicação e aplique retenção. Registre junto ao
-backup a versão do OpenMonetis e a versão principal do PostgreSQL.
-
-Para restaurar, use uma instalação parada, um banco vazio e a mesma versão principal do PostgreSQL.
-Restaure primeiro o dump no destino escolhido.
-
-**Banco local do Compose**, sem `EXTERNAL_DATABASE_URL`:
-
-```bash
-docker compose exec -T db sh -c \
-  'pg_restore --exit-on-error --no-owner --no-privileges -U "$POSTGRES_USER" -d "$POSTGRES_DB"' \
-  < openmonetis-AAAAMMDD-HHMMSS.dump
-```
-
-**Banco externo:** configure novamente as variáveis do cliente PostgreSQL e o arquivo de senha,
-agora para o banco vazio de destino. Confirme a conexão antes da restauração:
-
-```bash
-psql -X --set=ON_ERROR_STOP=1 \
-  --command='SELECT current_database(), current_user, inet_server_addr(), inet_server_port();'
-pg_restore --exit-on-error --no-owner --no-privileges --dbname="${PGDATABASE:?Defina o banco de destino}" \
-  < openmonetis-AAAAMMDD-HHMMSS.dump
-```
-
-Mantenha `EXTERNAL_DATABASE_URL` alinhada ao banco restaurado antes de iniciar API, migrator e
-worker. O comando no serviço `db` não restaura o servidor externo.
-
-Depois, restaure o bucket nas mesmas chaves, recoloque os mesmos segredos e inicie a versão da
-aplicação registrada no backup. Só então atualize a aplicação e deixe o migrator aplicar migrations
-mais recentes.
-
-Uma restauração sobrescreve dados e precisa ser planejada para o ambiente específico. Faça-a com os
-serviços da aplicação parados, valide o banco de destino e preserve uma cópia do estado anterior.
-
-Teste periodicamente o procedimento completo em outro ambiente. Um dump sem o bucket, sem os
-segredos necessários ou nunca restaurado em teste não deve ser considerado um backup recuperável.
-
-## Atualização
-
-1. Leia as alterações da versão e revise as migrations.
-2. Faça backup do banco e do storage.
-3. Atualize o checkout para a tag publicada desejada e defina a mesma versão em `OPENMONETIS_VERSION`.
-4. Atualize as imagens e acompanhe o migrator.
-
-```bash
-docker compose pull
-docker compose up -d
-docker compose ps
-docker compose logs migrator
-```
-
-O migrator aplica migrations forward-only antes da API. Reverter apenas a tag da imagem não desfaz o
-schema. Se uma versão anterior não for compatível com o schema novo, a recuperação exige uma versão
-corretiva ou a restauração consciente de um backup.
+Confirme que os comandos terminaram com código zero. O dump contém hashes de senha, passkeys e
+sessões: trate-o como segredo, criptografe-o e guarde-o fora do servidor. Para restaurar, use um banco
+vazio da mesma versão principal (`pg_restore --exit-on-error --no-owner --no-privileges`), restaure os
+volumes do Garage com o container parado e recoloque os mesmos segredos antes de iniciar a aplicação.
 
 ## Verificação pós-deploy
 
-- o web responde pela origem HTTPS pública;
-- os headers de segurança foram validados;
-- login, logout e cookies funcionam na mesma origem;
-- `/robots.txt` responde sem erro;
-- a API aparece saudável no Compose;
-- o `recurring-worker` está em execução e sem falhas recorrentes nos logs;
-- migrations foram concluídas;
-- upload e download funcionam quando S3 está habilitado;
-- uma rotina externa confirma e monitora backups.
+- `https://finance.cvicent.com.br` abre a tela de login;
+- `sudo docker compose ps` mostra API e web saudáveis e o `migrator` concluído;
+- o `recurring-worker` está em execução sem falhas recorrentes;
+- cadastro com e-mail não autorizado é recusado; o autorizado recebe o e-mail de confirmação;
+- "Esqueci minha senha" envia o link de redefinição;
+- upload e download de um anexo funcionam pela origem HTTPS.
 
-## Checklist de produção
+## Checklist
 
-- [ ] Segredos são fortes, exclusivos e diferentes dos exemplos.
-- [ ] `OPENMONETIS_URL`, `BETTER_AUTH_URL`, `WEB_URL` e `CORS_ORIGIN` usam a origem correta.
-- [ ] HTTPS está ativo e HTTP redireciona para HTTPS.
-- [ ] DNSSEC, CAA e DMARC foram configurados e validados no provedor DNS.
-- [ ] PostgreSQL e API não estão expostos publicamente.
-- [ ] O `recurring-worker` está ativo junto com a API.
-- [ ] O bucket de anexos é privado.
-- [ ] Backup do banco e storage foi testado.
-- [ ] Uma versão explícita das imagens está configurada.
+- [ ] Segredos são exclusivos do servidor e nunca foram versionados.
+- [ ] PostgreSQL, Garage e API não estão expostos publicamente.
+- [ ] Cloudflare em Full (strict) e HTTP redireciona para HTTPS.
+- [ ] Backups do banco e do Garage são feitos e testados periodicamente.
 - [ ] Logs e espaço em disco são monitorados.

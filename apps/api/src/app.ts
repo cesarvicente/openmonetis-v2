@@ -5,6 +5,7 @@ import { ListTransactionsQuerySchema } from "@openmonetis/validators/transaction
 import { bodyLimit } from "hono/body-limit";
 import { cors } from "hono/cors";
 import { auth, authConfiguration } from "./auth";
+import { requireAdmin } from "./middlewares/admin";
 import { requireAuth } from "./middlewares/auth";
 import { createRequireDeviceToken } from "./middlewares/device-auth";
 import { errorHandler, notFoundHandler } from "./middlewares/errors";
@@ -52,6 +53,7 @@ import {
 } from "./repositories/recurring-transactions.repository";
 import { applicationVersion, releasesRepository } from "./repositories/releases.repository";
 import { settingsRepository } from "./repositories/settings.repository";
+import { signupAllowlistRepository } from "./repositories/signup-allowlist.repository";
 import { listTagsByIdsForUser, tagsRepository } from "./repositories/tags.repository";
 import * as transactionsRepository from "./repositories/transactions.repository";
 import { createAccountsRoute } from "./routes/accounts";
@@ -84,6 +86,7 @@ import { createRecurringExpensesRoute } from "./routes/recurring-expenses";
 import { createRecurringTransactionsRoute } from "./routes/recurring-transactions";
 import { createReleasesRoute } from "./routes/releases";
 import { createSettingsRoute } from "./routes/settings";
+import { createSignupAllowlistRoute } from "./routes/signup-allowlist";
 import { createTagsRoute } from "./routes/tags";
 import { createTransactionsRoute } from "./routes/transactions";
 import { createAccountsService } from "./services/accounts.service";
@@ -122,6 +125,7 @@ import { createRecurringExpensesService } from "./services/recurring-expenses.se
 import { createRecurringTransactionsService } from "./services/recurring-transactions.service";
 import { createReleasesService } from "./services/releases.service";
 import { createSettingsService } from "./services/settings.service";
+import { createSignupAllowlistService } from "./services/signup-allowlist.service";
 import { createTagsService } from "./services/tags.service";
 import { createTransactionsService } from "./services/transactions.service";
 import type { ApiVariables } from "./types/context";
@@ -321,6 +325,9 @@ const notificationsRoute = createNotificationsRoute(
   ),
 );
 const requireDeviceToken = createRequireDeviceToken(deviceTokensService);
+const signupAllowlistRoute = createSignupAllowlistRoute(
+  createSignupAllowlistService(signupAllowlistRepository),
+);
 
 const corsOrigins = parseCsvEnv(getRequiredProductionEnv("CORS_ORIGIN", "http://localhost:7002"));
 
@@ -517,6 +524,19 @@ app.use("/notifications", privateCache);
 app.use("/notifications/*", privateCache);
 app.use("/notifications", requireAuth);
 app.use("/notifications/*", requireAuth);
+for (const path of ["/admin", "/admin/*"]) {
+  app.use(path, privateCache);
+  app.use(path, requireAuth);
+  app.use(path, requireAdmin);
+  app.use(
+    path,
+    createMutationRateLimit({
+      windowMs: 60_000,
+      max: 30,
+      key: (context) => `admin:${context.get("userId")}`,
+    }),
+  );
+}
 app.use("/releases", privateCache);
 app.use("/releases/*", privateCache);
 app.use("/releases", requireAuth);
@@ -634,6 +654,7 @@ app.route("/inbox", inboxRoute);
 app.route("/inbox-rules", inboxRulesRoute);
 app.route("/notifications", notificationsRoute);
 app.route("/releases", releasesRoute);
+app.route("/admin/signup-allowlist", signupAllowlistRoute);
 app.route("/api/inbox", companionInboxRoute);
 
 app.openapi(

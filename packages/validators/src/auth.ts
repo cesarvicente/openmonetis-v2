@@ -34,4 +34,18 @@ export const ChangePasswordInputSchema = z
     path: ["newPassword"],
   });
 
+export const RequestPasswordResetInputSchema = z.object({
+  email: z.email().max(320),
+});
+
+export const ResetPasswordFormInputSchema = z
+  .object({
+    newPassword: PasswordSchema,
+    passwordConfirmation: PasswordSchema,
+  })
+  .refine((input) => input.newPassword === input.passwordConfirmation, {
+    message: "Passwords do not match",
+    path: ["passwordConfirmation"],
+  });
+
 export type ChangePasswordInput = z.infer<typeof ChangePasswordInputSchema>;

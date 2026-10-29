@@ -11,5 +11,6 @@ export const requireAuth = createMiddleware<{ Variables: ApiVariables }>(async (
   }
 
   context.set("userId", session.user.id);
+  context.set("userRole", session.user.role === "admin" ? "admin" : "member");
   await next();
 });

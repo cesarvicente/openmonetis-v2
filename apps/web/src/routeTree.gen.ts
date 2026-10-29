@@ -11,16 +11,19 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AccountsRouteImport } from './routes/accounts'
+import { Route as AdminRouteImport } from './routes/admin'
 import { Route as AttachmentsRouteImport } from './routes/attachments'
 import { Route as BudgetsRouteImport } from './routes/budgets'
 import { Route as CardsRouteImport } from './routes/cards'
 import { Route as CategoriesRouteImport } from './routes/categories'
 import { Route as ChangelogRouteImport } from './routes/changelog'
 import { Route as DashboardRouteImport } from './routes/dashboard'
+import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as GoalsRouteImport } from './routes/goals'
 import { Route as InboxRouteImport } from './routes/inbox'
 import { Route as NotesRouteImport } from './routes/notes'
 import { Route as PeopleRouteImport } from './routes/people'
+import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as RobotsDottxtRouteImport } from './routes/robots[.]txt'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SignupRouteImport } from './routes/signup'
@@ -49,6 +52,11 @@ const IndexRoute = IndexRouteImport.update({
 const AccountsRoute = AccountsRouteImport.update({
   id: '/accounts',
   path: '/accounts',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminRoute = AdminRouteImport.update({
+  id: '/admin',
+  path: '/admin',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AttachmentsRoute = AttachmentsRouteImport.update({
@@ -81,6 +89,11 @@ const DashboardRoute = DashboardRouteImport.update({
   path: '/dashboard',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
+  id: '/forgot-password',
+  path: '/forgot-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const GoalsRoute = GoalsRouteImport.update({
   id: '/goals',
   path: '/goals',
@@ -99,6 +112,11 @@ const NotesRoute = NotesRouteImport.update({
 const PeopleRoute = PeopleRouteImport.update({
   id: '/people',
   path: '/people',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ResetPasswordRoute = ResetPasswordRouteImport.update({
+  id: '/reset-password',
+  path: '/reset-password',
   getParentRoute: () => rootRouteImport,
 } as any)
 const RobotsDottxtRoute = RobotsDottxtRouteImport.update({
@@ -203,16 +221,19 @@ const TransactionsImportRoute = TransactionsImportRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/accounts': typeof AccountsRoute
+  '/admin': typeof AdminRoute
   '/attachments': typeof AttachmentsRoute
   '/budgets': typeof BudgetsRoute
   '/cards': typeof CardsRoute
   '/categories': typeof CategoriesRoute
   '/changelog': typeof ChangelogRoute
   '/dashboard': typeof DashboardRoute
+  '/forgot-password': typeof ForgotPasswordRoute
   '/goals': typeof GoalsRoute
   '/inbox': typeof InboxRoute
   '/notes': typeof NotesRoute
   '/people': typeof PeopleRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/robots.txt': typeof RobotsDottxtRoute
   '/settings': typeof SettingsRoute
   '/signup': typeof SignupRoute
@@ -236,16 +257,19 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/accounts': typeof AccountsRoute
+  '/admin': typeof AdminRoute
   '/attachments': typeof AttachmentsRoute
   '/budgets': typeof BudgetsRoute
   '/cards': typeof CardsRoute
   '/categories': typeof CategoriesRoute
   '/changelog': typeof ChangelogRoute
   '/dashboard': typeof DashboardRoute
+  '/forgot-password': typeof ForgotPasswordRoute
   '/goals': typeof GoalsRoute
   '/inbox': typeof InboxRoute
   '/notes': typeof NotesRoute
   '/people': typeof PeopleRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/robots.txt': typeof RobotsDottxtRoute
   '/settings': typeof SettingsRoute
   '/signup': typeof SignupRoute
@@ -270,16 +294,19 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/accounts': typeof AccountsRoute
+  '/admin': typeof AdminRoute
   '/attachments': typeof AttachmentsRoute
   '/budgets': typeof BudgetsRoute
   '/cards': typeof CardsRoute
   '/categories': typeof CategoriesRoute
   '/changelog': typeof ChangelogRoute
   '/dashboard': typeof DashboardRoute
+  '/forgot-password': typeof ForgotPasswordRoute
   '/goals': typeof GoalsRoute
   '/inbox': typeof InboxRoute
   '/notes': typeof NotesRoute
   '/people': typeof PeopleRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/robots.txt': typeof RobotsDottxtRoute
   '/settings': typeof SettingsRoute
   '/signup': typeof SignupRoute
@@ -305,16 +332,19 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/accounts'
+    | '/admin'
     | '/attachments'
     | '/budgets'
     | '/cards'
     | '/categories'
     | '/changelog'
     | '/dashboard'
+    | '/forgot-password'
     | '/goals'
     | '/inbox'
     | '/notes'
     | '/people'
+    | '/reset-password'
     | '/robots.txt'
     | '/settings'
     | '/signup'
@@ -338,16 +368,19 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/accounts'
+    | '/admin'
     | '/attachments'
     | '/budgets'
     | '/cards'
     | '/categories'
     | '/changelog'
     | '/dashboard'
+    | '/forgot-password'
     | '/goals'
     | '/inbox'
     | '/notes'
     | '/people'
+    | '/reset-password'
     | '/robots.txt'
     | '/settings'
     | '/signup'
@@ -371,16 +404,19 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/accounts'
+    | '/admin'
     | '/attachments'
     | '/budgets'
     | '/cards'
     | '/categories'
     | '/changelog'
     | '/dashboard'
+    | '/forgot-password'
     | '/goals'
     | '/inbox'
     | '/notes'
     | '/people'
+    | '/reset-password'
     | '/robots.txt'
     | '/settings'
     | '/signup'
@@ -405,16 +441,19 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AccountsRoute: typeof AccountsRoute
+  AdminRoute: typeof AdminRoute
   AttachmentsRoute: typeof AttachmentsRoute
   BudgetsRoute: typeof BudgetsRoute
   CardsRoute: typeof CardsRoute
   CategoriesRoute: typeof CategoriesRoute
   ChangelogRoute: typeof ChangelogRoute
   DashboardRoute: typeof DashboardRoute
+  ForgotPasswordRoute: typeof ForgotPasswordRoute
   GoalsRoute: typeof GoalsRoute
   InboxRoute: typeof InboxRoute
   NotesRoute: typeof NotesRoute
   PeopleRoute: typeof PeopleRoute
+  ResetPasswordRoute: typeof ResetPasswordRoute
   RobotsDottxtRoute: typeof RobotsDottxtRoute
   SettingsRoute: typeof SettingsRoute
   SignupRoute: typeof SignupRoute
@@ -450,6 +489,13 @@ declare module '@tanstack/react-router' {
       path: '/accounts'
       fullPath: '/accounts'
       preLoaderRoute: typeof AccountsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin': {
+      id: '/admin'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof AdminRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/attachments': {
@@ -494,6 +540,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/forgot-password': {
+      id: '/forgot-password'
+      path: '/forgot-password'
+      fullPath: '/forgot-password'
+      preLoaderRoute: typeof ForgotPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/goals': {
       id: '/goals'
       path: '/goals'
@@ -520,6 +573,13 @@ declare module '@tanstack/react-router' {
       path: '/people'
       fullPath: '/people'
       preLoaderRoute: typeof PeopleRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reset-password': {
+      id: '/reset-password'
+      path: '/reset-password'
+      fullPath: '/reset-password'
+      preLoaderRoute: typeof ResetPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/robots.txt': {
@@ -661,16 +721,19 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AccountsRoute: AccountsRoute,
+  AdminRoute: AdminRoute,
   AttachmentsRoute: AttachmentsRoute,
   BudgetsRoute: BudgetsRoute,
   CardsRoute: CardsRoute,
   CategoriesRoute: CategoriesRoute,
   ChangelogRoute: ChangelogRoute,
   DashboardRoute: DashboardRoute,
+  ForgotPasswordRoute: ForgotPasswordRoute,
   GoalsRoute: GoalsRoute,
   InboxRoute: InboxRoute,
   NotesRoute: NotesRoute,
   PeopleRoute: PeopleRoute,
+  ResetPasswordRoute: ResetPasswordRoute,
   RobotsDottxtRoute: RobotsDottxtRoute,
   SettingsRoute: SettingsRoute,
   SignupRoute: SignupRoute,

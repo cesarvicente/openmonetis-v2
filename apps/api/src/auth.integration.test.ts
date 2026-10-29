@@ -1,13 +1,15 @@
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
+import { eq } from "drizzle-orm";
 
 test("closed registration blocks password and Google provisioning while existing logins work", {
   skip: process.env.AUTH_INTEGRATION_TEST !== "1",
 }, async () => {
   const require = createRequire(new URL("../../../packages/db/package.json", import.meta.url));
   require("dotenv").config({
-    path: new URL("../../../.env", import.meta.url).pathname,
+    path: fileURLToPath(new URL("../../../.env", import.meta.url)),
     quiet: true,
   });
   const { Pool } = require("pg");
@@ -26,6 +28,10 @@ test("closed registration blocks password and Google provisioning while existing
     "GOOGLE_CLIENT_ID",
     "GOOGLE_CLIENT_SECRET",
     "DISABLE_SIGNUP",
+    "SIGNUP_POLICY",
+    "REQUIRE_EMAIL_VERIFICATION",
+    "RESEND_API_KEY",
+    "EMAIL_FROM",
   ];
   const previous = new Map(changedEnvironment.map((key) => [key, process.env[key]]));
   let applicationPool: { end(): Promise<void> } | undefined;
@@ -40,10 +46,14 @@ test("closed registration blocks password and Google provisioning while existing
     process.env.GOOGLE_CLIENT_ID = "test-google-client";
     process.env.GOOGLE_CLIENT_SECRET = "test-google-secret";
     process.env.DISABLE_SIGNUP = "true";
-    const { db, pool, user, people, categories } = await import("@openmonetis/db");
+    process.env.SIGNUP_POLICY = "open";
+    process.env.REQUIRE_EMAIL_VERIFICATION = "false";
+    delete process.env.RESEND_API_KEY;
+    delete process.env.EMAIL_FROM;
+    const { db, pool, user, people, categories, signupAllowlist } = await import("@openmonetis/db");
     applicationPool = pool;
     await migrate(db, {
-      migrationsFolder: new URL("../../../packages/db/drizzle", import.meta.url).pathname,
+      migrationsFolder: fileURLToPath(new URL("../../../packages/db/drizzle", import.meta.url)),
     });
     const { createAuth, authConfiguration } = await import("./auth");
     assert.deepEqual(authConfiguration, { signupEnabled: false, googleEnabled: true });
@@ -204,6 +214,46 @@ test("closed registration blocks password and Google provisioning while existing
     assert.equal(existingCallback.headers.get("location"), "http://localhost:7002/dashboard");
     assert.ok(existingCallback.headers.get("set-cookie"));
     assert.equal((await db.select().from(user)).length, 2);
+
+    const allowlisted = createAuth({
+      disableSignup: false,
+      signupPolicy: "allowlist",
+      requireEmailVerification: true,
+    });
+    const allowlistedContext = await allowlisted.$context;
+    allowlistedContext.skipOriginCheck = false;
+    allowlistedContext.skipCSRFCheck = false;
+    const strangerCredentials = {
+      name: "Stranger",
+      email: "stranger@example.test",
+      password: "test-password-123",
+    };
+    const usersBeforeAllowlist = (await db.select().from(user)).length;
+    const notAllowed = await request(allowlisted, "/sign-up/email", strangerCredentials);
+    assert.equal(notAllowed.status, 403);
+    assert.equal((await notAllowed.json()).code, "SIGNUP_NOT_ALLOWED");
+    assert.equal((await db.select().from(user)).length, usersBeforeAllowlist);
+    await mockGoogle(allowlisted, "google-stranger@example.test");
+    assert.notEqual((await request(allowlisted, "/sign-in/social", googleBody)).status, 200);
+    assert.equal((await db.select().from(user)).length, usersBeforeAllowlist);
+
+    await db.insert(signupAllowlist).values({ email: "invited@example.test", role: "admin" });
+    const invitedCredentials = {
+      name: "Invited",
+      email: "Invited@Example.test",
+      password: "test-password-123",
+    };
+    const invited = await request(allowlisted, "/sign-up/email", invitedCredentials);
+    assert.equal(invited.status, 200, await invited.clone().text());
+    const [invitedUser] = await db
+      .select()
+      .from(user)
+      .where(eq(user.email, "invited@example.test"));
+    assert.equal(invitedUser?.role, "admin");
+    assert.equal(invitedUser?.emailVerified, false);
+    const unverifiedLogin = await request(allowlisted, "/sign-in/email", invitedCredentials);
+    assert.equal(unverifiedLogin.status, 403);
+    assert.ok(!(unverifiedLogin.headers.get("set-cookie") ?? "").includes("session_token="));
   } finally {
     await applicationPool?.end();
     for (const [key, value] of previous) {

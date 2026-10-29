@@ -1,6 +1,8 @@
 import { defaultAdminPersonAvatarUrl } from "@openmonetis/domain/people";
+import { isAdminRole } from "@openmonetis/domain/signup-allowlist";
+import { useNavigate } from "@tanstack/react-router";
 
-import { Copy, LogOut } from "lucide-react";
+import { Copy, LogOut, ShieldUser } from "lucide-react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -31,6 +33,7 @@ export function UserNavigationMenu({
   handleSignOut: () => Promise<void>;
   handleCopyUserId: () => Promise<void>;
 }) {
+  const navigate = useNavigate();
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
@@ -78,6 +81,15 @@ export function UserNavigationMenu({
           </DropdownMenuLabel>
         </DropdownMenuGroup>
         <ReleaseMenuItems enabled={Boolean(user)} />
+        {isAdminRole(user?.role) ? (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => void navigate({ to: "/admin" })}>
+              <ShieldUser className="size-4" aria-hidden="true" />
+              Painel admin
+            </DropdownMenuItem>
+          </>
+        ) : null}
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={handleSignOut} variant="destructive">
           <LogOut className="size-4" aria-hidden="true" />

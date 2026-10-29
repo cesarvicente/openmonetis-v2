@@ -1,0 +1,40 @@
+name: openmonetis-db
+
+services:
+  db:
+    image: postgres:16-bookworm
+    container_name: openmonetis-pg
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: openmonetis
+      POSTGRES_USER: openmonetis
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    command:
+      - postgres
+      - -c
+      - shared_buffers=128MB
+      - -c
+      - effective_cache_size=512MB
+      - -c
+      - work_mem=4MB
+      - -c
+      - max_connections=50
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - openmonetis
+    mem_limit: 768m
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U openmonetis -d openmonetis"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+networks:
+  openmonetis:
+    name: openmonetis
+
+volumes:
+  pgdata:

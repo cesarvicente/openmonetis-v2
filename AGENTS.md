@@ -1,6 +1,6 @@
 # AGENTS.md — OpenMonetis (OpenMonetis V2)
 
-Sistema financeiro API-first, baseado no OpenMonetis (`github.com/felipegcoutinho/openmonetis`). Neste momento só o cliente **web** é implementado; mobile não faz parte do escopo atual.
+Sistema financeiro API-first, fork do OpenMonetis V2 (`github.com/felipegcoutinho/openmonetis-v2`), que por sua vez se baseia no OpenMonetis original (`github.com/felipegcoutinho/openmonetis`). Neste momento só o cliente **web** é implementado; mobile não faz parte do escopo atual.
 
 O repo original é apenas referência de fluxo/produto, nunca autoridade de modelagem. Toda entidade/feature portada deve ser criticamente redesenhada (dados, contratos, nomes, UX) antes de existir no OpenMonetis.
 
@@ -121,6 +121,7 @@ Regras adicionais de padronização:
 ## 7. Segurança (não negociável)
 
 - Todo endpoint financeiro exige sessão autenticada; toda query/update/delete filtra por `userId`; mutations validam ownership de todo ID relacionado.
+- Dados da instalação que não pertencem a um usuário (ex.: `signup_allowlist`) só são expostos em rotas `/admin/*`, protegidas por `requireAuth` + `requireAdmin` (papel `admin` em `user.role`). O papel nunca é aceito como input do cliente.
 - Nunca expor `userId`, digests, hashes, segredos da instalação, stack traces ou paths internos em resposta pública. Tokens do Companion e de convites entre pessoas são entregues somente na criação autorizada pela sessão web, sem logs, persistência no cliente ou recuperação posterior do valor original.
 - Todo input externo validado com Zod antes do service; Drizzle sempre parametrizado (SQL raw só com justificativa, nunca com input concatenado).
 - CORS com credenciais nunca usa `*`; endpoints privados enviam `Cache-Control: private, no-store`; login/signup/mutations têm rate limit.
@@ -185,41 +186,18 @@ escopo.
 - [ ] Schemas específicos por operação (ISP); service depende de interface de repository (DIP).
 - [ ] Nomes revelam intenção; zero duplicação service↔domain; erros tipados por camada.
 
-## 15. Versionamento e Releases
+## 15. Changelog e Deploy
 
-- Toda mudança notável entra em `CHANGELOG.md` seguindo Keep a Changelog; versões oficiais usam
-  SemVer estável. Durante o desenvolvimento, cada mudança notável é registrada em `Unreleased` e
-  commitada com seus testes e documentação, sem incrementar a versão.
-- Todos os `package.json` do workspace, a entrada do changelog e o badge do README usam sempre a
-  mesma versão. Validar com `pnpm release:check`.
-- A `main` apenas valida. Imagens e GitHub Releases são publicadas exclusivamente por tags
-  `vX.Y.Z`, conforme `docs/releases.md`.
-- O deploy parte de features já commitadas, define a versão pelo conjunto desde a última release,
-  consolida `Unreleased` e cria apenas o commit de preparação da versão antes da publicação.
-- Criar ou enviar uma tag publica artefatos externos e exige um pedido explícito e inequívoco para
-  publicar uma versão. Pedidos para criar commit ou fazer push, isoladamente, não autorizam tag,
-  imagens ou GitHub Release.
-- Nunca mover, apagar ou recriar automaticamente uma tag publicada para contornar uma falha.
+- Toda mudança notável entra em `CHANGELOG.md` (Keep a Changelog), na seção `Unreleased`, no mesmo
+  commit da implementação, testes e documentação.
+- Este repositório é um fork (`origin` = `cesarvicente/openmonetis-v2`, `upstream` =
+  `felipegcoutinho/openmonetis-v2`). Mudanças do upstream entram por merge revisado, nunca
+  sobrescrevendo customizações locais.
+- A hospedagem é no servidor Oracle (`ssh oracle`); esta máquina serve apenas para desenvolvimento.
+  O banco de desenvolvimento (`openmonetis_dev`) e o de produção (`openmonetis`) são distintos;
+  nunca apontar desenvolvimento ou testes para o banco de produção.
+- Push, deploy e alterações no servidor exigem pedido explícito.
 
-## 16. Playbooks locais do mantenedor
-
-- A mensagem exata e autônoma **"Execute os commits"** ativa a skill privada
-  `$openmonetis-commits`, que deve reler e executar integralmente `commits.md` da raiz do projeto.
-  O fluxo revisa, documenta em `Unreleased`, valida e cria commits locais da mudança atual, sem
-  alterar a versão nem autorizar push, tag, release ou deploy.
-- A mensagem exata e autônoma **"Execute o deploy"** ativa a skill privada
-  `$openmonetis-deploy`, que deve reler e executar integralmente `deploy.md` da raiz do projeto.
-  Exige features já commitadas; prepara e valida a versão final, faz push e acompanha a publicação.
-- A mensagem exata e autônoma **"Execute o cleanup"** ativa a skill privada
-  `$openmonetis-cleanup` em modo de diagnóstico, sem alterar ou excluir arquivos.
-- A mensagem exata e autônoma **"Execute o cleanup apply"** ativa `$openmonetis-cleanup` em modo de
-  aplicação conservadora. Esse gatilho não autoriza commit, push, tag, release ou deploy.
-- Menções explicativas, condicionais ou entre aspas não acionam nenhum desses fluxos.
-- Se a skill ou seu playbook estiver ausente, vazio ou ilegível, interromper e informar o usuário;
-  nunca reconstruir suas instruções por suposição.
-- `commits.md`, `deploy.md`, `cleanup.md` e as três skills são privados do mantenedor, ignorados
-  pelo Git e não fazem parte da documentação pública do OpenMonetis.
-
-## 17. Princípio Final
+## 16. Princípio Final
 
 Backend é o núcleo, frontend é interface. Domain é a camada mais estável — tudo gira em torno dela, nunca o contrário.

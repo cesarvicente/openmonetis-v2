@@ -16,11 +16,10 @@
 </p>
 
 <p align="center">
-  <a href="#instalação-rápida">Instalação</a> ·
+  <a href="#desenvolvimento">Desenvolvimento</a> ·
   <a href="docs/production-deployment.md">Produção</a> ·
   <a href="docs/architecture.md">Arquitetura</a> ·
-  <a href="CHANGELOG.md">Changelog</a> ·
-  <a href="CONTRIBUTING.md">Contribuir</a>
+  <a href="CHANGELOG.md">Changelog</a>
 </p>
 
 <p align="center">
@@ -38,66 +37,41 @@
 - importação por planilha e caixa de entrada do Companion Android com regras configuráveis de
   categorização e pessoa.
 
-## Instalação rápida
+## Sobre este fork
 
-Tenha Git e Docker com o plugin Compose instalados.
+Fork pessoal do [OpenMonetis V2](https://github.com/felipegcoutinho/openmonetis-v2), hospedado no
+servidor Oracle. A máquina de desenvolvimento não hospeda a aplicação.
 
-### Linux e macOS
-
-```bash
-curl -fsSL https://github.com/felipegcoutinho/openmonetis-v2/raw/refs/heads/main/install.sh | bash
-```
-
-### Windows
-
-No PowerShell, com o Docker Desktop em execução:
-
-```powershell
-irm https://github.com/felipegcoutinho/openmonetis-v2/raw/refs/heads/main/install.ps1 | iex
-```
-
-Abra [http://localhost:7002](http://localhost:7002) e crie sua conta. Antes de executar um script
-remoto, você pode revisar o [`install.sh`](install.sh) ou o [`install.ps1`](install.ps1).
-
-Os instaladores atuais usam a branch padrão e imagens `latest`; a fixação de versão nos scripts
-continua pendente. Em produção, use o procedimento manual do guia abaixo para alinhar a
-tag do checkout e a versão das imagens. Após criar a primeira conta, configure `DISABLE_SIGNUP=true`
-para fechar novos cadastros por senha e Google, mantendo o login das contas existentes.
-
-Para publicar a aplicação com HTTPS, storage privado e segredos próprios, consulte o
-[`guia de produção`](docs/production-deployment.md).
-
-## Antes de usar
-
-- O OpenMonetis é self-hosted: banco, storage, HTTPS, atualizações e backups são responsabilidade de
-  quem mantém a instalação.
+- Produção: `https://finance.cvicent.com.br`, publicada com `bash scripts/deploy-oracle.sh`
+  ([guia de produção](docs/production-deployment.md)).
+- Banco: PostgreSQL 16 em container dedicado (`openmonetis-pg`) no servidor Oracle, escutando só em
+  `127.0.0.1:5433`. Bancos `openmonetis` (produção) e `openmonetis_dev` (desenvolvimento).
+- Anexos: Garage (S3 self-hosted) no mesmo servidor, em `finance-files.cvicent.com.br`.
+- Cadastro restrito aos e-mails autorizados no Painel admin, com confirmação de e-mail e
+  redefinição de senha pelo Resend.
 - Não existe integração com Open Finance. Os dados são inseridos manualmente, por planilha ou pelo
   fluxo de revisão do Companion.
-- O único cliente implementado neste monorepo é o web. O Companion Android é um projeto externo
-  que usa os endpoints de integração documentados e não substitui um aplicativo mobile completo.
-- A recuperação da instalação é operacional: preserve o PostgreSQL com `pg_dump`, o bucket de
-  anexos e os segredos da implantação conforme o guia de produção.
+- O único cliente implementado é o web. O Companion Android é um projeto externo que usa os
+  endpoints de integração documentados.
+- Backup: preserve o PostgreSQL com `pg_dump`, o storage de anexos e os segredos da implantação.
 
 ## Desenvolvimento
 
-Tenha Node.js 22.12 ou superior, preferencialmente uma versão LTS, Git e Docker com o plugin Compose instalados.
+Tenha Node.js 22.12 ou superior, pnpm 11 e acesso SSH ao servidor (`ssh oracle`).
 
 ```bash
-git clone https://github.com/felipegcoutinho/openmonetis-v2.git
+git clone https://github.com/cesarvicente/openmonetis-v2.git
 cd openmonetis-v2
-
-corepack enable
-corepack prepare pnpm@11.25.0 --activate
 pnpm install --frozen-lockfile
 
-cp .env.example .env
-pnpm docker:db
+cp .env.example .env    # preencha EXTERNAL_DATABASE_URL com a credencial do banco de dev
+pnpm db:tunnel          # terminal separado: porta local 7010 -> Postgres do Oracle
 pnpm db:migrate
 pnpm dev
 ```
 
-A aplicação web fica em `http://localhost:7002`, a API em `http://localhost:7001` e o PostgreSQL em
-`127.0.0.1:7000`.
+A aplicação web fica em `http://localhost:7002` e a API em `http://localhost:7001`. Detalhes no
+[guia de desenvolvimento](CONTRIBUTING.md).
 
 Comandos de validação:
 
@@ -108,7 +82,7 @@ pnpm build
 ```
 
 Os testes de integração com PostgreSQL têm comandos próprios e não fazem parte de `pnpm test`.
-Consulte os cenários e requisitos no [guia de contribuição](CONTRIBUTING.md#testes-de-integração).
+Consulte os cenários e requisitos no [guia de desenvolvimento](CONTRIBUTING.md#testes-de-integração).
 
 `pnpm lint` executa o Biome e a integração de `@shadcn/lint` via Oxlint no frontend.
 Para executar apenas essa integração, use `pnpm lint:ui`. O plugin está registrado em
@@ -141,8 +115,7 @@ detalhes e as convenções no [`guia de arquitetura`](docs/architecture.md).
 - [`docs/due-date-rules.md`](docs/due-date-rules.md): calendário compartilhado, ajustes e exceções de vencimento;
 - [`docs/companion-api.md`](docs/companion-api.md): contrato do Companion;
 - [`docs/device-token-secret.md`](docs/device-token-secret.md): geração e rotação do segredo do Companion;
-- [`docs/releases.md`](docs/releases.md): preparação, validação e publicação de versões;
-- [`CONTRIBUTING.md`](CONTRIBUTING.md): fluxo para contribuições.
+- [`CONTRIBUTING.md`](CONTRIBUTING.md): guia de desenvolvimento e testes.
 
 ## Licença
 

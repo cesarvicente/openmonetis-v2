@@ -69,6 +69,42 @@ test("the API proxy removes caller-controlled forwarding headers", async () => {
   }
 });
 
+test("the API proxy forwards the client IP only from the trusted reverse-proxy header", async () => {
+  const previousUrl = process.env.API_INTERNAL_URL;
+  const previousTrustedHeader = process.env.TRUSTED_CLIENT_IP_HEADER;
+  const previousFetch = globalThis.fetch;
+  process.env.API_INTERNAL_URL = "http://api.internal:7001";
+
+  let forwardedHeaders = new Headers();
+  globalThis.fetch = (async (_input, init) => {
+    forwardedHeaders = new Headers(init?.headers);
+    return Response.json({ accepted: true });
+  }) as typeof fetch;
+
+  const send = (headers: Record<string, string>) =>
+    proxyApiRequest(new Request("https://web.example/api-proxy/health", { headers }), "health");
+
+  try {
+    delete process.env.TRUSTED_CLIENT_IP_HEADER;
+    await send({ "X-Real-IP": "203.0.113.10", "X-OpenMonetis-Client-IP": "198.51.100.1" });
+    assert.equal(forwardedHeaders.get("x-openmonetis-client-ip"), null);
+
+    process.env.TRUSTED_CLIENT_IP_HEADER = "X-Real-IP";
+    await send({ "X-Real-IP": "203.0.113.10", "X-OpenMonetis-Client-IP": "198.51.100.1" });
+    assert.equal(forwardedHeaders.get("x-openmonetis-client-ip"), "203.0.113.10");
+    assert.equal(forwardedHeaders.get("x-real-ip"), null);
+
+    await send({ "X-Real-IP": "not-an-ip" });
+    assert.equal(forwardedHeaders.get("x-openmonetis-client-ip"), null);
+  } finally {
+    globalThis.fetch = previousFetch;
+    if (previousUrl === undefined) delete process.env.API_INTERNAL_URL;
+    else process.env.API_INTERNAL_URL = previousUrl;
+    if (previousTrustedHeader === undefined) delete process.env.TRUSTED_CLIENT_IP_HEADER;
+    else process.env.TRUSTED_CLIENT_IP_HEADER = previousTrustedHeader;
+  }
+});
+
 test("the API proxy rejects an oversized Companion payload before fetching upstream", async () => {
   const previousFetch = globalThis.fetch;
   let fetched = false;

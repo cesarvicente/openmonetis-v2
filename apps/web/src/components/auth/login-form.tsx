@@ -1,7 +1,7 @@
 import { LoginInputSchema } from "@openmonetis/validators/auth";
 import { useForm } from "@tanstack/react-form";
 import { useQuery } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { Fingerprint, LogIn } from "lucide-react";
 import { useId, useState } from "react";
 import { toast } from "sonner";
@@ -45,11 +45,13 @@ export function LoginForm() {
 
       if (result.error) {
         const message =
-          result.error.status === 429
-            ? "Muitas tentativas. Aguarde um pouco e tente novamente."
-            : result.error.status >= 500
-              ? "O serviço está indisponível. Tente novamente em instantes."
-              : "E-mail ou senha inválidos.";
+          result.error.code === "EMAIL_NOT_VERIFIED"
+            ? "Confirme seu e-mail para entrar. Enviamos um novo link de confirmação."
+            : result.error.status === 429
+              ? "Muitas tentativas. Aguarde um pouco e tente novamente."
+              : result.error.status >= 500
+                ? "O serviço está indisponível. Tente novamente em instantes."
+                : "E-mail ou senha inválidos.";
         setError(message);
         toast.error("Não foi possível entrar.", { description: message });
         return;
@@ -158,7 +160,15 @@ export function LoginForm() {
       >
         {(field) => (
           <div className="grid gap-2">
-            <Label htmlFor={`${id}-password`}>Senha</Label>
+            <div className="flex items-center justify-between gap-2">
+              <Label htmlFor={`${id}-password`}>Senha</Label>
+              <Link
+                className="text-muted-foreground text-xs hover:text-foreground hover:underline"
+                to="/forgot-password"
+              >
+                Esqueci minha senha
+              </Link>
+            </div>
             <PasswordInput
               aria-invalid={field.state.meta.errors.length > 0}
               autoComplete="current-password"

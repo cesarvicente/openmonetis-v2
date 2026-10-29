@@ -1,0 +1,110 @@
+# OpenMonetis no servidor Oracle (/opt/openmonetis/app).
+# As imagens sao construidas a partir do codigo enviado por scripts/deploy-oracle.sh.
+# Banco (openmonetis-pg) e storage (openmonetis-garage) vivem em projetos Compose proprios,
+# na rede externa "openmonetis"; veja db.compose.yml e storage.compose.yml.
+name: openmonetis-app
+
+x-build: &build
+  context: ./src
+
+x-database-environment: &database-environment
+  DATABASE_URL: ${DATABASE_URL}
+
+services:
+  migrator:
+    build:
+      <<: *build
+      target: migrator
+    image: openmonetis-local/openmonetis-migrator:latest
+    restart: "no"
+    environment: *database-environment
+    networks:
+      - openmonetis
+
+  api:
+    build:
+      <<: *build
+      target: api
+    image: openmonetis-local/openmonetis-api:latest
+    restart: unless-stopped
+    init: true
+    environment:
+      <<: *database-environment
+      AUTH_SESSION_EXPIRES_IN_DAYS: ${AUTH_SESSION_EXPIRES_IN_DAYS:-30}
+      AUTH_SESSION_UPDATE_AGE_HOURS: ${AUTH_SESSION_UPDATE_AGE_HOURS:-24}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
+      BETTER_AUTH_TRUSTED_ORIGINS: ${BETTER_AUTH_TRUSTED_ORIGINS:-}
+      BETTER_AUTH_URL: ${PUBLIC_URL}
+      CORS_ORIGIN: ${PUBLIC_URL}
+      DEVICE_TOKEN_SECRET: ${DEVICE_TOKEN_SECRET}
+      DISABLE_SIGNUP: ${DISABLE_SIGNUP:-false}
+      EMAIL_FROM: ${EMAIL_FROM}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      INITIAL_ADMIN_EMAIL: ${INITIAL_ADMIN_EMAIL:-}
+      LOGO_DEV_PUBLISHABLE_KEY: ${LOGO_DEV_PUBLISHABLE_KEY:-}
+      LOGO_DEV_SECRET_KEY: ${LOGO_DEV_SECRET_KEY:-}
+      PERSON_CONNECTION_SECRET: ${PERSON_CONNECTION_SECRET}
+      RELEASE_REPOSITORY: cesarvicente/openmonetis-v2
+      REQUIRE_EMAIL_VERIFICATION: ${REQUIRE_EMAIL_VERIFICATION:-true}
+      RESEND_API_KEY: ${RESEND_API_KEY}
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID}
+      S3_BUCKET: ${S3_BUCKET}
+      S3_ENDPOINT: ${S3_ENDPOINT}
+      S3_REGION: ${S3_REGION}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY}
+      SIGNUP_POLICY: ${SIGNUP_POLICY:-allowlist}
+      WEB_URL: ${PUBLIC_URL}
+    networks:
+      - openmonetis
+    mem_limit: 768m
+    depends_on:
+      migrator:
+        condition: service_completed_successfully
+
+  recurring-worker:
+    image: openmonetis-local/openmonetis-api:latest
+    restart: unless-stopped
+    init: true
+    healthcheck:
+      disable: true
+    command:
+      - node
+      - --import
+      - tsx
+      - src/scripts/recurring-external-expenses.worker.ts
+    environment: *database-environment
+    networks:
+      - openmonetis
+    mem_limit: 384m
+    depends_on:
+      api:
+        condition: service_healthy
+
+  web:
+    build:
+      <<: *build
+      target: web
+    image: openmonetis-local/openmonetis-web:latest
+    restart: unless-stopped
+    init: true
+    environment:
+      API_INTERNAL_URL: http://api:7001
+      S3_BUCKET: ${S3_BUCKET}
+      S3_ENDPOINT: ${S3_ENDPOINT}
+      S3_REGION: ${S3_REGION}
+      # nginx sobrescreve X-Real-IP com o IP real informado pela Cloudflare.
+      TRUSTED_CLIENT_IP_HEADER: x-real-ip
+    ports:
+      - "127.0.0.1:7002:7002"
+    networks:
+      - openmonetis
+    mem_limit: 512m
+    depends_on:
+      api:
+        condition: service_healthy
+
+networks:
+  openmonetis:
+    external: true
+    name: openmonetis

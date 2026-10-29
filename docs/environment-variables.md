@@ -85,7 +85,22 @@ Nunca reutilize a senha do PostgreSQL ou o mesmo segredo nessas três variáveis
 `DISABLE_SIGNUP` é lida pela API na inicialização; a web consulta sua disponibilidade em tempo de
 execução. Depois de alterá-la, recrie a API com `docker compose up -d --no-deps --force-recreate api`.
 No desenvolvimento local, reinicie o processo da API. Não é necessário recompilar a web.
-Consulte o procedimento de primeiro acesso no [guia de produção](production-deployment.md#primeiro-usuário-e-fechamento-do-cadastro).
+Consulte o procedimento de primeiro acesso no [guia de produção](production-deployment.md#primeiro-acesso-e-cadastro).
+
+## Cadastro, e-mail e IP do visitante
+
+| Variável | Serviço | Descrição |
+| --- | --- | --- |
+| `SIGNUP_POLICY` | API | `allowlist` (padrão) aceita cadastro por senha ou Google só para e-mails da lista de autorizados, gerenciada no Painel admin; a recusa acontece antes de qualquer gravação. `open` aceita qualquer e-mail e existe para testes. |
+| `REQUIRE_EMAIL_VERIFICATION` | API | `true` (padrão) exige confirmar o e-mail antes do primeiro login por senha. O link vale 24 horas e é reenviado ao tentar entrar sem confirmação. |
+| `INITIAL_ADMIN_EMAIL` | API | Incluído como administrador na lista de autorizados ao iniciar a API, quando ainda não está lá. Entradas existentes não são alteradas. |
+| `RESEND_API_KEY` | API | Chave do Resend (basta permissão de envio). Obrigatória em produção. |
+| `EMAIL_FROM` | API | Remetente, como `OpenMonetis <noreply@cvicent.com.br>`; o domínio precisa estar verificado no Resend. Configure junto com `RESEND_API_KEY`. |
+| `TRUSTED_CLIENT_IP_HEADER` | Web | Cabeçalho, sobrescrito pelo proxy reverso em toda requisição, de onde o web lê o IP do visitante para o rate limit da autenticação (ex.: `x-real-ip`). Vazio desativa o repasse e o rate limit usa um limite compartilhado. Nunca aponte para um cabeçalho que o cliente consiga definir. |
+
+Sem `RESEND_API_KEY` fora de produção, os e-mails são exibidos no console da API para que os links
+possam ser seguidos localmente. O link de redefinição de senha vale 1 hora e encerra as sessões
+abertas ao ser usado.
 
 ## Armazenamento de anexos
 

@@ -7,6 +7,45 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 
 ## [Unreleased]
 
+### Adicionado
+
+- Lista de e-mails autorizados a se cadastrar (`SIGNUP_POLICY=allowlist`, padrão): cadastros por senha
+  ou Google de e-mails fora da lista são recusados antes de qualquer gravação no banco.
+- Papel de usuário (`member`/`admin`) definido pela lista no cadastro e Painel admin, visível só para
+  administradores, com a aba E-mails autorizados. `INITIAL_ADMIN_EMAIL` garante o primeiro admin.
+- Confirmação de e-mail obrigatória no cadastro e fluxo "Esqueci minha senha", com e-mails enviados
+  pelo Resend (`RESEND_API_KEY`, `EMAIL_FROM`).
+- Implantação no servidor Oracle: `scripts/deploy-oracle.sh`, Compose da aplicação e referências de
+  banco, storage Garage e nginx em `deploy/oracle/`.
+
+### Notas de atualização
+
+- Migration `0018_signup_allowlist` cria o enum `user_role`, a coluna `user.role` e a tabela
+  `signup_allowlist`. Inclua o e-mail do administrador em `INITIAL_ADMIN_EMAIL` antes de iniciar a API,
+  ou nenhum novo cadastro será aceito.
+- Configure `RESEND_API_KEY` e `EMAIL_FROM` (obrigatórias em produção) e, no web,
+  `TRUSTED_CLIENT_IP_HEADER` com o cabeçalho sobrescrito pelo proxy reverso.
+
+### Alterado
+
+- O rate limit da autenticação passa a contar por IP do visitante, repassado pelo web a partir de um
+  cabeçalho confiável do proxy reverso; antes, todos os visitantes dividiam um único limite.
+
+- Fork adaptado para desenvolvimento local com banco PostgreSQL no servidor Oracle, acessado pelo
+  novo script `pnpm db:tunnel`.
+- Scripts do pnpm executam com `shellEmulator`, permitindo a sintaxe `VAR=valor comando` no Windows.
+- `.gitattributes` fixa finais de linha LF, evitando falhas do Biome em checkouts no Windows.
+
+### Corrigido
+
+- `drizzle.config.ts` e os testes de integração carregam `.env` e migrations também no Windows.
+
+### Removido
+
+- Instaladores remotos (`install.sh`, `install.ps1`), fluxo de publicação de imagens e releases do
+  upstream (`publish-images.yml`, `docs/releases.md`, `pnpm release:check`) e template de pull
+  request.
+
 ## [0.12.0] - 2026-10-28
 
 Amplia os relatórios com Compromissos futuros e Distribuição financeira, adiciona transferências ao

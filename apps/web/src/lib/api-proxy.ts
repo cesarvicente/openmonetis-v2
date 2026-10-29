@@ -1,16 +1,33 @@
+import { isIP } from "node:net";
+
 const defaultApiInternalUrl = "http://localhost:7001";
 const defaultMaximumBodySize = 8 * 1024 * 1024;
 const companionInboxMaximumBodySize = 16 * 1024;
 const companionInboxBatchMaximumBodySize = 256 * 1024;
 
+// Must match CLIENT_IP_HEADER in the API, which uses it for authentication rate limits.
+const clientIpHeader = "x-openmonetis-client-ip";
+
 class ProxyBodyTooLargeError extends Error {}
+
+// Reads the client address only from the header named by TRUSTED_CLIENT_IP_HEADER, which the
+// reverse proxy in front of the web server must overwrite on every request.
+export function resolveTrustedClientIp(source: Headers) {
+  const trustedHeader = process.env.TRUSTED_CLIENT_IP_HEADER?.trim().toLowerCase();
+  if (!trustedHeader) return null;
+
+  const value = source.get(trustedHeader)?.split(",")[0]?.trim();
+  return value && isIP(value) ? value : null;
+}
 
 export async function proxyApiRequest(request: Request, upstreamPath: string) {
   const incomingUrl = new URL(request.url);
   const upstreamUrl = resolveUpstreamUrl(upstreamPath, incomingUrl.search);
+  const clientIp = resolveTrustedClientIp(request.headers);
   const headers = createUpstreamHeaders(request.headers);
   headers.set("x-forwarded-host", incomingUrl.host);
   headers.set("x-forwarded-proto", incomingUrl.protocol.slice(0, -1));
+  if (clientIp) headers.set(clientIpHeader, clientIp);
 
   const hasBody = request.method !== "GET" && request.method !== "HEAD";
 
@@ -84,6 +101,7 @@ function createUpstreamHeaders(source: Headers) {
     "upgrade",
     "via",
     "x-real-ip",
+    clientIpHeader,
   ]) {
     headers.delete(name);
   }

@@ -6,7 +6,7 @@ import {
 import { useForm } from "@tanstack/react-form";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { UserPlus } from "lucide-react";
+import { MailCheck, UserPlus } from "lucide-react";
 import { useId, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -30,6 +30,9 @@ function getSignupErrorMessage(error: unknown) {
   if (identifier.includes("signup_disabled") || identifier.includes("sign up is disabled"))
     return "O cadastro de novas contas está desabilitado nesta instalação.";
 
+  if (identifier.includes("signup_not_allowed"))
+    return "Este e-mail não está autorizado a criar conta. Fale com o administrador.";
+
   if (details.status === 429 || identifier.includes("rate") || identifier.includes("too many")) {
     return "Muitas tentativas de cadastro. Aguarde um minuto e tente novamente.";
   }
@@ -51,6 +54,7 @@ export function SignupForm() {
   const id = useId();
   const [error, setError] = useState<string | null>(null);
   const [isGoogleSubmitting, setIsGoogleSubmitting] = useState(false);
+  const [verificationEmail, setVerificationEmail] = useState<string | null>(null);
   const form = useForm({
     defaultValues: { name: "", email: "", password: "", passwordConfirmation: "" },
     onSubmit: async ({ value }) => {
@@ -73,6 +77,11 @@ export function SignupForm() {
           const message = getSignupErrorMessage(result.error);
           setError(message);
           toast.error(message);
+          return;
+        }
+
+        if (!result.data?.token) {
+          setVerificationEmail(input.data.email);
           return;
         }
 
@@ -110,6 +119,19 @@ export function SignupForm() {
       setIsGoogleSubmitting(false);
       toast.error(message);
     }
+  }
+
+  if (verificationEmail) {
+    return (
+      <div className="grid gap-3" role="status">
+        <MailCheck aria-hidden="true" className="size-8 text-brand-strong" />
+        <p className="font-medium">Confirme seu e-mail</p>
+        <p className="text-muted-foreground text-sm">
+          Enviamos um link de confirmação para <strong>{verificationEmail}</strong>. Abra o e-mail
+          para ativar sua conta. O link vale por 24 horas.
+        </p>
+      </div>
+    );
   }
 
   return (

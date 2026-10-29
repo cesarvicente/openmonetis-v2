@@ -30,6 +30,7 @@
     "./releases": "./src/releases.ts",
     "./establishments": "./src/establishments.ts",
     "./settings": "./src/settings.ts",
+    "./signup-allowlist": "./src/signup-allowlist.ts",
     "./external-expenses": "./src/external-expenses.ts",
     "./inbox": "./src/inbox.ts",
     "./inbox-rules": "./src/inbox-rules.ts",

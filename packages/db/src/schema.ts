@@ -137,6 +137,8 @@ export const transactionOrigin = pgEnum("transaction_origin", [
   "personSettlement",
 ]);
 
+export const userRole = pgEnum("user_role", ["member", "admin"]);
+
 export const user = pgTable(
   "user",
   {
@@ -145,6 +147,7 @@ export const user = pgTable(
     email: text("email").notNull().unique(),
     emailVerified: boolean("email_verified").default(false).notNull(),
     image: text("image"),
+    role: userRole("role").default("member").notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at")
       .defaultNow()
@@ -999,6 +1002,27 @@ export const recurringTransactionRuleTags = pgTable(
       columns: [table.tagId, table.userId],
       foreignColumns: [tags.id, tags.userId],
     }).onDelete("cascade"),
+  ],
+);
+
+export const signupAllowlist = pgTable(
+  "signup_allowlist",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    email: varchar("email", { length: 320 }).notNull(),
+    role: userRole("role").default("member").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [
+    uniqueIndex("signup_allowlist_email_unique").on(table.email),
+    check(
+      "signup_allowlist_email_normalized_check",
+      sql`${table.email} = lower(btrim(${table.email}))`,
+    ),
   ],
 );
 
