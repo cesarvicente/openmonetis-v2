@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  formatCardInvoiceDetails,
+  formatCardInvoiceEntryCount,
   formatInstallmentOption,
   formatPaymentMethod,
   formatPaymentMethodTable,
@@ -139,10 +139,7 @@ test("card entries are grouped by invoice unless the search targets card entries
   assert.equal(shouldGroupCardInvoices({ type: "expense", payables: true }), false);
 });
 
-test("card invoice details count entries and show the due date", () => {
-  assert.equal(formatCardInvoiceDetails({ dueDate: null, transactionCount: 1 }), "1 lançamento");
-  assert.match(
-    formatCardInvoiceDetails({ dueDate: "2026-09-10", transactionCount: 3 }),
-    /^3 lançamentos · vence qui, 10 de set$/,
-  );
+test("card invoice rows count their entries", () => {
+  assert.equal(formatCardInvoiceEntryCount(1), "1 lançamento");
+  assert.equal(formatCardInvoiceEntryCount(3), "3 lançamentos");
 });

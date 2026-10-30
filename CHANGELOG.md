@@ -41,7 +41,8 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
   cabeçalho confiável do proxy reverso; antes, todos os visitantes dividiam um único limite.
 - Na lista de Lançamentos, com ou sem filtro de tipo, as compras e os créditos de cada cartão de
   crédito aparecem como uma única linha de fatura com o valor líquido somado; o link abre a página do
-  cartão no mesmo período. Filtrar por cartão, por forma "Cartão de crédito" ou pela
+  cartão no mesmo período. A linha mostra o vencimento da fatura no mesmo formato dos lançamentos,
+  com o destaque de ajuste para dia útil e a exceção editável. Filtrar por cartão, por forma "Cartão de crédito" ou pela
   situação "Na fatura" volta a mostrar as compras uma a uma. Na API, o agrupamento é pedido com
   `groupCardInvoices=true` e devolvido em `cardInvoices`.
 - A forma de pagamento de um lançamento recorrente pode ser alterada na edição, inclusive entre conta

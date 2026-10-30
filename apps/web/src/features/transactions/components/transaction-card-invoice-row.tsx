@@ -1,11 +1,14 @@
 import type { TransactionCardInvoiceOutput } from "@openmonetis/validators/transactions";
+import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { Image } from "@unpic/react";
 import { ArrowRight, CreditCard, ReceiptText } from "lucide-react";
 import { MoneyValue } from "@/components/money-value";
 import { TableCell, TableRow } from "@/components/ui/table";
+import { DueDateIndicator } from "@/features/due-date-rules/components/due-date-indicator";
+import { invoicesQueryOptions } from "@/features/invoices/invoices.queries";
 import { cn } from "@/lib/utils";
-import { formatCardInvoiceDetails } from "../transactions.presentation";
+import { formatCardInvoiceEntryCount, formatCompactDate } from "../transactions.presentation";
 
 const logoSizeClassNames = { 32: "size-8", 40: "size-10" } as const;
 
@@ -37,6 +40,35 @@ function CardInvoiceLogo({
   );
 }
 
+/** Shows the invoice due date resolved by the API, as transaction rows show their own. */
+function CardInvoiceDueDate({
+  invoice,
+  separator = false,
+}: {
+  invoice: TransactionCardInvoiceOutput;
+  separator?: boolean;
+}) {
+  const invoicesQuery = useQuery(invoicesQueryOptions(invoice.period));
+  const resolved = invoicesQuery.data?.items.find((item) => item.cardId === invoice.cardId);
+  const dueDate = resolved?.dueDate ?? invoice.dueDate;
+
+  return dueDate ? (
+    <span className="text-brand-strong">
+      {separator ? " · " : null}
+      <DueDateIndicator
+        adjustment={resolved?.dueDateAdjustment}
+        dueDate={dueDate}
+        editable={resolved?.dueDateExceptionEditable}
+        excluded={resolved?.dueDateRuleExcluded}
+        originalDueDate={resolved?.originalDueDate}
+        target={{ target: "invoice", cardId: invoice.cardId, period: invoice.period }}
+      >
+        Venc. {formatCompactDate(dueDate)}
+      </DueDateIndicator>
+    </span>
+  ) : null;
+}
+
 function cardInvoiceName(invoice: TransactionCardInvoiceOutput) {
   return `Fatura ${invoice.cardName ?? "do cartão"}`;
 }
@@ -60,7 +92,8 @@ export function TransactionCardInvoiceRow({ invoice }: { invoice: TransactionCar
               {name}
             </Link>
             <span className="h-4 whitespace-nowrap text-muted-foreground text-xs">
-              {formatCardInvoiceDetails(invoice)}
+              {formatCardInvoiceEntryCount(invoice.transactionCount)}
+              <CardInvoiceDueDate invoice={invoice} separator />
             </span>
           </span>
         </div>
@@ -111,10 +144,10 @@ export function MobileTransactionCardInvoiceRow({
   const name = cardInvoiceName(invoice);
 
   return (
-    <li>
+    <li className="min-h-20 px-3 py-3">
       <Link
         aria-label={`Abrir ${name.toLocaleLowerCase("pt-BR")}`}
-        className="flex min-h-20 items-center gap-3 px-3 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="flex items-center gap-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         params={{ cardId: invoice.cardId }}
         search={{ period: invoice.period }}
         to="/cards/$cardId"
@@ -123,7 +156,7 @@ export function MobileTransactionCardInvoiceRow({
         <span className="min-w-0 flex-1">
           <span className="block truncate font-medium text-sm">{name}</span>
           <span className="mt-1 block truncate text-muted-foreground text-xs">
-            {formatCardInvoiceDetails(invoice)}
+            {formatCardInvoiceEntryCount(invoice.transactionCount)}
           </span>
         </span>
         <MoneyValue
@@ -133,6 +166,9 @@ export function MobileTransactionCardInvoiceRow({
         />
         <ArrowRight aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
       </Link>
+      <div className="mt-1 ml-13 text-xs">
+        <CardInvoiceDueDate invoice={invoice} />
+      </div>
     </li>
   );
 }

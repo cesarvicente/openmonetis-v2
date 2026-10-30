@@ -296,12 +296,8 @@ export function shouldGroupCardInvoices(search: TransactionsSearch) {
   );
 }
 
-export function formatCardInvoiceDetails(invoice: {
-  dueDate: string | null;
-  transactionCount: number;
-}) {
-  const count = `${invoice.transactionCount} ${invoice.transactionCount === 1 ? "lançamento" : "lançamentos"}`;
-  return invoice.dueDate ? `${count} · vence ${formatCompactDate(invoice.dueDate)}` : count;
+export function formatCardInvoiceEntryCount(count: number) {
+  return `${count} ${count === 1 ? "lançamento" : "lançamentos"}`;
 }
 
 export function formatCompactDate(value: string) {
