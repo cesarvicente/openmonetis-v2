@@ -44,6 +44,10 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
   página do cartão no mesmo período. Filtrar por cartão, por forma "Cartão de crédito" ou pela
   situação "Na fatura" volta a mostrar as compras uma a uma. Na API, o agrupamento é pedido com
   `groupCardInvoices=true` e devolvido em `cardInvoices`.
+- A forma de pagamento de um lançamento recorrente pode ser alterada na edição, inclusive entre conta
+  e cartão de crédito, respeitando o escopo escolhido (só esta, esta e as próximas ou toda a série).
+  Ocorrências já pagas no escopo continuam bloqueando a alteração até que a baixa seja desfeita.
+  Parcelamentos mantêm a forma de pagamento original.
 
 - Fork adaptado para desenvolvimento local com banco PostgreSQL no servidor Oracle, acessado pelo
   novo script `pnpm db:tunnel`.

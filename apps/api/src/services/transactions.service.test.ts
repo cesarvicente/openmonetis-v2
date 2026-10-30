@@ -1686,6 +1686,134 @@ test("account statement includes an early recurring boleto payment before the ru
   assert.equal(septemberTransactions.items[0]?.boletoPaymentDate, "2026-08-28");
 });
 
+test("a recurring series can switch from boleto to credit card", async () => {
+  const cardId = "b0000000-0000-4000-8000-00000000000b";
+  const rule = {
+    id: recurringRuleId,
+    userId,
+    seriesId: "80000000-0000-4000-8000-000000000008",
+    personId: firstPersonId,
+    type: "expense",
+    paymentMethod: "boleto",
+    name: "Assinatura",
+    amount: "-50.00",
+    anchorDate: new Date("2026-09-01T00:00:00.000Z"),
+    startDate: new Date("2026-09-01T00:00:00.000Z"),
+    endDate: null,
+    frequency: "monthly",
+    accountId: "50000000-0000-4000-8000-000000000005",
+    cardId: null,
+    categoryId: "60000000-0000-4000-8000-000000000006",
+    sourceAccountId: null,
+    destinationAccountId: null,
+    dueDate: new Date("2026-09-10T00:00:00.000Z"),
+    isSettled: false,
+    note: null,
+    status: "active",
+    createdAt: new Date("2026-09-01T00:00:00.000Z"),
+    updatedAt: new Date("2026-09-01T00:00:00.000Z"),
+    personName: "Pessoa 1",
+    personAvatarUrl: null,
+    accountName: "Conta principal",
+    accountLogo: null,
+    cardName: null,
+    cardLogo: null,
+    categoryName: "Assinaturas",
+    categoryIcon: null,
+    sourceAccountName: null,
+    sourceAccountLogo: null,
+    destinationAccountName: null,
+    destinationAccountLogo: null,
+    cardClosingDay: null,
+    cardClosingRuleType: null,
+    cardClosingOffsetDays: null,
+    cardClosingOffsetMode: null,
+    cardClosingDayPurchasesNextInvoice: null,
+    cardDueDay: null,
+  } satisfies RecurringRuleWithRelations;
+  const writes: Array<Record<string, unknown>> = [];
+  const dependencies = new Proxy(
+    {
+      findRecurringRuleByIdForUser: async () => rule,
+      listRecurringRulesBySeriesForUser: async () => [
+        { id: rule.id, startDate: rule.startDate, updatedAt: rule.updatedAt },
+      ],
+      findPersonByIdForUser: async () => ({ id: firstPersonId, status: "active" }),
+      findCategoryByIdForUser: async () => ({
+        id: rule.categoryId,
+        type: "expense",
+        name: "Assinaturas",
+      }),
+      findCardByIdForUser: async () => ({
+        id: cardId,
+        name: "Principal",
+        status: "active",
+        closingDay: 5,
+        closingRuleType: "fixedDay",
+        closingOffsetDays: null,
+        closingOffsetMode: null,
+        closingDayPurchasesNextInvoice: true,
+        dueDay: 10,
+        limit: "1000.00",
+      }),
+      updateRecurringRuleWithSplitsForUser: async (
+        _id: string,
+        _userId: string,
+        values: Record<string, unknown>,
+      ) => {
+        writes.push(values);
+        return { ...rule, ...values };
+      },
+      listRecurringOccurrencesForUser: async () => [],
+      listRecurringSplitsForUser: async () => [],
+    },
+    {
+      get(target, property) {
+        if (property in target) return target[property as keyof typeof target];
+        return async () => {
+          throw new Error(`Unexpected dependency call: ${String(property)}`);
+        };
+      },
+    },
+  ) as unknown as TransactionsServiceDependencies;
+  const service = createTransactionsService(dependencies, {
+    async cleanupOrphans() {
+      return { deletedCount: 0 };
+    },
+  });
+
+  await service.updateRecurringRule(
+    recurringRuleId,
+    userId,
+    {
+      type: "expense",
+      condition: "recurring",
+      paymentMethod: "credit_card",
+      name: "Assinatura",
+      amount: 50,
+      purchaseDate: "2026-10-01",
+      personId: firstPersonId,
+      accountId: null,
+      cardId,
+      categoryId: rule.categoryId,
+      sourceAccountId: null,
+      destinationAccountId: null,
+      dueDate: null,
+      boletoPaymentDate: null,
+      recurrenceFrequency: "monthly",
+      isSettled: null,
+    },
+    { scope: "future", occurrenceDate: "2026-10-01" },
+  );
+
+  assert.equal(writes.length, 1);
+  assert.equal(writes[0]?.paymentMethod, "credit_card");
+  assert.equal(writes[0]?.cardId, cardId);
+  assert.equal(writes[0]?.accountId, null);
+  assert.equal(writes[0]?.dueDate, null);
+  assert.equal(writes[0]?.isSettled, null);
+});
+
 test("editing a recurring boleto preserves the rule settlement state", async () => {
   const rule: RecurringRuleWithRelations = {
     id: recurringRuleId,

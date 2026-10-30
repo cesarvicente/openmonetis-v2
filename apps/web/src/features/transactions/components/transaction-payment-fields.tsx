@@ -30,7 +30,7 @@ export function TransactionPaymentFields({
   values,
   isSubmitting,
   isTransfer,
-  isSeriesEdit,
+  lockPaymentMethod,
   isCreditCard,
 }: {
   activeAccounts: ReturnType<typeof useTransactionForm>["activeAccounts"];
@@ -44,14 +44,14 @@ export function TransactionPaymentFields({
   values: TransactionFormValues;
   isSubmitting: boolean;
   isTransfer: boolean;
-  isSeriesEdit: boolean;
+  lockPaymentMethod: boolean;
   isCreditCard: boolean;
 }) {
   return (
     <>
       {!isTransfer ? (
-        <div className={cn("grid gap-4", !isSeriesEdit && "sm:grid-cols-2")}>
-          {!isSeriesEdit ? (
+        <div className={cn("grid gap-4", !lockPaymentMethod && "sm:grid-cols-2")}>
+          {!lockPaymentMethod ? (
             <form.Field name="paymentMethod">
               {(field) => (
                 <FieldShell

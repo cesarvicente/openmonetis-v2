@@ -127,6 +127,8 @@ export function TransactionForm({
               Boolean(
                 transaction && (transaction.condition === "installment" || transaction.isRecurring),
               );
+            // Installments keep their payment method; recurring series can switch it.
+            const isInstallmentEdit = isSeriesEdit && transaction?.condition === "installment";
             const isCreditCard = values.paymentMethod === "credit_card";
             const isBoleto = values.paymentMethod === "boleto";
             const visibleCategories = sortCategoryOptions(
@@ -190,7 +192,7 @@ export function TransactionForm({
                       values={values}
                       isSubmitting={isSubmitting}
                       isTransfer={isTransfer}
-                      isSeriesEdit={isSeriesEdit}
+                      lockPaymentMethod={isInstallmentEdit}
                       isCreditCard={isCreditCard}
                     />
 
