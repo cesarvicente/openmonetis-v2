@@ -65,6 +65,8 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
   o valor enviado é igual ao gravado.
 - O campo "Conta da baixa" ao registrar pagamento ou recebimento de um lançamento mostrava o ID da
   conta em vez do nome.
+- Com o vencimento preenchido, o botão de remover o vencimento alargava o formulário de lançamento
+  e criava uma barra de rolagem horizontal.
 - A descrição nas tabelas de lançamentos (lançamentos, fatura do cartão, extrato da conta) e de
   despesas externas era cortada em largura fixa mesmo com espaço livre; agora ocupa a coluna inteira
   e só é abreviada quando não cabe.

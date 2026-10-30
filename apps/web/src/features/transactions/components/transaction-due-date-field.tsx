@@ -29,14 +29,16 @@ export function TransactionDueDateField({
                 label="Vencimento (opcional)"
               >
                 <div className="flex items-center gap-1">
-                  <DatePicker
-                    id={id}
-                    aria-invalid={field.state.meta.errors.length > 0}
-                    disabled={isSubmitting}
-                    onChange={field.handleChange}
-                    value={field.state.value}
-                    placeholder="Sem vencimento"
-                  />
+                  <div className="min-w-0 flex-1">
+                    <DatePicker
+                      id={id}
+                      aria-invalid={field.state.meta.errors.length > 0}
+                      disabled={isSubmitting}
+                      onChange={field.handleChange}
+                      value={field.state.value}
+                      placeholder="Sem vencimento"
+                    />
+                  </div>
                   {field.state.value ? (
                     <Button
                       type="button"
