@@ -66,8 +66,12 @@ export function TransactionCardInvoiceRow({ invoice }: { invoice: TransactionCar
         </div>
       </TableCell>
       <TableCell className="text-right whitespace-nowrap">
-        <span className="sr-only">Despesa:</span>
-        <MoneyValue amount={invoice.amount} className="font-medium text-foreground" />
+        <span className="sr-only">{invoice.amount > 0 ? "Crédito:" : "Despesa:"}</span>
+        <MoneyValue
+          amount={invoice.amount}
+          className={cn("font-medium", invoice.amount > 0 ? "text-success" : "text-foreground")}
+          showPositiveSign={invoice.amount > 0}
+        />
       </TableCell>
       <TableCell className="pl-5 whitespace-nowrap">
         <span className="inline-flex items-center gap-2">
@@ -122,7 +126,11 @@ export function MobileTransactionCardInvoiceRow({
             {formatCardInvoiceDetails(invoice)}
           </span>
         </span>
-        <MoneyValue amount={invoice.amount} className="shrink-0 font-medium text-sm" />
+        <MoneyValue
+          amount={invoice.amount}
+          className={cn("shrink-0 font-medium text-sm", invoice.amount > 0 && "text-success")}
+          showPositiveSign={invoice.amount > 0}
+        />
         <ArrowRight aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
       </Link>
     </li>

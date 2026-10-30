@@ -128,11 +128,11 @@ test("untagged URL filters normalize booleans and clear conflicting tag selectio
   assert.equal(validateTransactionsSearch({ withoutTags: "false" }).withoutTags, undefined);
 });
 
-test("expenses group card entries by invoice unless the search targets card entries", () => {
+test("card entries are grouped by invoice unless the search targets card entries", () => {
+  assert.equal(shouldGroupCardInvoices({}), true);
   assert.equal(shouldGroupCardInvoices({ type: "expense" }), true);
+  assert.equal(shouldGroupCardInvoices({ type: "income" }), true);
   assert.equal(shouldGroupCardInvoices({ type: "expense", settlement: "unpaid" }), true);
-  assert.equal(shouldGroupCardInvoices({}), false);
-  assert.equal(shouldGroupCardInvoices({ type: "income" }), false);
   assert.equal(shouldGroupCardInvoices({ type: "expense", cards: "nubank" }), false);
   assert.equal(shouldGroupCardInvoices({ type: "expense", paymentMethod: "credit_card" }), false);
   assert.equal(shouldGroupCardInvoices({ type: "expense", settlement: "invoice" }), false);
