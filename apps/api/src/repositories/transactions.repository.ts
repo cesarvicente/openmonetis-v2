@@ -30,7 +30,10 @@ import {
 } from "@openmonetis/db";
 import { createEstablishmentNameKey } from "@openmonetis/domain/establishments";
 import { selectNewExternalExpenseAssignmentKeys } from "@openmonetis/domain/external-expenses";
-import { planRecurringScheduleChange } from "@openmonetis/domain/recurring-transactions";
+import {
+  canChangeRecurringDueDateWithSettledOccurrences,
+  planRecurringScheduleChange,
+} from "@openmonetis/domain/recurring-transactions";
 import { SettlementError } from "@openmonetis/domain/settlements";
 import {
   assertTransferWithinAvailableBalance,
@@ -2158,20 +2161,20 @@ export async function updateRecurringRuleWithSplitsForUser(
       "personId",
       "accountId",
       "cardId",
-      "dueDate",
-      "dueDateRuleExcluded",
-
       "frequency",
       "anchorDate",
       "recurrenceEndDate",
     ] as const;
-    const financialChange = financialKeys.some(
-      (key) =>
-        data[key] !== undefined && JSON.stringify(data[key]) !== JSON.stringify(current[key]),
-    );
-    if (financialChange) {
-      const [confirmed] = await transaction
-        .select({ id: recurringTransactionOccurrences.id })
+    // Due dates do not touch amounts or settlements, so settled occurrences only restrict them
+    // through the recurrence deadline.
+    const dueDateKeys = ["dueDate", "dueDateRuleExcluded"] as const;
+    const changed = (key: (typeof financialKeys)[number] | (typeof dueDateKeys)[number]) =>
+      data[key] !== undefined && JSON.stringify(data[key]) !== JSON.stringify(current[key]);
+    const financialChange = financialKeys.some(changed);
+    const dueDateChange = dueDateKeys.some(changed);
+    if (financialChange || dueDateChange) {
+      const confirmed = await transaction
+        .select({ purchaseDate: recurringTransactionOccurrences.purchaseDate })
         .from(recurringTransactionOccurrences)
         .where(
           and(
@@ -2184,9 +2187,24 @@ export async function updateRecurringRuleWithSplitsForUser(
                 ? [eq(recurringTransactionOccurrences.purchaseDate, options.occurrenceDate)]
                 : [gte(recurringTransactionOccurrences.purchaseDate, boundaryDate)]),
           ),
-        )
-        .limit(1);
-      if (confirmed) throw new SettlementError("SETTLEMENT_REQUIRES_UNDO");
+        );
+      const toDay = (value: Date | null | undefined) => value?.toISOString().slice(0, 10) ?? null;
+      if (
+        confirmed.length &&
+        (financialChange ||
+          !canChangeRecurringDueDateWithSettledOccurrences({
+            settledOccurrenceDates: confirmed.map(
+              (occurrence) => toDay(occurrence.purchaseDate) as string,
+            ),
+            dueDate: toDay(data.dueDate === undefined ? current.dueDate : data.dueDate),
+            recurrenceEndDate: toDay(
+              data.recurrenceEndDate === undefined
+                ? current.recurrenceEndDate
+                : data.recurrenceEndDate,
+            ),
+          }))
+      )
+        throw new SettlementError("SETTLEMENT_REQUIRES_UNDO");
     }
     const originalTagIds = await readRecurringRuleTagIds(transaction, id, userId);
     const originalSplits = await transaction

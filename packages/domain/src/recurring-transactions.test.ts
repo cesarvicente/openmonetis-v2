@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   assertRecurringActionHasNoSettledOccurrences,
   buildRecurringTransactionsReport,
+  canChangeRecurringDueDateWithSettledOccurrences,
   getEffectiveRecurringEndDate,
   isActiveRecurringOccurrence,
   planRecurringScheduleChange,
@@ -299,4 +300,41 @@ test("skipped final occurrence ends management entry without restoring the skipp
   });
   assert.equal(report.items[0].status, "ended");
   assert.equal(report.summary.projectedTotal, 0);
+});
+
+test("a due date can change over settled occurrences unless one leaves the recurrence deadline", () => {
+  const settledOccurrenceDates = ["2026-10-05", "2026-11-05"];
+
+  assert.equal(
+    canChangeRecurringDueDateWithSettledOccurrences({
+      settledOccurrenceDates,
+      dueDate: "2026-11-20",
+      recurrenceEndDate: null,
+    }),
+    true,
+  );
+  assert.equal(
+    canChangeRecurringDueDateWithSettledOccurrences({
+      settledOccurrenceDates,
+      dueDate: "2026-11-10",
+      recurrenceEndDate: "2026-11-10",
+    }),
+    true,
+  );
+  assert.equal(
+    canChangeRecurringDueDateWithSettledOccurrences({
+      settledOccurrenceDates,
+      dueDate: "2026-11-11",
+      recurrenceEndDate: "2026-11-10",
+    }),
+    false,
+  );
+  assert.equal(
+    canChangeRecurringDueDateWithSettledOccurrences({
+      settledOccurrenceDates: [],
+      dueDate: "2026-11-11",
+      recurrenceEndDate: "2026-11-10",
+    }),
+    true,
+  );
 });

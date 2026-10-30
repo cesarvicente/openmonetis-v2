@@ -58,6 +58,11 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 ### Corrigido
 
 - `drizzle.config.ts` e os testes de integração carregam `.env` e migrations também no Windows.
+- Adicionar ou alterar o vencimento de uma recorrência com "Todas as ocorrências" ou "Esta e as
+  próximas" era recusado quando havia uma ocorrência já paga no escopo. O vencimento não altera
+  valores, contas nem baixas, então agora pode ser alterado nesse caso; ocorrências pagas mantêm o
+  vencimento registrado na baixa. A recusa continua quando o novo vencimento tiraria uma ocorrência
+  paga do prazo final da recorrência, e para mudanças de valor, forma de pagamento, conta ou pessoa.
 - Editar um lançamento recorrente com o escopo "esta e as próximas" ou "toda a série" sobrescrevia o
   valor, a divisão e os demais campos de todas as versões da série com os do lançamento aberto, mesmo
   quando só outro campo (como a forma de pagamento) tinha mudado. A API agora compara cada campo

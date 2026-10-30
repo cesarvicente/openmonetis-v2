@@ -164,6 +164,22 @@ export function planRecurringScheduleChange(
   };
 }
 
+/**
+ * A due date only changes when a settled occurrence is billed, never its amount or account. It can
+ * still remove that occurrence from the series when the new due date passes the recurrence deadline.
+ */
+export function canChangeRecurringDueDateWithSettledOccurrences(input: {
+  settledOccurrenceDates: readonly string[];
+  dueDate: string | null;
+  recurrenceEndDate: string | null;
+}) {
+  const { dueDate, recurrenceEndDate } = input;
+  if (!recurrenceEndDate) return true;
+  return input.settledOccurrenceDates.every(
+    (date) => (resolveRecurringDueDate(date, dueDate) ?? date) <= recurrenceEndDate,
+  );
+}
+
 export function assertRecurringActionHasNoSettledOccurrences(
   action: RecurringAction,
   hasSettledOccurrences: boolean,

@@ -374,6 +374,108 @@ test("financial mutations preserve cents, occurrence history and ownership", {
     );
 
     await t.test(
+      "a due date can be added to every occurrence of a series with a settled month",
+      async () => {
+        const own = await api.expense(owner, {
+          name: "Due date series",
+          amount: 40,
+          condition: "recurring",
+          recurrenceFrequency: "monthly",
+          isSettled: false,
+        });
+        assert.ok(own.recurringRuleId);
+        const series = async () =>
+          (await Promise.all(["2020-01", "2020-02", "2020-03"].map(listing)))
+            .flatMap((result) => result.items)
+            .filter((item) => item.name === "Due date series")
+            .sort((left, right) => left.purchaseDate.localeCompare(right.purchaseDate));
+        await api.data(
+          await api.request("/transactions/recurring-occurrences/settlement", owner, "PATCH", {
+            recurringRuleId: own.recurringRuleId,
+            purchaseDate: "2020-01-10",
+            isSettled: true,
+            settledDate: "2020-01-10",
+          }),
+        );
+        const february = (await series())[1];
+        assert.ok(february?.recurringRuleId);
+        const body = (overrides: Record<string, unknown>) => ({
+          type: "expense",
+          condition: "recurring",
+          paymentMethod: "pix",
+          name: "Due date series",
+          amount: 40,
+          purchaseDate: "2020-02-10",
+          personId: owner.personId,
+          categoryId: february.categoryId,
+          accountId: february.accountId,
+          cardId: null,
+          recurrenceFrequency: "monthly",
+          isSettled: false,
+          ...overrides,
+        });
+        const path = `/transactions/recurring-rules/${february.recurringRuleId}?scope=series&occurrenceDate=2020-02-10`;
+
+        await api.data(await api.request(path, owner, "PUT", body({ dueDate: "2020-02-20" })));
+        assert.deepEqual(
+          (await series()).map((item) => [item.purchaseDate, item.isSettled, item.displayAmount]),
+          [
+            ["2020-01-10", true, 40],
+            ["2020-02-10", false, 40],
+            ["2020-03-10", false, 40],
+          ],
+        );
+        assert.deepEqual(
+          (await series()).slice(1).map((item) => item.originalDueDate ?? item.dueDate),
+          ["2020-02-20", "2020-03-20"],
+        );
+
+        // A due date past the deadline would drop a settled occurrence from the series.
+        const bounded = await api.expense(owner, {
+          name: "Bounded due date series",
+          condition: "recurring",
+          recurrenceFrequency: "monthly",
+          recurrenceEndDate: "2020-02-12",
+          isSettled: false,
+        });
+        await api.data(
+          await api.request("/transactions/recurring-occurrences/settlement", owner, "PATCH", {
+            recurringRuleId: bounded.recurringRuleId,
+            purchaseDate: "2020-02-10",
+            isSettled: true,
+            settledDate: "2020-02-10",
+          }),
+        );
+        await api.error(
+          await api.request(
+            `/transactions/recurring-rules/${bounded.recurringRuleId}?scope=series&occurrenceDate=2020-01-10`,
+            owner,
+            "PUT",
+            body({
+              name: "Bounded due date series",
+              amount: 10.01,
+              purchaseDate: "2020-01-10",
+              dueDate: "2020-01-15",
+            }),
+          ),
+          400,
+          "SETTLEMENT_REQUIRES_UNDO",
+        );
+        // Payment method changes still require undoing the settled month.
+        await api.error(
+          await api.request(
+            path,
+            owner,
+            "PUT",
+            body({ paymentMethod: "debit_card", dueDate: "2020-02-20" }),
+          ),
+          400,
+          "SETTLEMENT_REQUIRES_UNDO",
+        );
+      },
+    );
+
+    await t.test(
       "recurring settlement rejects foreign rules, foreign accounts and dates outside the series",
       async () => {
         const own = await api.expense(owner, {
