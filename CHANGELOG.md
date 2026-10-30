@@ -45,6 +45,10 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
   com o destaque de ajuste para dia útil e a exceção editável. Filtrar por cartão, por forma "Cartão de crédito" ou pela
   situação "Na fatura" volta a mostrar as compras uma a uma. Na API, o agrupamento é pedido com
   `groupCardInvoices=true` e devolvido em `cardInvoices`.
+- Receitas fora do cartão aceitam vencimento (data prevista do recebimento) no cadastro e na edição,
+  inclusive em recorrências. Quando a data cai em fim de semana ou feriado, segue para o próximo dia
+  útil pelo calendário de Ajustes, com o mesmo destaque e a exceção "Usar vencimento original" das
+  contas a pagar. As regras personalizadas de contas a pagar não se aplicam a receitas.
 - A forma de pagamento de um lançamento recorrente pode ser alterada na edição, inclusive entre conta
   e cartão de crédito, respeitando o escopo escolhido (só esta, esta e as próximas ou toda a série).
   Ocorrências já pagas no escopo continuam bloqueando a alteração até que a baixa seja desfeita.

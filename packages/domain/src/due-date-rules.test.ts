@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { calculateCardInvoiceSummary } from "./cards";
 import {
+  assertDueDateExceptionEditable,
   type DueDateRule,
   DueDateRuleError,
   defaultDueDateRules,
@@ -72,9 +73,24 @@ test("selection limits rules to chosen boletos and recurrence series", () => {
   );
   assert.equal(resolveDueDate({ ...boleto, seriesId: "series" }, [selected]).dueDate, "2026-10-30");
 });
-test("income, card purchases, missing due dates and internal movements stay outside payable rules", () => {
+test("incomes with a due date follow the automatic adjustment, not payable rules", () => {
+  const keepPayables = { ...version, rules: [{ ...rule, adjustment: "none" as const }] };
+  const salary = { type: "income", paymentMethod: "bank_transfer", dueDate: "2026-10-31" };
+
+  assert.equal(resolveDueDate({ ...boleto }, [keepPayables]).dueDate, "2026-10-31");
+  assert.equal(resolveDueDate(salary, [keepPayables]).dueDate, "2026-11-03");
+  assert.equal(resolveDueDate(salary, [keepPayables]).dueDateAdjustment?.ruleName, null);
+  assert.equal(resolveDueDate({ ...salary, excluded: true }, [version]).dueDate, "2026-10-31");
+  assert.equal(
+    resolveDueDate({ ...salary, paymentMethod: "credit_card" }, [version]).dueDate,
+    "2026-10-31",
+  );
+  assert.doesNotThrow(() =>
+    assertDueDateExceptionEditable({ target: "transaction", isSettled: false, ...salary }),
+  );
+});
+test("card purchases, missing due dates and internal movements stay outside payable rules", () => {
   for (const input of [
-    { ...boleto, type: "income" },
     { ...boleto, dueDate: null },
     { ...boleto, paymentMethod: null },
     { ...boleto, origin: "refund" },
@@ -257,7 +273,7 @@ test("exceptions reject paid, custom invoice dates, unsupported methods and inva
         target: "transaction",
         isSettled: false,
         type: "income",
-        paymentMethod: "boleto",
+        paymentMethod: "credit_card",
         dueDate: "2026-10-31",
       }),
     { code: "DUE_DATE_EXCEPTION_UNSUPPORTED" },

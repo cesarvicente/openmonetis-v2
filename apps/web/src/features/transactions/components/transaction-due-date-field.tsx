@@ -11,10 +11,12 @@ import { getTransactionFormErrorMessage } from "./transaction-form.validation";
 export function TransactionDueDateField({
   form,
   isSubmitting,
+  income,
   visible,
 }: {
   form: ReturnType<typeof useTransactionForm>["form"];
   isSubmitting: boolean;
+  income: boolean;
   visible: boolean;
 }) {
   const id = useId();
@@ -55,7 +57,9 @@ export function TransactionDueDateField({
                   ) : null}
                 </div>
                 <p className="text-muted-foreground text-xs">
-                  Informe para acompanhar em Contas a pagar e receber avisos de vencimento.
+                  {income
+                    ? "Data prevista do recebimento. Em fim de semana ou feriado, passa para o próximo dia útil."
+                    : "Informe para acompanhar em Contas a pagar e receber avisos de vencimento."}
                 </p>
               </FieldShell>
             )}
@@ -68,7 +72,7 @@ export function TransactionDueDateField({
             })}
           >
             {(values) =>
-              values.type === "expense" &&
+              values.type !== "transfer" &&
               values.paymentMethod !== "credit_card" &&
               values.dueDate ? (
                 <form.Field name="dueDateRuleExcluded">

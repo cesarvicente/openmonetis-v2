@@ -199,7 +199,8 @@ export function TransactionForm({
                     <TransactionDueDateField
                       form={form}
                       isSubmitting={isSubmitting}
-                      visible={values.type === "expense" && !isCreditCard}
+                      income={values.type === "income"}
+                      visible={!isTransfer && !isCreditCard}
                     />
 
                     <TransactionScheduleFields

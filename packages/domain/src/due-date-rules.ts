@@ -188,14 +188,33 @@ export function assertDueDateExceptionEditable(state: DueDateExceptionState) {
     if (state.datesCustomized) throw new DueDateRuleError("DUE_DATE_EXCEPTION_CUSTOM_DATES");
     return;
   }
-  if (!isPayable({ ...state, dueDate: state.dueDate ?? null }))
+  const item = { ...state, dueDate: state.dueDate ?? null };
+  if (!isPayable(item) && !isReceivable(item))
     throw new DueDateRuleError("DUE_DATE_EXCEPTION_UNSUPPORTED");
   if (state.target === "recurring" && !state.validOccurrence)
     throw new DueDateRuleError("INVALID_RECURRING_OCCURRENCE");
 }
 
+/** Expected incomes with a due date, such as a salary, also move to a business day. */
+export function isReceivable(input: {
+  type?: string;
+  origin?: string;
+  paymentMethod?: string | null;
+  dueDate: string | null;
+}) {
+  return (
+    input.type === "income" &&
+    (input.origin === undefined || input.origin === "regular") &&
+    input.paymentMethod != null &&
+    input.paymentMethod !== "credit_card" &&
+    input.dueDate !== null
+  );
+}
+
+// Custom rules target payables or invoices; receivables follow the automatic adjustment.
 function getDueDateTarget(input: DueDateContext) {
   if (input.target === "invoice") return "invoice";
   if (isPayable(input)) return "payable";
+  if (isReceivable(input)) return "receivable";
   return null;
 }
