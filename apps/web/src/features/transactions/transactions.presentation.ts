@@ -286,6 +286,25 @@ export function formatDateTime(value: string) {
   });
 }
 
+/** The expenses list shows each card as one invoice row unless the search targets card entries. */
+export function shouldGroupCardInvoices(search: TransactionsSearch) {
+  return (
+    search.type === "expense" &&
+    !search.cards &&
+    !search.payables &&
+    search.paymentMethod !== "credit_card" &&
+    search.settlement !== "invoice"
+  );
+}
+
+export function formatCardInvoiceDetails(invoice: {
+  dueDate: string | null;
+  transactionCount: number;
+}) {
+  const count = `${invoice.transactionCount} ${invoice.transactionCount === 1 ? "lançamento" : "lançamentos"}`;
+  return invoice.dueDate ? `${count} · vence ${formatCompactDate(invoice.dueDate)}` : count;
+}
+
 export function formatCompactDate(value: string) {
   return formatDateInBrazil(dateOnlyToSafeInstant(value), {
     weekday: "short",

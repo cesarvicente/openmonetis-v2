@@ -39,6 +39,11 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
   edição de lançamentos não mudam.
 - O rate limit da autenticação passa a contar por IP do visitante, repassado pelo web a partir de um
   cabeçalho confiável do proxy reverso; antes, todos os visitantes dividiam um único limite.
+- Na lista de despesas (Lançamentos filtrados por despesa, como no atalho da Visão geral), as compras
+  de cada cartão de crédito aparecem como uma única linha de fatura com o valor somado; o link abre a
+  página do cartão no mesmo período. Filtrar por cartão, por forma "Cartão de crédito" ou pela
+  situação "Na fatura" volta a mostrar as compras uma a uma. Na API, o agrupamento é pedido com
+  `groupCardInvoices=true` e devolvido em `cardInvoices`.
 
 - Fork adaptado para desenvolvimento local com banco PostgreSQL no servidor Oracle, acessado pelo
   novo script `pnpm db:tunnel`.

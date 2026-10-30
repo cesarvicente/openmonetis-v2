@@ -1,4 +1,5 @@
 import { type CardClosingRule, getInvoiceDates } from "./cards";
+import { fromCents, toCents } from "./money";
 import { resolveRecurringDueDate } from "./recurring-expenses";
 
 export const transactionTypes = ["income", "expense", "transfer"] as const;
@@ -124,6 +125,41 @@ export function summarizeTransactionSelection(
     outflow: outflowCents / 100,
     balance: (inflowCents - outflowCents) / 100,
     neutralCount,
+  };
+}
+
+export type CardInvoiceGroupItem = {
+  cardId: string | null;
+  origin: TransactionOrigin;
+  amount: number;
+  allocation: { amount: number } | null;
+};
+
+/**
+ * Separates card entries (purchases, credits and invoice adjustments) from the rest, summing the
+ * visible amount of each card. Invoice payments stay out: they are account postings.
+ */
+export function groupCardInvoiceItems<T extends CardInvoiceGroupItem>(items: readonly T[]) {
+  const others: T[] = [];
+  const invoices = new Map<string, { cardId: string; items: T[]; amountCents: number }>();
+
+  for (const item of items) {
+    if (item.cardId === null || item.origin === "invoicePayment") {
+      others.push(item);
+      continue;
+    }
+    const invoice = invoices.get(item.cardId) ?? { cardId: item.cardId, items: [], amountCents: 0 };
+    invoice.items.push(item);
+    invoice.amountCents += toCents(item.allocation?.amount ?? item.amount);
+    invoices.set(item.cardId, invoice);
+  }
+
+  return {
+    others,
+    invoices: [...invoices.values()].map(({ amountCents, ...invoice }) => ({
+      ...invoice,
+      amount: fromCents(amountCents),
+    })),
   };
 }
 

@@ -26,6 +26,7 @@ import {
   buildFilterSlugMap,
   getTransactionMutationErrorMessage,
   parseFilterSlugs,
+  shouldGroupCardInvoices,
   type TransactionsSearch,
 } from "../transactions.presentation";
 import { transactionsQueryOptions } from "../transactions.queries";
@@ -103,6 +104,7 @@ export function TransactionsContainer({
         : resolveFilterIds(search.people, peopleSlugMap.slugToId)),
     settlement: scope?.adminSettledOnly ? ("paid" as const) : search.settlement,
     view: scope?.view,
+    groupCardInvoices: !scope && shouldGroupCardInvoices(search) ? (true as const) : undefined,
     tagIds: parseFilterSlugs(search.tags),
     categoryIds:
       scope?.categoryIds ?? resolveFilterIds(search.categories, categoriesSlugMap.slugToId),
@@ -362,6 +364,7 @@ export function TransactionsContainer({
         header={scope?.header}
         hiddenFilters={scope?.hiddenFilters}
         transactions={transactionsQuery.data?.items ?? []}
+        cardInvoices={transactionsQuery.data?.cardInvoices ?? []}
       />
       {settlementTarget ? (
         <TransactionSettlementDialog

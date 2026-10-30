@@ -23,6 +23,7 @@ export type TransactionsApiSearch = Omit<
   "people" | "categories" | "accounts" | "cards" | "tags" | "edit"
 > & {
   view?: "accountStatement";
+  groupCardInvoices?: true;
   personIds?: string[];
   categoryIds?: string[];
   tagIds?: string[];
@@ -54,6 +55,7 @@ function transactionsSearchParams(search: TransactionsApiSearch) {
     paymentMethod: search.paymentMethod,
     settlement: search.settlement,
     view: search.view,
+    groupCardInvoices: search.groupCardInvoices,
     sort: search.sort,
     minAmount: search.minAmount,
     maxAmount: search.maxAmount,

@@ -6,6 +6,7 @@ import type {
   ExportTransactionsQuery,
   RecurringOccurrenceActionInput,
   TransactionActionScope,
+  TransactionCardInvoiceOutput,
   TransactionInput,
   TransactionOutput,
 } from "@openmonetis/validators/transactions";
@@ -21,6 +22,7 @@ import type { TransactionCreateDefaults } from "./transaction-form.validation";
 export type TransactionsScreenProps = {
   accountStatement?: boolean;
   transactions: TransactionOutput[];
+  cardInvoices?: TransactionCardInvoiceOutput[];
   accounts: AccountOutput[];
   cards: CardOutput[];
   categories: CategoryOutput[];

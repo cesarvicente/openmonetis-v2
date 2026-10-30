@@ -5,6 +5,7 @@ import { Table, TableBody, TableHead, TableHeader, TableRow } from "@/components
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { groupTransactionRows } from "../transactions.presentation";
 import { useTransactionSelection } from "../useTransactionSelection";
+import { TransactionCardInvoiceRow } from "./transaction-card-invoice-row";
 import { TransactionRow } from "./transaction-row";
 import { TransactionSelectionSummary } from "./transaction-selection-summary";
 import { TransactionsPagination } from "./transactions-pagination";
@@ -14,6 +15,7 @@ export function TransactionsTable({
   accountStatement = false,
   adminPersonId,
   transactions,
+  cardInvoices,
   pendingTransactionId,
   pendingSettlementKey,
   onEdit,
@@ -42,7 +44,7 @@ export function TransactionsTable({
         <TransactionSelectionSummary onClear={selection.clear} summary={selection.summary} />
         <Card className="py-2">
           <CardContent className="px-2 sm:px-4">
-            {transactions.length ? (
+            {transactions.length || cardInvoices.length ? (
               <>
                 <div className="overflow-x-auto">
                   <Table>
@@ -65,6 +67,9 @@ export function TransactionsTable({
                       </TableRow>
                     </TableHeader>
                     <TableBody>
+                      {cardInvoices.map((invoice) => (
+                        <TransactionCardInvoiceRow invoice={invoice} key={invoice.cardId} />
+                      ))}
                       {groupTransactionRows(transactions).map(({ transaction, splitConnector }) => (
                         <TransactionRow
                           accountStatement={accountStatement}

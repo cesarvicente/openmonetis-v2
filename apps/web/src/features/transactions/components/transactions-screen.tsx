@@ -35,6 +35,7 @@ export type {
 export function TransactionsScreen({
   accountStatement = false,
   transactions,
+  cardInvoices = [],
   accounts,
   cards,
   categories,
@@ -108,6 +109,7 @@ export function TransactionsScreen({
   const cardSlugs = parseFilterSlugs(urlSearch.cards);
   const page = urlSearch.page ?? 1;
   const pageSize = urlSearch.pageSize ?? defaultPageSize;
+  const visibleCardInvoices = page === 1 ? cardInvoices : [];
   const selectionScopeKey = JSON.stringify([period, page, { ...urlSearch, edit: undefined }]);
   const hiddenFilterSet = new Set(hiddenFilters);
   const showHeaderCreateMenu = !header && allowCreate && createTypes.length > 0;
@@ -414,6 +416,7 @@ export function TransactionsScreen({
           pageCount={pageCount}
           totalItems={totalItems}
           transactions={transactions}
+          cardInvoices={visibleCardInvoices}
         />
       ) : null}
       {!isLoading && !hasLoadError && isMobile === false ? (
@@ -447,6 +450,7 @@ export function TransactionsScreen({
           period={period}
           totalItems={totalItems}
           transactions={transactions}
+          cardInvoices={visibleCardInvoices}
         />
       ) : null}
       <TransactionsDialogs

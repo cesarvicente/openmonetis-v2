@@ -42,6 +42,7 @@ import {
   deriveTransactionPostingPeriod,
   getPeriodEndDate,
   getPeriodFromDate,
+  groupCardInvoiceItems,
   InsufficientTransferBalanceError,
   listRecurrenceDatesInPeriod,
   normalizeImportedAmount,
@@ -1636,9 +1637,27 @@ export function createTransactionsService(
           ) ||
           a.id.localeCompare(b.id),
       );
+    const { others: listed, invoices } = query.groupCardInvoices
+      ? groupCardInvoiceItems(filtered)
+      : { others: filtered, invoices: [] };
+    const cardInvoices = invoices
+      .map(({ cardId, items, amount }) => ({
+        cardId,
+        cardName: items[0]?.cardName ?? null,
+        cardLogo: items[0]?.cardLogo ?? null,
+        period,
+        dueDate: items.find((item) => item.dueDate)?.dueDate ?? null,
+        amount,
+        transactionCount: items.length,
+      }))
+      .sort(
+        (a, b) =>
+          Math.abs(b.amount) - Math.abs(a.amount) ||
+          (a.cardName ?? "").localeCompare(b.cardName ?? ""),
+      );
     // Paginate purchases/occurrences, keeping every matching allocation together.
     const groups = new Map<string, TransactionOutput[]>();
-    for (const item of filtered) {
+    for (const item of listed) {
       const key =
         item.recordId ??
         (item.recurringRuleId ? `${item.recurringRuleId}:${item.purchaseDate}` : item.id);
@@ -1653,6 +1672,7 @@ export function createTransactionsService(
         ? [...groups.values()].slice(start, start + query.pageSize)
         : [...groups.values()]
       ).flat(),
+      cardInvoices,
       total: groups.size,
       page: query.page,
       pageSize: query.pageSize,
@@ -1661,7 +1681,11 @@ export function createTransactionsService(
 
   async function exportTransactions(userId: string, query: ExportTransactionsQuery) {
     const period = query.period ?? currentPeriod();
-    const result = await listTransactions(userId, { ...query, period }, false);
+    const result = await listTransactions(
+      userId,
+      { ...query, period, groupCardInvoices: undefined },
+      false,
+    );
     return createTransactionsExport(result.items, { ...query, period });
   }
 

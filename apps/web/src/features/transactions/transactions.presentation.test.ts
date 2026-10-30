@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  formatCardInvoiceDetails,
   formatInstallmentOption,
   formatPaymentMethod,
   formatPaymentMethodTable,
@@ -8,6 +9,7 @@ import {
   getTransactionSettlementAction,
   getTransactionSettlementLabel,
   groupTransactionRows,
+  shouldGroupCardInvoices,
   validateTransactionsSearch,
 } from "./transactions.presentation";
 
@@ -124,4 +126,23 @@ test("untagged URL filters normalize booleans and clear conflicting tag selectio
   assert.equal(validateTransactionsSearch({ withoutTags: true }).withoutTags, true);
   assert.equal(validateTransactionsSearch({ withoutTags: "false", tags: id }).tags, id);
   assert.equal(validateTransactionsSearch({ withoutTags: "false" }).withoutTags, undefined);
+});
+
+test("expenses group card entries by invoice unless the search targets card entries", () => {
+  assert.equal(shouldGroupCardInvoices({ type: "expense" }), true);
+  assert.equal(shouldGroupCardInvoices({ type: "expense", settlement: "unpaid" }), true);
+  assert.equal(shouldGroupCardInvoices({}), false);
+  assert.equal(shouldGroupCardInvoices({ type: "income" }), false);
+  assert.equal(shouldGroupCardInvoices({ type: "expense", cards: "nubank" }), false);
+  assert.equal(shouldGroupCardInvoices({ type: "expense", paymentMethod: "credit_card" }), false);
+  assert.equal(shouldGroupCardInvoices({ type: "expense", settlement: "invoice" }), false);
+  assert.equal(shouldGroupCardInvoices({ type: "expense", payables: true }), false);
+});
+
+test("card invoice details count entries and show the due date", () => {
+  assert.equal(formatCardInvoiceDetails({ dueDate: null, transactionCount: 1 }), "1 lançamento");
+  assert.match(
+    formatCardInvoiceDetails({ dueDate: "2026-09-10", transactionCount: 3 }),
+    /^3 lançamentos · vence qui, 10 de set$/,
+  );
 });

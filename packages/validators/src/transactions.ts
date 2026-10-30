@@ -386,6 +386,10 @@ export const ListTransactionsQuerySchema = z
     paymentMethod: z.enum(paymentMethods).optional(),
     settlement: z.enum(["paid", "unpaid", "invoice"]).optional(),
     view: z.literal("accountStatement").optional(),
+    groupCardInvoices: z
+      .literal("true")
+      .transform(() => true as const)
+      .optional(),
     payables: z
       .literal("true")
       .transform(() => true as const)
@@ -724,9 +728,25 @@ export const TransactionOutputSchema = z
   })
   .openapi("Transaction");
 
+export const TransactionCardInvoiceOutputSchema = z
+  .object({
+    cardId: z.string().uuid(),
+    cardName: z.string().nullable(),
+    cardLogo: z.string().nullable(),
+    period: periodSchema.openapi({ example: "2026-07" }),
+    dueDate: dateSchema.nullable(),
+    amount: z.number().openapi({ example: -1250.4 }),
+    transactionCount: z.number().int().positive(),
+  })
+  .openapi("TransactionCardInvoice");
+
 export const PaginatedTransactionsOutputSchema = z
   .object({
     items: z.array(TransactionOutputSchema),
+    cardInvoices: z.array(TransactionCardInvoiceOutputSchema).openapi({
+      description:
+        "Card entries summed per card when groupCardInvoices is requested; they are left out of items.",
+    }),
     total: z.number().int().nonnegative(),
     page: z.number().int().positive(),
     pageSize: z.number().int().positive(),
@@ -743,6 +763,7 @@ export type TransactionInput = z.infer<typeof TransactionInputSchema>;
 export type UpdateTransactionInput = z.infer<typeof UpdateTransactionInputSchema>;
 export type ListTransactionsQuery = z.infer<typeof ListTransactionsQuerySchema>;
 export type TransactionOutput = z.infer<typeof TransactionOutputSchema>;
+export type TransactionCardInvoiceOutput = z.infer<typeof TransactionCardInvoiceOutputSchema>;
 export type PaginatedTransactionsOutput = z.infer<typeof PaginatedTransactionsOutputSchema>;
 export type RecentEstablishmentsOutput = z.infer<typeof RecentEstablishmentsOutputSchema>;
 export type PreviewTransactionImportInput = z.infer<typeof PreviewTransactionImportInputSchema>;

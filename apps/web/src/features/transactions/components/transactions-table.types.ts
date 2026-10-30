@@ -1,6 +1,7 @@
 import type {
   RecurringOccurrenceActionInput,
   TransactionActionScope,
+  TransactionCardInvoiceOutput,
   TransactionOutput,
 } from "@openmonetis/validators/transactions";
 
@@ -8,6 +9,7 @@ export type TransactionsTableProps = {
   accountStatement?: boolean;
   adminPersonId: string | null;
   transactions: TransactionOutput[];
+  cardInvoices: TransactionCardInvoiceOutput[];
   pendingTransactionId: string | null;
   pendingSettlementKey: string | null;
   onEdit: (transaction: TransactionOutput) => void;

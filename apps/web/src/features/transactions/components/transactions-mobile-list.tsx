@@ -4,7 +4,10 @@ import {
   yieldCategoryName,
 } from "@openmonetis/domain/categories";
 import { dateOnlyToSafeInstant, formatDateInBrazil } from "@openmonetis/shared/date-time";
-import type { TransactionOutput } from "@openmonetis/validators/transactions";
+import type {
+  TransactionCardInvoiceOutput,
+  TransactionOutput,
+} from "@openmonetis/validators/transactions";
 import { Link } from "@tanstack/react-router";
 import { Image } from "@unpic/react";
 import {
@@ -26,6 +29,7 @@ import { TransactionTags } from "@/features/tags/components/transaction-tags";
 import { cn } from "@/lib/utils";
 import { formatCompactDate } from "../transactions.presentation";
 import { useTransactionSelection } from "../useTransactionSelection";
+import { MobileTransactionCardInvoiceRow } from "./transaction-card-invoice-row";
 import { TransactionDueDate } from "./transaction-due-date";
 import { TransactionSelectionSummary } from "./transaction-selection-summary";
 
@@ -33,6 +37,7 @@ type TransactionsMobileListProps = {
   accountStatement?: boolean;
   allowImport?: boolean;
   transactions: TransactionOutput[];
+  cardInvoices?: TransactionCardInvoiceOutput[];
   currentPage: number;
   pageCount: number;
   totalItems: number;
@@ -51,7 +56,9 @@ export function TransactionsMobileList(props: TransactionsMobileListProps) {
     groups.set(date, [...(groups.get(date) ?? []), transaction]);
   }
 
-  if (!props.transactions.length) {
+  const cardInvoices = props.cardInvoices ?? [];
+
+  if (!props.transactions.length && !cardInvoices.length) {
     return (
       <Card className="grid min-h-52 place-items-center border-dashed p-8 text-center">
         <div>
@@ -115,6 +122,23 @@ export function TransactionsMobileList(props: TransactionsMobileListProps) {
         )}
       </div>
       <TransactionSelectionSummary onClear={selection.clear} summary={selection.summary} />
+      {cardInvoices.length ? (
+        <section aria-labelledby="transactions-card-invoices" className="grid gap-2">
+          <h2
+            className="px-1 font-medium text-muted-foreground text-xs uppercase tracking-wide"
+            id="transactions-card-invoices"
+          >
+            Faturas de cartão
+          </h2>
+          <Card className="gap-0 overflow-hidden py-0">
+            <ul className="divide-y">
+              {cardInvoices.map((invoice) => (
+                <MobileTransactionCardInvoiceRow invoice={invoice} key={invoice.cardId} />
+              ))}
+            </ul>
+          </Card>
+        </section>
+      ) : null}
       {[...groups.entries()].map(([date, transactions]) => (
         <section aria-labelledby={`transactions-${date}`} className="grid gap-2" key={date}>
           <h2

@@ -1447,6 +1447,78 @@ test("editing a transfer preserves the pair identity in both persistence payload
   assert.equal(stored.transferId, transferId);
 });
 
+test("card invoice grouping replaces card purchases with one summary per card", async () => {
+  const cardId = "b0000000-0000-4000-8000-00000000000b";
+  const cardPurchase = (id: string, amount: string) =>
+    transactionFixture({
+      id,
+      name: `Compra ${id.slice(-1)}`,
+      paymentMethod: "credit_card",
+      amount,
+      accountId: null,
+      cardId,
+      cardName: "Cartão principal",
+      dueDate: new Date("2026-09-10T00:00:00.000Z"),
+      isSettled: null,
+    });
+  const rows = [
+    cardPurchase("c0000000-0000-4000-8000-000000000001", "-40.10"),
+    cardPurchase("c0000000-0000-4000-8000-000000000002", "-59.95"),
+    transactionFixture(),
+  ];
+  const dependencies = new Proxy(
+    {
+      listTransactionsByPeriod: async () => rows,
+      listRecurringRulesForPeriod: async () => [],
+      listRecurringSplitsForUser: async () => [],
+      listRecurringOccurrencesForUser: async () => [],
+      listTransactionSplitsForUser: async () => [],
+      listTransactionIdsWithAttachmentsForUser: async () => [],
+    },
+    {
+      get(target, property) {
+        if (property in target) return target[property as keyof typeof target];
+        return async () => {
+          throw new Error(`Unexpected dependency call: ${String(property)}`);
+        };
+      },
+    },
+  ) as unknown as TransactionsServiceDependencies;
+  const service = createTransactionsService(dependencies, {
+    async cleanupOrphans() {
+      return { deletedCount: 0 };
+    },
+  });
+
+  const grouped = await service.listTransactions(
+    userId,
+    ListTransactionsQuerySchema.parse({ period: "2026-09", groupCardInvoices: "true" }),
+  );
+  const ungrouped = await service.listTransactions(
+    userId,
+    ListTransactionsQuerySchema.parse({ period: "2026-09" }),
+  );
+
+  assert.deepEqual(
+    grouped.items.map((item) => item.recordId),
+    [transactionId],
+  );
+  assert.equal(grouped.total, 1);
+  assert.deepEqual(grouped.cardInvoices, [
+    {
+      cardId,
+      cardName: "Cartão principal",
+      cardLogo: null,
+      period: "2026-09",
+      dueDate: "2026-09-10",
+      amount: -100.05,
+      transactionCount: 2,
+    },
+  ]);
+  assert.equal(ungrouped.total, 3);
+  assert.deepEqual(ungrouped.cardInvoices, []);
+});
+
 test("account statement lists a paid boleto in its payment month while transactions keep the due month", async () => {
   const accountId = "50000000-0000-4000-8000-000000000005";
   const paidBoleto = transactionFixture({

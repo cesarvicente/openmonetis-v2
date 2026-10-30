@@ -9,6 +9,7 @@ import {
   calculateRefund,
   deriveTransactionPostingDate,
   getPeriodEndDate,
+  groupCardInvoiceItems,
   InsufficientTransferBalanceError,
   isTransactionSelectionItemSelectable,
   listRecurrenceDatesInPeriod,
@@ -462,5 +463,33 @@ test("tracking a purchase from a later installment preserves numbering, month-en
         paymentMethod: "pix",
       }),
     RangeError,
+  );
+});
+
+test("card invoice grouping sums each card's visible amounts and keeps other entries apart", () => {
+  const items = [
+    { id: "a", cardId: "card-1", origin: "regular", amount: -100.1, allocation: null },
+    { id: "b", cardId: null, origin: "regular", amount: -50, allocation: null },
+    { id: "c", cardId: "card-1", origin: "regular", amount: -300, allocation: { amount: -200.2 } },
+    { id: "d", cardId: "card-2", origin: "invoiceAdjustment", amount: 20, allocation: null },
+    { id: "e", cardId: "card-1", origin: "invoicePayment", amount: -80, allocation: null },
+  ] as const;
+
+  const result = groupCardInvoiceItems(items);
+
+  assert.deepEqual(
+    result.others.map((item) => item.id),
+    ["b", "e"],
+  );
+  assert.deepEqual(
+    result.invoices.map((invoice) => ({
+      cardId: invoice.cardId,
+      amount: invoice.amount,
+      ids: invoice.items.map((item) => item.id),
+    })),
+    [
+      { cardId: "card-1", amount: -300.3, ids: ["a", "c"] },
+      { cardId: "card-2", amount: 20, ids: ["d"] },
+    ],
   );
 });
