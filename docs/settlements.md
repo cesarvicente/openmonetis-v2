@@ -53,6 +53,23 @@ que já admite pagamentos parciais. Os snapshots de vencimento de contas a pagar
 as [regras de vencimento](due-date-rules.md). O ciclo de uma série está descrito em
 [lançamentos recorrentes](recurring-transactions.md).
 
+## Efetivação automática
+
+Despesas e receitas fora do cartão, com vencimento, podem ser marcadas com “Efetivar
+automaticamente” (`autoSettle: true` na API), avulsas, parceladas ou recorrentes. O worker
+`auto-settle-worker` (`src/scripts/auto-settle.worker.ts`) roda a cada 5 minutos e, para cada
+usuário com itens marcados, efetiva os que estão em aberto quando:
+
+- o vencimento ajustado pelas [regras de vencimento](due-date-rules.md) chegou e o horário
+  `autoSettleTime` das preferências (Ajustes, padrão `08:00`, horário de Brasília) passou;
+- o vencimento é igual ou posterior ao dia em que o item foi marcado (`auto_settle_from`), para não
+  efetivar atrasos antigos ao ligar a opção numa série;
+- o vencimento está nos últimos 7 dias, o que recupera períodos em que o worker ficou parado.
+
+A baixa usa o fluxo normal: data igual ao vencimento ajustado, valor previsto e a conta do
+lançamento. Cada item efetivado recebe `auto_settled_at`; desfazer a baixa não faz o worker
+efetivá-lo de novo. Desmarcar a opção ou remover o vencimento desliga a efetivação a partir dali.
+
 ## Verificação
 
 1. Registre uma baixa com outro valor, conta e data efetiva; confira os detalhes e o extrato no mês da baixa.

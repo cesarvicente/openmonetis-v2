@@ -10,19 +10,13 @@ import { createRequireAuth, requireSession } from "./middlewares/auth";
 import { createRequireDeviceToken } from "./middlewares/device-auth";
 import { errorHandler, notFoundHandler } from "./middlewares/errors";
 import { createMutationRateLimit, privateCache, securityHeaders } from "./middlewares/security";
-import { accountsRepository, findAccountByIdForUser } from "./repositories/accounts.repository";
+import { accountsRepository } from "./repositories/accounts.repository";
 import { apiKeysRepository } from "./repositories/api-keys.repository";
 import { attachmentsRepository } from "./repositories/attachments.repository";
 import { billsRepository } from "./repositories/bills.repository";
 import { budgetsRepository } from "./repositories/budgets.repository";
-import { cardsRepository, findCardByIdForUser } from "./repositories/cards.repository";
-import {
-  categoriesRepository,
-  findCategoryByIdForUser,
-  findSystemCategoryByNameForUser,
-  listCategoriesByIdsForUser,
-  listCategoryFamilyIdsForUser,
-} from "./repositories/categories.repository";
+import { cardsRepository } from "./repositories/cards.repository";
+import { categoriesRepository } from "./repositories/categories.repository";
 import { categoryTrendsRepository } from "./repositories/category-trends.repository";
 import { commitmentsRepository } from "./repositories/commitments.repository";
 import { dashboardRepository } from "./repositories/dashboard.repository";
@@ -38,25 +32,16 @@ import { installmentsRepository } from "./repositories/installments.repository";
 import { invoicesRepository } from "./repositories/invoices.repository";
 import { notesRepository } from "./repositories/notes.repository";
 import { notificationsRepository } from "./repositories/notifications.repository";
-import {
-  findAdminPersonByUserId,
-  findPersonByIdForUser,
-  listPeopleByIdsForUser,
-  peopleRepository,
-} from "./repositories/people.repository";
+import { peopleRepository } from "./repositories/people.repository";
 import { personConnectionsRepository } from "./repositories/person-connections.repository";
 import { personSettlementsRepository } from "./repositories/person-settlements.repository";
 import { preferencesRepository } from "./repositories/preferences.repository";
 import { recurringExpensesRepository } from "./repositories/recurring-expenses.repository";
-import {
-  recurringTransactionsRepository,
-  transitionRecurringRuleForUser,
-} from "./repositories/recurring-transactions.repository";
+import { recurringTransactionsRepository } from "./repositories/recurring-transactions.repository";
 import { applicationVersion, releasesRepository } from "./repositories/releases.repository";
 import { settingsRepository } from "./repositories/settings.repository";
 import { signupAllowlistRepository } from "./repositories/signup-allowlist.repository";
-import { listTagsByIdsForUser, tagsRepository } from "./repositories/tags.repository";
-import * as transactionsRepository from "./repositories/transactions.repository";
+import { tagsRepository } from "./repositories/tags.repository";
 import { createAccountsRoute } from "./routes/accounts";
 import { createApiKeysRoute } from "./routes/api-keys";
 import { createAttachmentsRoute } from "./routes/attachments";
@@ -130,7 +115,7 @@ import { createReleasesService } from "./services/releases.service";
 import { createSettingsService } from "./services/settings.service";
 import { createSignupAllowlistService } from "./services/signup-allowlist.service";
 import { createTagsService } from "./services/tags.service";
-import { createTransactionsService } from "./services/transactions.service";
+import { createDefaultTransactionsService } from "./transactions-service";
 import type { ApiVariables } from "./types/context";
 import { assertProductionSecret, getRequiredProductionEnv, parseCsvEnv } from "./utils/env";
 import { logoDevGateway } from "./utils/logo-dev";
@@ -190,29 +175,7 @@ const notesService = createNotesService(notesRepository);
 const notesRoute = createNotesRoute(notesService);
 const attachmentsService = createAttachmentsService(attachmentsRepository, attachmentStorage);
 const attachmentsRoute = createAttachmentsRoute(attachmentsService);
-const transactionsService = createTransactionsService(
-  {
-    ...transactionsRepository,
-    dueDateRules: dueDateRulesRepository,
-    transitionRecurringRuleForUser,
-    findAccountByIdForUser,
-    findAdminPersonByUserId,
-    findCardByIdForUser,
-    findCategoryByIdForUser,
-    findPersonByIdForUser,
-    findSystemCategoryByNameForUser,
-    getAccountBalanceSnapshotForUser: accountsService.getBalanceSnapshot,
-    listCategoriesByIdsForUser,
-    listCategoryFamilyIdsForUser,
-    listTagsByIdsForUser,
-    listPeopleByIdsForUser,
-  },
-  attachmentsService,
-  {
-    synchronize: (ownerUserId, period) =>
-      synchronizeRecurringExternalExpenses(externalExpensesRepository, { ownerUserId, period }),
-  },
-);
+const transactionsService = createDefaultTransactionsService(accountsService, attachmentsService);
 const transactionsRoute = createTransactionsRoute(transactionsService);
 const tagsRoute = createTagsRoute(
   createTagsService(tagsRepository, async (userId, period) => {

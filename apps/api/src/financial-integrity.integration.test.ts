@@ -373,6 +373,87 @@ test("financial mutations preserve cents, occurrence history and ownership", {
       },
     );
 
+    await t.test("marked items are settled automatically on their due date, once", async () => {
+      const { getCurrentDateInBrazil } = await import("@openmonetis/shared/date-time");
+      const { createDefaultTransactionsService } = await import("./transactions-service");
+      const { createAccountsService } = await import("./services/accounts.service");
+      const { createAttachmentsService } = await import("./services/attachments.service");
+      const { accountsRepository } = await import("./repositories/accounts.repository");
+      const { attachmentsRepository } = await import("./repositories/attachments.repository");
+      const { attachmentStorage } = await import("./utils/storage");
+      const { listAutoSettleUsers } = await import("./repositories/transactions.repository");
+      const service = createDefaultTransactionsService(
+        createAccountsService(accountsRepository),
+        createAttachmentsService(attachmentsRepository, attachmentStorage),
+      );
+      const today = getCurrentDateInBrazil();
+      const yesterday = new Date(Date.parse(`${today}T12:00:00.000Z`) - 86_400_000)
+        .toISOString()
+        .slice(0, 10);
+      const marked = { autoSettle: true, dueDateRuleExcluded: true, isSettled: false };
+      const single = await api.expense(owner, {
+        ...marked,
+        name: "Auto settle single",
+        purchaseDate: today,
+        dueDate: today,
+      });
+      const salary = await api.expense(owner, {
+        ...marked,
+        type: "income",
+        categoryId: owner.incomeCategoryId,
+        paymentMethod: "bank_transfer",
+        name: "Auto settle salary",
+        amount: 1000,
+        condition: "recurring",
+        recurrenceFrequency: "monthly",
+        purchaseDate: today,
+        dueDate: today,
+      });
+      // Marked today, so a due date from yesterday is left for the user.
+      const overdue = await api.expense(owner, {
+        ...marked,
+        name: "Auto settle overdue",
+        purchaseDate: yesterday,
+        dueDate: yesterday,
+      });
+      assert.equal(single.autoSettle, true);
+      assert.ok((await listAutoSettleUsers()).some((user) => user.userId === owner.id));
+
+      const listed = async () =>
+        (await listing(today.slice(0, 7))).items.filter((item) =>
+          item.name.startsWith("Auto settle"),
+        );
+      assert.deepEqual(await service.settleDueAutomatically(owner.id, "23:59"), {
+        settled: 0,
+        failed: 0,
+      });
+      assert.deepEqual(await service.settleDueAutomatically(owner.id, "00:00"), {
+        settled: 2,
+        failed: 0,
+      });
+      const settled = new Map((await listed()).map((item) => [item.name, item]));
+      assert.equal(settled.get("Auto settle single")?.isSettled, true);
+      assert.equal(settled.get("Auto settle single")?.settledDate, today);
+      assert.equal(settled.get("Auto settle salary")?.isSettled, true);
+      assert.equal(settled.get(overdue.name)?.isSettled ?? false, false);
+      assert.equal(salary.autoSettle, true);
+
+      await api.data(
+        await api.request("/transactions/settlement", owner, "PATCH", {
+          ids: [single.recordId],
+          isSettled: false,
+        }),
+      );
+      assert.deepEqual(await service.settleDueAutomatically(owner.id, "00:00"), {
+        settled: 0,
+        failed: 0,
+      });
+      assert.equal(
+        (await listed()).find((item) => item.name === "Auto settle single")?.isSettled,
+        false,
+      );
+    });
+
     await t.test(
       "a due date can be added to every occurrence of a series with a settled month",
       async () => {

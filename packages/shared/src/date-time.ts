@@ -5,6 +5,7 @@ const calendarPeriodPattern = /^[1-9]\d{3}-(0[1-9]|1[0-2])$/;
 type BrazilDateParts = {
   day: string;
   hour: number;
+  minute: number;
   month: string;
   year: string;
 };
@@ -13,6 +14,7 @@ const brazilDatePartsFormatter = new Intl.DateTimeFormat("en-CA", {
   day: "2-digit",
   hour: "2-digit",
   hourCycle: "h23",
+  minute: "2-digit",
   month: "2-digit",
   timeZone: BRAZIL_TIME_ZONE,
   year: "numeric",
@@ -29,6 +31,7 @@ export function getBrazilDateParts(date: Date = new Date()): BrazilDateParts {
   return {
     day: parts.get("day") as string,
     hour: Number(parts.get("hour")),
+    minute: Number(parts.get("minute")),
     month: parts.get("month") as string,
     year: parts.get("year") as string,
   };
@@ -50,6 +53,12 @@ export function getCurrentYearInBrazil(date: Date = new Date()) {
 
 export function getCurrentHourInBrazil(date: Date = new Date()) {
   return getBrazilDateParts(date).hour;
+}
+
+/** Wall-clock time in Brazil as "HH:MM". */
+export function getCurrentTimeInBrazil(date: Date = new Date()) {
+  const { hour, minute } = getBrazilDateParts(date);
+  return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
 }
 
 export function formatDateInBrazil(

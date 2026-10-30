@@ -163,6 +163,40 @@ export function groupCardInvoiceItems<T extends CardInvoiceGroupItem>(items: rea
   };
 }
 
+/** Days a stopped worker can still catch up on automatic settlements. */
+export const autoSettleCatchUpDays = 7;
+
+/** Automatic settlement needs a due date on an income or expense paid outside the card. */
+export function canAutoSettle(input: {
+  type: TransactionType;
+  paymentMethod: PaymentMethod | null;
+  dueDate: string | null;
+}) {
+  return (
+    input.type !== "transfer" &&
+    input.paymentMethod !== null &&
+    input.paymentMethod !== "credit_card" &&
+    input.dueDate !== null
+  );
+}
+
+/**
+ * An item is settled on its (adjusted) due date once the user's time of day has passed. Due dates
+ * before the item was marked, or older than the catch-up window, are left for the user.
+ */
+export function isAutoSettleDue(input: {
+  dueDate: string;
+  autoSettleFrom: string;
+  today: string;
+  currentTime: string;
+  settleTime: string;
+}) {
+  const oldestDueDate = toDateString(addDays(parseDate(input.today), -autoSettleCatchUpDays));
+  if (input.dueDate < input.autoSettleFrom || input.dueDate < oldestDueDate) return false;
+  if (input.dueDate > input.today) return false;
+  return input.dueDate < input.today || input.currentTime >= input.settleTime;
+}
+
 export function canDeleteTransactionOrigin(origin: TransactionOrigin) {
   return origin === "regular" || origin === "refund" || origin === "accountBalanceAdjustment";
 }

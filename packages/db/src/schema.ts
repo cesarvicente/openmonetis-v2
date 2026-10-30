@@ -547,6 +547,7 @@ export const userPreferences = pgTable(
     notificationDueSoonDays: integer("notification_due_soon_days").notNull().default(5),
     transactionsPageSize: integer("transactions_page_size").notNull().default(30),
     mobileShortcut: mobileShortcutDestination("mobile_shortcut").notNull().default("accounts"),
+    autoSettleTime: varchar("auto_settle_time", { length: 5 }).notNull().default("08:00"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at")
       .notNull()
@@ -699,6 +700,8 @@ export const recurringTransactionRules = pgTable(
     }),
     dueDate: date("due_date", { mode: "date" }),
     dueDateRuleExcluded: boolean("due_date_rule_excluded").notNull().default(false),
+    // Occurrences due from this date on are settled automatically; null disables it.
+    autoSettleFrom: date("auto_settle_from", { mode: "date" }),
     isSettled: boolean("is_settled"),
     note: text("note"),
     status: recurringRuleStatus("status").notNull().default("active"),
@@ -838,6 +841,10 @@ export const transactions = pgTable(
     dueDateRuleExcluded: boolean("due_date_rule_excluded").notNull().default(false),
     frozenDueDate: date("frozen_due_date", { mode: "date" }),
     dueDateAdjustment: jsonb("due_date_adjustment").$type<DueDateAdjustmentDetails>(),
+    // Settled automatically when due on or after this date; null disables it.
+    autoSettleFrom: date("auto_settle_from", { mode: "date" }),
+    // Set once the worker settles it, so an undone settlement is not repeated.
+    autoSettledAt: timestamp("auto_settled_at"),
     isSettled: boolean("is_settled"),
     note: text("note"),
     importSourceFingerprint: varchar("import_source_fingerprint", { length: 64 }),
@@ -1576,6 +1583,8 @@ export const recurringTransactionOccurrences = pgTable(
     frozenDueDate: date("frozen_due_date", { mode: "date" }),
     dueDateAdjustment: jsonb("due_date_adjustment").$type<DueDateAdjustmentDetails>(),
     isSettled: boolean("is_settled").notNull(),
+    // Set once the worker settles it, so an undone settlement is not repeated.
+    autoSettledAt: timestamp("auto_settled_at"),
     settledAmount: numeric("settled_amount", { precision: 12, scale: 2 }),
     settledDate: date("settled_date", { mode: "date" }),
     settledAllocations:

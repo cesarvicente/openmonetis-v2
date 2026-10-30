@@ -15,6 +15,9 @@ export const mobileShortcutDestinations = [
   "inbox",
 ] as const;
 
+export const defaultAutoSettleTime = "08:00";
+export const autoSettleTimePattern = /^([01]\d|2[0-3]):[0-5]\d$/;
+
 export type ApplicationTheme = (typeof applicationThemes)[number];
 export type NotificationDueSoonDays = (typeof notificationDueSoonDayOptions)[number];
 export type TransactionPageSize = (typeof transactionPageSizeOptions)[number];
@@ -29,6 +32,7 @@ export type UserPreferences = {
   notificationDueSoonDays: NotificationDueSoonDays;
   transactionsPageSize: TransactionPageSize;
   mobileShortcut: MobileShortcutDestination;
+  autoSettleTime: string;
 };
 
 export type UserPreferencesRecord = {
@@ -40,6 +44,7 @@ export type UserPreferencesRecord = {
   notificationDueSoonDays: number;
   transactionsPageSize: number;
   mobileShortcut: string;
+  autoSettleTime: string;
 };
 
 const applicationThemeSet = new Set<string>(applicationThemes);
@@ -58,6 +63,7 @@ export function createDefaultUserPreferences(): UserPreferences {
     notificationDueSoonDays: 5,
     transactionsPageSize: 30,
     mobileShortcut: "accounts",
+    autoSettleTime: defaultAutoSettleTime,
   };
 }
 
@@ -92,5 +98,8 @@ export function normalizeUserPreferences(
     mobileShortcut: mobileShortcutDestinationSet.has(preferences.mobileShortcut ?? "")
       ? (preferences.mobileShortcut as MobileShortcutDestination)
       : defaults.mobileShortcut,
+    autoSettleTime: autoSettleTimePattern.test(preferences.autoSettleTime ?? "")
+      ? (preferences.autoSettleTime as string)
+      : defaults.autoSettleTime,
   };
 }

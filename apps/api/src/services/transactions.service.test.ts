@@ -1383,6 +1383,8 @@ function transactionFixture(
     refundedAmount: "0",
     anticipationId: null,
     installmentOriginalPeriod: null,
+    autoSettleFrom: null,
+    autoSettledAt: null,
     ...overrides,
   };
 }
@@ -1623,6 +1625,7 @@ test("account statement includes an early recurring boleto payment before the ru
     cardClosingOffsetMode: null,
     cardClosingDayPurchasesNextInvoice: null,
     cardDueDay: null,
+    autoSettleFrom: null,
   };
   const occurrence = {
     recurringRuleId,
@@ -1730,6 +1733,7 @@ test("a recurring series can switch from boleto to credit card", async () => {
     cardClosingOffsetMode: null,
     cardClosingDayPurchasesNextInvoice: null,
     cardDueDay: null,
+    autoSettleFrom: null,
   } satisfies RecurringRuleWithRelations;
   const writes: Array<Record<string, unknown>> = [];
   const writtenSplits: unknown[] = [];
@@ -1864,6 +1868,7 @@ test("editing a recurring boleto preserves the rule settlement state", async () 
     cardClosingOffsetMode: null,
     cardClosingDayPurchasesNextInvoice: null,
     cardDueDay: null,
+    autoSettleFrom: null,
   };
   let savedSettlement: boolean | null | undefined;
   const versions = [{ id: rule.id, startDate: rule.startDate, updatedAt: rule.updatedAt }];
@@ -2890,6 +2895,7 @@ function recurringCopyFixture() {
     cardClosingOffsetMode: null,
     cardClosingDayPurchasesNextInvoice: null,
     cardDueDay: null,
+    autoSettleFrom: null,
     occurrenceOverrides: {
       "2026-10-01": { isSettled: true, amount: "-90.01", settledDate: "2026-10-02" },
     },

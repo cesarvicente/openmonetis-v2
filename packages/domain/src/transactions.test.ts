@@ -7,10 +7,12 @@ import {
   buildTrackedInstallmentSchedule,
   buildTransferPostings,
   calculateRefund,
+  canAutoSettle,
   deriveTransactionPostingDate,
   getPeriodEndDate,
   groupCardInvoiceItems,
   InsufficientTransferBalanceError,
+  isAutoSettleDue,
   isTransactionSelectionItemSelectable,
   listRecurrenceDatesInPeriod,
   previewInstallmentOptions,
@@ -491,5 +493,46 @@ test("card invoice grouping sums each card's visible amounts and keeps other ent
       { cardId: "card-1", amount: -300.3, ids: ["a", "c"] },
       { cardId: "card-2", amount: 20, ids: ["d"] },
     ],
+  );
+});
+
+test("automatic settlement needs a due date outside the card and transfers", () => {
+  assert.equal(
+    canAutoSettle({ type: "expense", paymentMethod: "boleto", dueDate: "2026-11-10" }),
+    true,
+  );
+  assert.equal(
+    canAutoSettle({ type: "income", paymentMethod: "pix", dueDate: "2026-11-10" }),
+    true,
+  );
+  assert.equal(canAutoSettle({ type: "expense", paymentMethod: "pix", dueDate: null }), false);
+  assert.equal(
+    canAutoSettle({ type: "expense", paymentMethod: "credit_card", dueDate: "2026-11-10" }),
+    false,
+  );
+  assert.equal(
+    canAutoSettle({ type: "transfer", paymentMethod: "bank_transfer", dueDate: "2026-11-10" }),
+    false,
+  );
+});
+
+test("automatic settlement waits for the due date and the configured time", () => {
+  const base = {
+    dueDate: "2026-11-10",
+    autoSettleFrom: "2026-11-01",
+    today: "2026-11-10",
+    settleTime: "08:00",
+  };
+
+  assert.equal(isAutoSettleDue({ ...base, currentTime: "07:59" }), false);
+  assert.equal(isAutoSettleDue({ ...base, currentTime: "08:00" }), true);
+  assert.equal(isAutoSettleDue({ ...base, today: "2026-11-09", currentTime: "23:00" }), false);
+  // A stopped worker catches up on recent due dates at any time of day.
+  assert.equal(isAutoSettleDue({ ...base, today: "2026-11-12", currentTime: "00:05" }), true);
+  assert.equal(isAutoSettleDue({ ...base, today: "2026-11-18", currentTime: "09:00" }), false);
+  // Due dates before the item was marked stay for the user.
+  assert.equal(
+    isAutoSettleDue({ ...base, autoSettleFrom: "2026-11-11", currentTime: "09:00" }),
+    false,
   );
 });

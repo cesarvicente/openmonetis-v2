@@ -27,6 +27,7 @@ import {
   transactionSplits,
   transactions,
   transactionTags,
+  userPreferences,
 } from "@openmonetis/db";
 import { createEstablishmentNameKey } from "@openmonetis/domain/establishments";
 import { selectNewExternalExpenseAssignmentKeys } from "@openmonetis/domain/external-expenses";
@@ -134,10 +135,13 @@ export type TransactionCreateRecord = Omit<
   | "dueDateAdjustment"
   | "frozenDueDate"
   | "dueDateRuleExcluded"
+  | "autoSettleFrom"
+  | "autoSettledAt"
 > & {
   dueDateAdjustment?: import("@openmonetis/domain/due-date-rules").DueDateAdjustmentDetails | null;
   frozenDueDate?: Date | null;
   dueDateRuleExcluded?: boolean;
+  autoSettleFrom?: Date | null;
   settledAmount?: string | null;
   settledDate?: Date | null;
   tagIds?: string[];
@@ -151,9 +155,16 @@ type InstallmentSeriesCreateRecord = {
 };
 type RecurringRuleCreateRecord = Omit<
   RecurringTransactionRule,
-  "id" | "seriesId" | "createdAt" | "updatedAt" | "recurrenceEndDate" | "dueDateRuleExcluded"
+  | "id"
+  | "seriesId"
+  | "createdAt"
+  | "updatedAt"
+  | "recurrenceEndDate"
+  | "dueDateRuleExcluded"
+  | "autoSettleFrom"
 > & {
   dueDateRuleExcluded?: boolean;
+  autoSettleFrom?: Date | null;
   tagIds?: string[];
   recurrenceEndDate?: Date | null;
 };
@@ -289,6 +300,7 @@ export type TransactionUpdateRecord = Partial<
     | "sourceAccountId"
     | "destinationAccountId"
     | "dueDateRuleExcluded"
+    | "autoSettleFrom"
     | "dueDate"
     | "boletoPaymentDate"
     | "settledDate"
@@ -493,6 +505,8 @@ const transactionColumns = {
   destinationAccountId: transactions.destinationAccountId,
   dueDate: transactions.dueDate,
   dueDateRuleExcluded: transactions.dueDateRuleExcluded,
+  autoSettleFrom: transactions.autoSettleFrom,
+  autoSettledAt: transactions.autoSettledAt,
   frozenDueDate: transactions.frozenDueDate,
   dueDateAdjustment: transactions.dueDateAdjustment,
   boletoPaymentDate: transactions.boletoPaymentDate,
@@ -602,6 +616,7 @@ const recurringRuleColumns = {
   destinationAccountId: recurringTransactionRules.destinationAccountId,
   dueDate: recurringTransactionRules.dueDate,
   dueDateRuleExcluded: recurringTransactionRules.dueDateRuleExcluded,
+  autoSettleFrom: recurringTransactionRules.autoSettleFrom,
   isSettled: recurringTransactionRules.isSettled,
   note: recurringTransactionRules.note,
   status: recurringTransactionRules.status,
@@ -2434,4 +2449,114 @@ export async function updateRecurringRuleWithSplitsForUser(
 
   if (updatedId && typeof updatedId === "object") return updatedId;
   return updatedId ? findRecurringRuleByIdForUser(updatedId, userId) : null;
+}
+
+/** Users with an item marked for automatic settlement, with their time of day. Worker only. */
+export async function listAutoSettleUsers() {
+  const marked = db
+    .select({ userId: transactions.userId })
+    .from(transactions)
+    .where(and(isNotNull(transactions.autoSettleFrom), eq(transactions.isSettled, false)))
+    .union(
+      db
+        .select({ userId: recurringTransactionRules.userId })
+        .from(recurringTransactionRules)
+        .where(
+          and(
+            isNotNull(recurringTransactionRules.autoSettleFrom),
+            eq(recurringTransactionRules.status, "active"),
+          ),
+        ),
+    )
+    .as("marked");
+  return db
+    .select({ userId: marked.userId, autoSettleTime: userPreferences.autoSettleTime })
+    .from(marked)
+    .leftJoin(userPreferences, eq(userPreferences.userId, marked.userId));
+}
+
+export async function listAutoSettleStateForUser(
+  userId: string,
+  input: {
+    transactionIds: string[];
+    ruleIds: string[];
+    occurrences: Array<{ seriesId: string; purchaseDate: Date }>;
+  },
+) {
+  const [transactionRows, ruleRows, occurrenceRows] = await Promise.all([
+    input.transactionIds.length
+      ? db
+          .select({
+            id: transactions.id,
+            autoSettleFrom: transactions.autoSettleFrom,
+            autoSettledAt: transactions.autoSettledAt,
+          })
+          .from(transactions)
+          .where(
+            and(eq(transactions.userId, userId), inArray(transactions.id, input.transactionIds)),
+          )
+      : [],
+    input.ruleIds.length
+      ? db
+          .select({
+            id: recurringTransactionRules.id,
+            autoSettleFrom: recurringTransactionRules.autoSettleFrom,
+          })
+          .from(recurringTransactionRules)
+          .where(
+            and(
+              eq(recurringTransactionRules.userId, userId),
+              inArray(recurringTransactionRules.id, input.ruleIds),
+            ),
+          )
+      : [],
+    input.occurrences.length
+      ? db
+          .select({
+            seriesId: recurringTransactionOccurrences.recurringSeriesId,
+            purchaseDate: recurringTransactionOccurrences.purchaseDate,
+          })
+          .from(recurringTransactionOccurrences)
+          .where(
+            and(
+              eq(recurringTransactionOccurrences.userId, userId),
+              isNotNull(recurringTransactionOccurrences.autoSettledAt),
+              inArray(
+                recurringTransactionOccurrences.recurringSeriesId,
+                input.occurrences.map((occurrence) => occurrence.seriesId),
+              ),
+            ),
+          )
+      : [],
+  ]);
+  return {
+    transactions: transactionRows,
+    rules: ruleRows,
+    autoSettledOccurrences: occurrenceRows,
+  };
+}
+
+export async function markTransactionAutoSettledForUser(id: string, userId: string, at: Date) {
+  await db
+    .update(transactions)
+    .set({ autoSettledAt: at })
+    .where(and(eq(transactions.id, id), eq(transactions.userId, userId)));
+}
+
+export async function markRecurringOccurrenceAutoSettledForUser(
+  seriesId: string,
+  purchaseDate: Date,
+  userId: string,
+  at: Date,
+) {
+  await db
+    .update(recurringTransactionOccurrences)
+    .set({ autoSettledAt: at })
+    .where(
+      and(
+        eq(recurringTransactionOccurrences.userId, userId),
+        eq(recurringTransactionOccurrences.recurringSeriesId, seriesId),
+        eq(recurringTransactionOccurrences.purchaseDate, purchaseDate),
+      ),
+    );
 }

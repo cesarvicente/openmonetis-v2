@@ -26,6 +26,7 @@ export type TransactionFormValues = {
   destinationAccountId: string;
   dueDate: string;
   dueDateRuleExcluded: boolean;
+  autoSettle: boolean;
   boletoPaymentDate: string;
   installmentCount: string;
   startInstallment: string;
@@ -81,6 +82,7 @@ const transactionFieldMessages: Record<TransactionFieldName, string> = {
   destinationAccountId: "Selecione a conta de destino.",
   dueDate: "Informe uma data válida.",
   dueDateRuleExcluded: "Confira a regra de vencimento.",
+  autoSettle: "Confira a efetivação automática.",
   boletoPaymentDate: "Informe uma data de pagamento válida.",
   installmentCount: "Informe a quantidade de parcelas.",
   startInstallment: "Selecione uma parcela inicial válida.",
@@ -131,6 +133,7 @@ export function getDefaultTransactionFormValues(
     destinationAccountId: "",
     dueDate: defaults.dueDate ?? "",
     dueDateRuleExcluded: defaults.dueDateRuleExcluded ?? false,
+    autoSettle: false,
     boletoPaymentDate: defaults.boletoPaymentDate ?? (isSettled === "true" ? today : ""),
     installmentCount: defaults.installmentCount ?? "2",
     startInstallment: defaults.startInstallment ?? "1",
@@ -186,6 +189,7 @@ export function getTransactionFormValuesFromTransaction(
     destinationAccountId: transaction.destinationAccountId ?? "",
     dueDate: transaction.originalDueDate ?? transaction.dueDate ?? "",
     dueDateRuleExcluded: transaction.dueDateRuleExcluded ?? false,
+    autoSettle: mode === "edit" ? (transaction.autoSettle ?? false) : false,
     boletoPaymentDate:
       mode === "copy"
         ? transaction.paymentMethod === "boleto" && transaction.isSettled
@@ -233,6 +237,7 @@ export function normalizeTransactionInput(
     sourceAccountId: isTransfer ? value.sourceAccountId || null : null,
     destinationAccountId: isTransfer ? value.destinationAccountId || null : null,
     dueDateRuleExcluded: value.dueDateRuleExcluded,
+    autoSettle: !isTransfer && !isCreditCard && Boolean(value.dueDate) && value.autoSettle,
     dueDate: !isTransfer && !isCreditCard && value.dueDate ? value.dueDate : null,
     boletoPaymentDate:
       isBoleto &&
@@ -368,6 +373,7 @@ export function getChangedTransactionInput(
     ...(value.dueDateRuleExcluded !== defaults.dueDateRuleExcluded
       ? { dueDateRuleExcluded: data.dueDateRuleExcluded }
       : {}),
+    ...(value.autoSettle !== defaults.autoSettle ? { autoSettle: data.autoSettle } : {}),
     ...(value.dueDate !== defaults.dueDate ? { dueDate: data.dueDate } : {}),
     ...(value.boletoPaymentDate !== defaults.boletoPaymentDate
       ? { boletoPaymentDate: data.boletoPaymentDate }
@@ -433,6 +439,7 @@ function normalizeLooseTransactionInput(value: TransactionFormValues) {
     sourceAccountId: isTransfer ? value.sourceAccountId || null : null,
     destinationAccountId: isTransfer ? value.destinationAccountId || null : null,
     dueDateRuleExcluded: value.dueDateRuleExcluded,
+    autoSettle: !isTransfer && !isCreditCard && Boolean(value.dueDate) && value.autoSettle,
     dueDate: !isTransfer && !isCreditCard && value.dueDate ? value.dueDate : null,
     boletoPaymentDate:
       isBoleto &&

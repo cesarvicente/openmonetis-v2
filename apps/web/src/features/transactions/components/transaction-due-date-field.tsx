@@ -75,19 +75,40 @@ export function TransactionDueDateField({
               values.type !== "transfer" &&
               values.paymentMethod !== "credit_card" &&
               values.dueDate ? (
-                <form.Field name="dueDateRuleExcluded">
-                  {(field) => (
-                    <Label htmlFor={`${id}-exclude`} className="text-sm">
-                      <Checkbox
-                        id={`${id}-exclude`}
-                        checked={field.state.value}
-                        disabled={isSubmitting}
-                        onCheckedChange={(value) => field.handleChange(value === true)}
-                      />
-                      Manter o vencimento informado, sem aplicar regras
-                    </Label>
-                  )}
-                </form.Field>
+                <>
+                  <form.Field name="dueDateRuleExcluded">
+                    {(field) => (
+                      <Label htmlFor={`${id}-exclude`} className="text-sm">
+                        <Checkbox
+                          id={`${id}-exclude`}
+                          checked={field.state.value}
+                          disabled={isSubmitting}
+                          onCheckedChange={(value) => field.handleChange(value === true)}
+                        />
+                        Manter o vencimento informado, sem aplicar regras
+                      </Label>
+                    )}
+                  </form.Field>
+                  <form.Field name="autoSettle">
+                    {(field) => (
+                      <div className="grid gap-1">
+                        <Label htmlFor={`${id}-auto-settle`} className="text-sm">
+                          <Checkbox
+                            id={`${id}-auto-settle`}
+                            checked={field.state.value}
+                            disabled={isSubmitting}
+                            onCheckedChange={(value) => field.handleChange(value === true)}
+                          />
+                          Efetivar automaticamente
+                        </Label>
+                        <p className="text-muted-foreground text-xs">
+                          {income ? "O recebimento" : "O pagamento"} é registrado no dia do
+                          vencimento, no horário definido em Ajustes, com o valor previsto.
+                        </p>
+                      </div>
+                    )}
+                  </form.Field>
+                </>
               ) : null
             }
           </form.Subscribe>

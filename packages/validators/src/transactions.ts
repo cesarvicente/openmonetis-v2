@@ -86,6 +86,11 @@ const TransactionFieldsSchema = z.object({
   }),
   dueDateRuleExcluded: z.boolean().optional(),
   dueDate: dateSchema.nullable().optional().openapi({ example: "2026-07-10" }),
+  autoSettle: z.boolean().optional().openapi({
+    example: true,
+    description:
+      "Settle automatically on the due date at the user's autoSettleTime. Requires a due date and a payment method other than credit card; ignored otherwise.",
+  }),
   settledDate: dateSchema.nullable().optional(),
   boletoPaymentDate: dateSchema.nullable().optional().openapi({ example: "2026-07-09" }),
   installmentCount: z
@@ -700,6 +705,7 @@ export const TransactionOutputSchema = z
     dueDateAdjustment: DueDateAdjustmentDetailsSchema.nullable().optional(),
     dueDateExceptionEditable: z.boolean().optional(),
     dueDateRuleExcluded: z.boolean().optional(),
+    autoSettle: z.boolean().optional(),
     boletoPaymentDate: dateSchema.nullable(),
     installmentCount: z.number().int().nullable(),
     currentInstallment: z.number().int().nullable(),

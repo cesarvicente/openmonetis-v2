@@ -35,6 +35,7 @@ import {
   buildTransferPostings,
   calculateInstallmentEndPeriod,
   calculateRefund,
+  canAutoSettle,
   canDeleteTransactionOrigin,
   deriveImportedPeriod,
   deriveTransactionPeriod,
@@ -44,6 +45,7 @@ import {
   getPeriodFromDate,
   groupCardInvoiceItems,
   InsufficientTransferBalanceError,
+  isAutoSettleDue,
   listRecurrenceDatesInPeriod,
   normalizeImportedAmount,
   normalizeImportedDescriptionKey,
@@ -56,7 +58,11 @@ import {
   splitAmountIntoInstallments,
   toDisplayAmount,
 } from "@openmonetis/domain/transactions";
-import { getCurrentDateInBrazil, getCurrentPeriodInBrazil } from "@openmonetis/shared/date-time";
+import {
+  getCurrentDateInBrazil,
+  getCurrentPeriodInBrazil,
+  getCurrentTimeInBrazil,
+} from "@openmonetis/shared/date-time";
 import type {
   CreateTransactionRefundInput,
   ExportTransactionsQuery,
@@ -72,7 +78,10 @@ import type {
   UpdateRecurringRuleQuery,
   UpdateTransactionInput,
 } from "@openmonetis/validators/transactions";
-import { TransactionInputSchema } from "@openmonetis/validators/transactions";
+import {
+  ListTransactionsQuerySchema,
+  TransactionInputSchema,
+} from "@openmonetis/validators/transactions";
 import ExcelJS from "exceljs";
 import type {
   RecurringRuleWithRelations,
@@ -121,6 +130,9 @@ export type TransactionsServiceDependencies = Pick<
   | "listAccountStatementTransactionsForUser"
   | "listTransactionsByPurchaseDateRange"
   | "listSettledRecurringBoletoOccurrencesByPaymentDateForUser"
+  | "listAutoSettleStateForUser"
+  | "markRecurringOccurrenceAutoSettledForUser"
+  | "markTransactionAutoSettledForUser"
   | "settleRecurringOccurrenceForUser"
   | "settleTransactionsForUser"
   | "updateRecurringRuleWithSplitsForUser"
@@ -305,6 +317,9 @@ export function createTransactionsService(
     listAccountStatementTransactionsForUser,
     listTransactionsByPurchaseDateRange,
     listSettledRecurringBoletoOccurrencesByPaymentDateForUser,
+    listAutoSettleStateForUser,
+    markRecurringOccurrenceAutoSettledForUser,
+    markTransactionAutoSettledForUser,
     settleRecurringOccurrenceForUser,
     settleTransactionsForUser,
     updateRecurringRuleWithSplitsForUser,
@@ -418,6 +433,7 @@ export function createTransactionsService(
       dueDate: transaction.dueDate ? toDateString(transaction.dueDate) : null,
       originalDueDate: transaction.dueDate ? toDateString(transaction.dueDate) : null,
       dueDateRuleExcluded: transaction.dueDateRuleExcluded ?? false,
+      autoSettle: Boolean(transaction.autoSettleFrom),
       dueDateAdjustment: transaction.dueDateAdjustment ?? null,
       boletoPaymentDate: transaction.boletoPaymentDate
         ? toDateString(transaction.boletoPaymentDate)
@@ -510,6 +526,7 @@ export function createTransactionsService(
       dueDate,
       originalDueDate: dueDate,
       dueDateRuleExcluded: actual?.dueDateRuleExcluded ?? rule.dueDateRuleExcluded ?? false,
+      autoSettle: Boolean(rule.autoSettleFrom),
       dueDateAdjustment: actual?.dueDateAdjustment ?? null,
       boletoPaymentDate: null,
       installmentCount: null,
@@ -636,6 +653,7 @@ export function createTransactionsService(
       destinationAccountId: isTransfer ? (data.destinationAccountId as string) : null,
       dueDate: data.dueDate ? toDate(data.dueDate) : null,
       dueDateRuleExcluded: data.dueDateRuleExcluded ?? false,
+      autoSettleFrom: resolveAutoSettleFrom(data, null),
       boletoPaymentDate: data.boletoPaymentDate ? toDate(data.boletoPaymentDate) : null,
       settledDate:
         !isCreditCard && !isTransfer && data.condition !== "recurring" && data.isSettled
@@ -649,6 +667,20 @@ export function createTransactionsService(
       importExternalId: null,
       importBatchId: null,
     };
+  }
+
+  /**
+   * Keeps the date automatic settlement was enabled: marking it starts from today, unmarking or
+   * leaving the item ineligible clears it, and edits that do not mention it keep the current date.
+   */
+  function resolveAutoSettleFrom(
+    data: Pick<TransactionInput, "type" | "paymentMethod" | "dueDate" | "autoSettle">,
+    current: Date | null | undefined,
+  ) {
+    if (!canAutoSettle({ ...data, dueDate: data.dueDate ?? null })) return null;
+    if (data.autoSettle === undefined) return current ?? null;
+    if (!data.autoSettle) return null;
+    return current ?? toDate(getCurrentDateInBrazil());
   }
 
   function derivePeriod(data: TransactionInput, context: OwnershipContext, purchaseDate: string) {
@@ -1133,6 +1165,7 @@ export function createTransactionsService(
           destinationAccountId: base.destinationAccountId,
           dueDate: base.dueDate,
           dueDateRuleExcluded: base.dueDateRuleExcluded,
+          autoSettleFrom: base.autoSettleFrom,
           isSettled: data.paymentMethod === "credit_card" ? null : false,
           note: base.note,
           status: "active",
@@ -1727,6 +1760,7 @@ export function createTransactionsService(
       sourceAccountId: data.sourceAccountId === current.sourceAccountId,
       destinationAccountId: data.destinationAccountId === current.destinationAccountId,
       dueDateRuleExcluded: data.dueDateRuleExcluded === current.dueDateRuleExcluded,
+      autoSettle: data.autoSettle === Boolean(current.autoSettleFrom),
       dueDate: data.dueDate === date(current.dueDate),
       settledDate: data.settledDate === date(current.settledDate),
       boletoPaymentDate: data.boletoPaymentDate === date(current.boletoPaymentDate),
@@ -2185,6 +2219,10 @@ export function createTransactionsService(
     );
     const values: TransactionUpdateRecord = {
       ...base,
+      autoSettleFrom: resolveAutoSettleFrom(
+        { ...validatedMerged, autoSettle: data.autoSettle },
+        current.autoSettleFrom,
+      ),
       settledDate: current.settledDate ?? null,
       tagIds: data.tagIds,
       amount: normalizeTransactionAmount(validatedMerged.type, validatedMerged.amount).toFixed(2),
@@ -2533,6 +2571,124 @@ export function createTransactionsService(
     return { recurringRuleId, purchaseDate, isSettled };
   }
 
+  /**
+   * Settles the user's marked items whose adjusted due date has arrived, through the regular
+   * settlement flows, on the due date and with the planned amount and account. Each settled item
+   * is marked so that undoing the settlement is never repeated.
+   */
+  async function settleDueAutomatically(userId: string, settleTime: string, now = new Date()) {
+    const today = getCurrentDateInBrazil(now);
+    const currentTime = getCurrentTimeInBrazil(now);
+    const currentMonth = getPeriodFromDate(today);
+    const listed = await Promise.all(
+      [addMonthsToPeriod(currentMonth, -1), currentMonth].map((period) =>
+        listTransactions(userId, ListTransactionsQuerySchema.parse({ period }), false),
+      ),
+    );
+    const candidates = [
+      ...new Map(
+        listed
+          .flatMap((result) => result.items)
+          .filter(
+            (item) =>
+              item.autoSettle &&
+              item.isSettled === false &&
+              item.origin === "regular" &&
+              item.dueDate !== null &&
+              item.dueDate <= today,
+          )
+          .map((item) => [item.recordId ?? `${item.recurringRuleId}:${item.purchaseDate}`, item]),
+      ).values(),
+    ];
+    if (!candidates.length) return { settled: 0, failed: 0 };
+    const seriesIds = new Map(
+      (
+        await listRecurringRulesByIdsForUser(userId, [
+          ...new Set(candidates.flatMap((item) => item.recurringRuleId ?? [])),
+        ])
+      ).map((rule) => [rule.id, rule.seriesId]),
+    );
+    const state = await listAutoSettleStateForUser(userId, {
+      transactionIds: candidates.flatMap((item) => item.recordId ?? []),
+      ruleIds: [...seriesIds.keys()],
+      occurrences: candidates.flatMap((item) =>
+        !item.recordId && item.recurringRuleId && seriesIds.has(item.recurringRuleId)
+          ? [
+              {
+                seriesId: seriesIds.get(item.recurringRuleId) as string,
+                purchaseDate: toDate(item.purchaseDate),
+              },
+            ]
+          : [],
+      ),
+    });
+    const transactionState = new Map(state.transactions.map((row) => [row.id, row]));
+    const ruleState = new Map(state.rules.map((row) => [row.id, row.autoSettleFrom]));
+    const settledOccurrences = new Set(
+      state.autoSettledOccurrences.map(
+        (row) => `${row.seriesId}:${toDateString(row.purchaseDate)}`,
+      ),
+    );
+    let settled = 0;
+    let failed = 0;
+    for (const item of candidates) {
+      const dueDate = item.dueDate as string;
+      const seriesId = item.recurringRuleId ? seriesIds.get(item.recurringRuleId) : undefined;
+      const persisted = item.recordId ? transactionState.get(item.recordId) : undefined;
+      const autoSettleFrom = item.recordId
+        ? persisted?.autoSettleFrom
+        : item.recurringRuleId
+          ? ruleState.get(item.recurringRuleId)
+          : null;
+      const alreadyAutoSettled = item.recordId
+        ? Boolean(persisted?.autoSettledAt)
+        : settledOccurrences.has(`${seriesId}:${item.purchaseDate}`);
+      if (
+        !autoSettleFrom ||
+        alreadyAutoSettled ||
+        !isAutoSettleDue({
+          dueDate,
+          autoSettleFrom: toDateString(autoSettleFrom),
+          today,
+          currentTime,
+          settleTime,
+        })
+      )
+        continue;
+      try {
+        if (item.recordId) {
+          await settleTransactions([item.recordId], userId, true, dueDate);
+          await markTransactionAutoSettledForUser(item.recordId, userId, now);
+        } else if (item.recurringRuleId && seriesId) {
+          await settleRecurringOccurrence(
+            item.recurringRuleId,
+            item.purchaseDate,
+            userId,
+            true,
+            dueDate,
+          );
+          await markRecurringOccurrenceAutoSettledForUser(
+            seriesId,
+            toDate(item.purchaseDate),
+            userId,
+            now,
+          );
+        }
+        settled += 1;
+      } catch (error) {
+        failed += 1;
+        console.error(
+          JSON.stringify({
+            event: "auto_settle_failed",
+            item: item.recordId ?? `${item.recurringRuleId}:${item.purchaseDate}`,
+            code: error instanceof Error ? (error as { code?: string }).code : undefined,
+          }),
+        );
+      }
+    }
+    return { settled, failed };
+  }
+
   async function changeRecurringRuleStatus(
     id: string,
     userId: string,
@@ -2672,6 +2828,10 @@ export function createTransactionsService(
           amount: Number(split.amount).toFixed(2),
         })),
       );
+    const nextAutoSettleFrom = resolveAutoSettleFrom(
+      { ...validated, autoSettle: input.autoSettle },
+      current.autoSettleFrom,
+    );
     const changedFields = {
       ...(validated.personId !== current.personId ? { personId: validated.personId } : {}),
       ...(validated.type !== current.type ? { type: validated.type } : {}),
@@ -2698,6 +2858,9 @@ export function createTransactionsService(
         : {}),
       ...(base.note !== current.note ? { note: base.note } : {}),
       ...(input.tagIds !== undefined ? { tagIds: input.tagIds } : {}),
+      ...(nextAutoSettleFrom?.getTime() !== current.autoSettleFrom?.getTime()
+        ? { autoSettleFrom: nextAutoSettleFrom }
+        : {}),
     };
     const rule = await translateTransferBalanceError(() =>
       updateRecurringRuleWithSplitsForUser(
@@ -2903,6 +3066,7 @@ export function createTransactionsService(
   }
 
   return {
+    settleDueAutomatically,
     changeRecurringRuleStatus,
     previewInstallmentOptions: (input: InstallmentOptionsQuery, _userId: string) => ({
       options: previewInstallmentOptions(input.amount),

@@ -31,6 +31,7 @@ const paidBoleto = {
   recurrenceFrequency: "monthly",
   recurrenceEndDate: "",
   dueDateRuleExcluded: false,
+  autoSettle: false,
   recurrenceAnchorDate: "",
   isSettled: "true",
   note: "",

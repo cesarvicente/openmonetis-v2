@@ -141,6 +141,13 @@
       "when": 1793292354088,
       "tag": "0019_api_keys",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1793392334157,
+      "tag": "0020_auto_settle",
+      "breakpoints": true
     }
   ]
 }

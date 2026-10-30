@@ -11,6 +11,7 @@ import { MobileSelect as Select } from "@/components/forms/mobile-select";
 import { MobileSelectContent as SelectContent } from "@/components/forms/mobile-select-content";
 import { SettingsSection } from "@/components/settings-panel";
 import { SettingsRow } from "@/components/settings-row";
+import { Input } from "@/components/ui/input";
 import { SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { mobileShortcutLabels } from "../preferences.presentation";
@@ -24,6 +25,7 @@ export function PreferencesBrowsingSection({
   disabled: boolean;
 }) {
   const dueSoonDaysId = useId();
+  const autoSettleTimeId = useId();
   const pageSizeId = useId();
   const mobileShortcutId = useId();
   const mobile = useIsMobile();
@@ -68,6 +70,29 @@ export function PreferencesBrowsingSection({
                   ))}
                 </SelectContent>
               </Select>
+            </SettingsRow>
+          )}
+        </form.Field>
+
+        <form.Field name="autoSettleTime">
+          {(field) => (
+            <SettingsRow
+              description="Horário em que os lançamentos marcados com “Efetivar automaticamente” são efetivados no dia do vencimento."
+              id={autoSettleTimeId}
+              label="Efetivação de pagamentos programados"
+            >
+              <Input
+                aria-describedby={`${autoSettleTimeId}-description`}
+                className="w-full"
+                disabled={isMutating}
+                id={autoSettleTimeId}
+                onChange={(event) => {
+                  if (event.target.value) field.handleChange(event.target.value);
+                }}
+                step={60}
+                type="time"
+                value={field.state.value}
+              />
             </SettingsRow>
           )}
         </form.Field>

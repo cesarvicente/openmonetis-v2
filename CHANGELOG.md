@@ -21,6 +21,10 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
   os dados financeiros do próprio usuário, com validade de 30, 90 ou 365 dias ou sem expiração, e pode
   ser revogada a qualquer momento. Chaves não gerenciam credenciais, ações perigosas nem o Painel
   admin. Veja `docs/api-keys.md`.
+- "Efetivar automaticamente" junto ao vencimento de despesas e receitas fora do cartão: o lançamento
+  (avulso, parcelado ou recorrente) é efetivado no dia do vencimento, já ajustado para dia útil, com
+  o valor previsto e a conta do lançamento. O horário fica em Ajustes > "Efetivação de pagamentos
+  programados" (padrão 08:00). Desfazer uma baixa automática não a repete. Veja `docs/settlements.md`.
 
 ### Notas de atualização
 
@@ -31,6 +35,9 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
   `TRUSTED_CLIENT_IP_HEADER` com o cabeçalho sobrescrito pelo proxy reverso.
 - Migration `0019_api_keys` cria a tabela `api_keys`. As chaves são protegidas por
   `DEVICE_TOKEN_SECRET`; alterá-lo invalida também as chaves de API.
+- Migration `0020_auto_settle` adiciona `auto_settle_from` e `auto_settled_at` a lançamentos e
+  ocorrências recorrentes e `auto_settle_time` (padrão `08:00`) às preferências. O Compose do
+  Oracle ganha o serviço `auto-settle-worker`; o deploy o cria automaticamente.
 
 ### Alterado
 

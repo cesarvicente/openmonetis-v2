@@ -1,6 +1,7 @@
 import { z } from "@hono/zod-openapi";
 import {
   applicationThemes,
+  autoSettleTimePattern,
   mobileShortcutDestinations,
   notificationDueSoonDayOptions,
   transactionPageSizeOptions,
@@ -34,6 +35,11 @@ export const UserPreferencesOutputSchema = z
     notificationDueSoonDays: NotificationDueSoonDaysSchema,
     transactionsPageSize: TransactionsPageSizeSchema,
     mobileShortcut: z.enum(mobileShortcutDestinations),
+    autoSettleTime: z.string().regex(autoSettleTimePattern).openapi({
+      example: "08:00",
+      description:
+        "Time of day (Brazil) when transactions marked for automatic settlement are settled.",
+    }),
   })
   .openapi("UserPreferencesOutput");
 
