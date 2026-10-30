@@ -1689,6 +1689,76 @@ export function createTransactionsService(
     return createTransactionsExport(result.items, { ...query, period });
   }
 
+  /**
+   * Drops fields sent with the value already stored, so an edit only writes what changed. Series
+   * edits rely on it to keep each installment's own amount and dates.
+   */
+  function omitUnchangedTransactionFields(
+    data: UpdateTransactionInput,
+    current: TransactionWithRelations,
+    currentSplits: Array<{ personId: string; amount: string; plannedAmount?: string }>,
+  ): UpdateTransactionInput {
+    const date = (value: Date | null | undefined) => (value ? toDateString(value) : null);
+    const cents = (value: number | string) => Math.round(Math.abs(Number(value)) * 100);
+    const sameSplits = (shares: UpdateTransactionInput["splitShares"]) => {
+      const stored = currentSplits
+        .map((split) => [split.personId, cents(split.plannedAmount ?? split.amount)] as const)
+        .sort(([a], [b]) => a.localeCompare(b));
+      const sent = (shares ?? [])
+        .map((share) => [share.personId, cents(share.amount)] as const)
+        .sort(([a], [b]) => a.localeCompare(b));
+      return JSON.stringify(stored) === JSON.stringify(sent);
+    };
+    const unchanged: Partial<Record<keyof UpdateTransactionInput, boolean>> = {
+      type: data.type === current.type,
+      condition: data.condition === current.condition,
+      paymentMethod: data.paymentMethod === current.paymentMethod,
+      name: data.name?.trim() === current.name,
+      amount:
+        data.amount !== undefined &&
+        cents(data.amount) === cents(current.plannedAmount ?? current.amount),
+      purchaseDate: data.purchaseDate === date(current.purchaseDate),
+      invoicePeriod:
+        current.paymentMethod === "credit_card" && data.invoicePeriod === current.period,
+      personId: data.personId === current.personId,
+      accountId: data.accountId === current.accountId,
+      cardId: data.cardId === current.cardId,
+      categoryId: data.categoryId === current.categoryId,
+      sourceAccountId: data.sourceAccountId === current.sourceAccountId,
+      destinationAccountId: data.destinationAccountId === current.destinationAccountId,
+      dueDateRuleExcluded: data.dueDateRuleExcluded === current.dueDateRuleExcluded,
+      dueDate: data.dueDate === date(current.dueDate),
+      settledDate: data.settledDate === date(current.settledDate),
+      boletoPaymentDate: data.boletoPaymentDate === date(current.boletoPaymentDate),
+      installmentCount: data.installmentCount === current.installmentCount,
+      isSettled: data.isSettled === current.isSettled,
+      note: (data.note?.trim() || null) === current.note,
+      tagIds:
+        data.tagIds !== undefined &&
+        JSON.stringify([...data.tagIds].sort()) ===
+          JSON.stringify([...(current.tagIds ?? [])].sort()),
+      splitShares: data.splitShares !== undefined && sameSplits(data.splitShares),
+    };
+    return Object.fromEntries(
+      Object.entries(data).filter(
+        ([key, value]) => value === undefined || !unchanged[key as keyof UpdateTransactionInput],
+      ),
+    ) as UpdateTransactionInput;
+  }
+
+  function haveSameRecurringSplits(
+    left: Array<{ personId: string; amount: string }>,
+    right: Array<{ personId: string; amount: string }>,
+  ) {
+    const key = (shares: typeof left) =>
+      JSON.stringify(
+        shares
+          .map((share) => [share.personId, share.amount])
+          .sort(([a], [b]) => (a as string).localeCompare(b as string)),
+      );
+    return key(left) === key(right);
+  }
+
   function listPeriodsBetween(startPeriod: string, endPeriod: string) {
     const periods: string[] = [];
     for (let period = startPeriod; period <= endPeriod; period = addMonthsToPeriod(period, 1)) {
@@ -1988,6 +2058,8 @@ export function createTransactionsService(
         "GENERATED_TRANSACTION_IMMUTABLE",
       );
     }
+    const currentSplits = await listTransactionSplitsForUser([id], userId);
+    data = omitUnchangedTransactionFields(data, current, currentSplits);
 
     if (
       current.settledDate &&
@@ -2018,7 +2090,6 @@ export function createTransactionsService(
       data.isSettled !== current.isSettled
     )
       throw badRequest("Use settlement action to change payment status", "SETTLEMENT_USE_ACTION");
-    const currentSplits = await listTransactionSplitsForUser([id], userId);
 
     if (
       current.condition === "installment" &&
@@ -2583,20 +2654,57 @@ export function createTransactionsService(
       frequency: current.frequency,
       startDate: currentStartDate,
     });
+    // Only fields that differ from the edited version are written, so the other versions in the
+    // scope keep their own amounts, splits and details.
+    const currentSplits = await listRecurringSplitsForUser([current.id], userId);
+    const amount = normalizeTransactionAmount(validated.type, validated.amount).toFixed(2);
+    const amountChanged = amount !== Number(current.amount).toFixed(2);
+    const splitShares = (validated.splitShares ?? []).map((share) => ({
+      personId: share.personId,
+      amount: normalizeTransactionAmount(validated.type, share.amount).toFixed(2),
+    }));
+    const splitsChanged =
+      amountChanged ||
+      !haveSameRecurringSplits(
+        splitShares,
+        currentSplits.map((split) => ({
+          personId: split.personId,
+          amount: Number(split.amount).toFixed(2),
+        })),
+      );
+    const changedFields = {
+      ...(validated.personId !== current.personId ? { personId: validated.personId } : {}),
+      ...(validated.type !== current.type ? { type: validated.type } : {}),
+      ...(validated.paymentMethod !== current.paymentMethod
+        ? { paymentMethod: validated.paymentMethod }
+        : {}),
+      ...(validated.name.trim() !== current.name ? { name: validated.name.trim() } : {}),
+      ...(amountChanged ? { amount } : {}),
+      ...(base.accountId !== current.accountId ? { accountId: base.accountId } : {}),
+      ...(base.cardId !== current.cardId ? { cardId: base.cardId } : {}),
+      ...(base.categoryId !== current.categoryId ? { categoryId: base.categoryId } : {}),
+      ...(base.sourceAccountId !== current.sourceAccountId
+        ? { sourceAccountId: base.sourceAccountId }
+        : {}),
+      ...(base.destinationAccountId !== current.destinationAccountId
+        ? { destinationAccountId: base.destinationAccountId }
+        : {}),
+      ...(getRecurringDueDate(base.dueDate ? toDateString(base.dueDate) : null, selectedDate) !==
+      getRecurringDueDate(current.dueDate ? toDateString(current.dueDate) : null, selectedDate)
+        ? { dueDate: base.dueDate }
+        : {}),
+      ...(base.dueDateRuleExcluded !== current.dueDateRuleExcluded
+        ? { dueDateRuleExcluded: base.dueDateRuleExcluded }
+        : {}),
+      ...(base.note !== current.note ? { note: base.note } : {}),
+      ...(input.tagIds !== undefined ? { tagIds: input.tagIds } : {}),
+    };
     const rule = await translateTransferBalanceError(() =>
       updateRecurringRuleWithSplitsForUser(
         id,
         userId,
         {
-          personId: validated.personId,
-          type: validated.type,
-          paymentMethod: validated.paymentMethod,
-          name: validated.name.trim(),
-          amount: normalizeTransactionAmount(validated.type, validated.amount).toFixed(2),
-          accountId: base.accountId,
-          cardId: base.cardId,
-          categoryId: base.categoryId,
-          tagIds: input.tagIds,
+          ...changedFields,
           ...(endDateChanged
             ? {
                 recurrenceEndDate: validated.recurrenceEndDate
@@ -2604,11 +2712,6 @@ export function createTransactionsService(
                   : null,
               }
             : {}),
-          sourceAccountId: base.sourceAccountId,
-          destinationAccountId: base.destinationAccountId,
-          dueDate: base.dueDate,
-          dueDateRuleExcluded: base.dueDateRuleExcluded,
-          note: base.note,
           ...(query.scope !== "series" ? { isSettled: base.isSettled } : {}),
           ...(versions.length === 1 && query.scope === "series"
             ? {
@@ -2629,10 +2732,7 @@ export function createTransactionsService(
               }
             : {}),
         },
-        (validated.splitShares ?? []).map((share) => ({
-          personId: share.personId,
-          amount: normalizeTransactionAmount(validated.type, share.amount).toFixed(2),
-        })),
+        splitsChanged ? splitShares : undefined,
         {
           scope: query.scope,
           occurrenceDate: toDate(selectedDate),

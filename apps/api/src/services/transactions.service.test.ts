@@ -1732,6 +1732,7 @@ test("a recurring series can switch from boleto to credit card", async () => {
     cardDueDay: null,
   } satisfies RecurringRuleWithRelations;
   const writes: Array<Record<string, unknown>> = [];
+  const writtenSplits: unknown[] = [];
   const dependencies = new Proxy(
     {
       findRecurringRuleByIdForUser: async () => rule,
@@ -1760,8 +1761,10 @@ test("a recurring series can switch from boleto to credit card", async () => {
         _id: string,
         _userId: string,
         values: Record<string, unknown>,
+        splits: unknown,
       ) => {
         writes.push(values);
+        writtenSplits.push(splits);
         return { ...rule, ...values };
       },
       listRecurringOccurrencesForUser: async () => [],
@@ -1812,6 +1815,10 @@ test("a recurring series can switch from boleto to credit card", async () => {
   assert.equal(writes[0]?.accountId, null);
   assert.equal(writes[0]?.dueDate, null);
   assert.equal(writes[0]?.isSettled, null);
+  // Fields resent with the stored value stay out, so other versions keep their own amounts.
+  for (const key of ["amount", "name", "personId", "categoryId", "type", "note"])
+    assert.equal(key in (writes[0] ?? {}), false, key);
+  assert.equal(writtenSplits[0], undefined);
 });
 
 test("editing a recurring boleto preserves the rule settlement state", async () => {
@@ -2294,6 +2301,31 @@ test("installment series reallocates divided shares proportionally for each targ
         { personId: firstPersonId, amount: "-6.67" },
         { personId: secondPersonId, amount: "-3.33" },
       ],
+    ],
+  );
+
+  // A full form resent with the stored amount and splits must not overwrite each installment.
+  await service.updateTransaction(
+    transactionId,
+    userId,
+    {
+      amount: 10.01,
+      paymentMethod: "boleto",
+      splitShares: [
+        { personId: secondPersonId, amount: 5 },
+        { personId: firstPersonId, amount: 5.01 },
+      ],
+      note: "Revisado",
+    },
+    "series",
+  );
+
+  assert.deepEqual(
+    receivedUpdates.map((update) => [update.data.amount, update.data.note, update.splits]),
+    [
+      ["-10.01", "Revisado", undefined],
+      ["-10.00", "Revisado", undefined],
+      ["-10.00", "Revisado", undefined],
     ],
   );
 });

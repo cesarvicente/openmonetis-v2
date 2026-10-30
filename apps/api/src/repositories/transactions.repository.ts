@@ -2066,7 +2066,8 @@ export async function updateRecurringRuleWithSplitsForUser(
   id: string,
   userId: string,
   data: RecurringRuleUpdateRecord,
-  splits: Array<{ personId: string; amount: string }>,
+  /** Undefined keeps the splits of each version. */
+  splits: Array<{ personId: string; amount: string }> | undefined,
   options: {
     scope: "single" | "future" | "series";
     occurrenceDate: Date;
@@ -2250,11 +2251,13 @@ export async function updateRecurringRuleWithSplitsForUser(
           ...withoutTagIds(data),
           ...overrides,
           isSettled:
-            data.paymentMethod === "credit_card"
-              ? null
-              : rule.paymentMethod === "credit_card"
-                ? false
-                : rule.isSettled,
+            data.paymentMethod === undefined || data.paymentMethod === rule.paymentMethod
+              ? rule.isSettled
+              : data.paymentMethod === "credit_card"
+                ? null
+                : rule.paymentMethod === "credit_card"
+                  ? false
+                  : rule.isSettled,
           updatedAt: new Date(),
         })
         .where(
@@ -2263,7 +2266,7 @@ export async function updateRecurringRuleWithSplitsForUser(
             eq(recurringTransactionRules.userId, userId),
           ),
         );
-      await replaceSplits(rule.id, splits);
+      if (splits) await replaceSplits(rule.id, splits);
       if (data.tagIds !== undefined)
         await replaceRecurringRuleTags(transaction, rule.id, userId, data.tagIds);
     };
@@ -2344,7 +2347,7 @@ export async function updateRecurringRuleWithSplitsForUser(
         );
       const versionId = await insertVersion(
         { ...data, startDate: boundaryDate, ...scheduledEnd(id) },
-        splits,
+        splits ?? originalSplits,
       );
       await transaction
         .update(recurringTransactionOccurrences)
@@ -2372,7 +2375,7 @@ export async function updateRecurringRuleWithSplitsForUser(
         );
       selectedRuleId = await insertVersion(
         { ...data, startDate: options.occurrenceDate, endDate: options.occurrenceDate },
-        splits,
+        splits ?? originalSplits,
       );
     } else {
       await transaction
@@ -2381,7 +2384,7 @@ export async function updateRecurringRuleWithSplitsForUser(
         .where(
           and(eq(recurringTransactionRules.id, id), eq(recurringTransactionRules.userId, userId)),
         );
-      await replaceSplits(id, splits);
+      if (splits) await replaceSplits(id, splits);
       if (data.tagIds !== undefined)
         await replaceRecurringRuleTags(transaction, id, userId, data.tagIds);
     }

@@ -288,6 +288,92 @@ test("financial mutations preserve cents, occurrence history and ownership", {
     );
 
     await t.test(
+      "changing a recurring payment method keeps the amount of each series version",
+      async () => {
+        const own = await api.expense(owner, {
+          amount: 100,
+          condition: "recurring",
+          recurrenceFrequency: "monthly",
+          recurrenceEndDate: "2020-03-10",
+          isSettled: false,
+        });
+        assert.ok(own.recurringRuleId);
+        const series = async () =>
+          (await Promise.all(["2020-01", "2020-02", "2020-03"].map(listing)))
+            .flatMap((result) => result.items)
+            .filter((item) => item.name === own.name && item.isRecurring)
+            .sort((left, right) => left.purchaseDate.localeCompare(right.purchaseDate));
+        const occurrence = async (purchaseDate: string) => {
+          const item = (await series()).find((entry) => entry.purchaseDate === purchaseDate);
+          assert.ok(item?.recurringRuleId);
+          return item;
+        };
+        // The full body the web form sends, with the values it opened with.
+        const formBody = (item: TransactionOutput, overrides: Record<string, unknown> = {}) => ({
+          type: item.type,
+          condition: "recurring",
+          paymentMethod: item.paymentMethod,
+          name: item.name,
+          amount: item.plannedAmount ?? item.displayAmount,
+          purchaseDate: item.purchaseDate,
+          personId: item.personId,
+          categoryId: item.categoryId,
+          accountId: item.accountId,
+          cardId: null,
+          sourceAccountId: null,
+          destinationAccountId: null,
+          dueDate: null,
+          boletoPaymentDate: null,
+          recurrenceFrequency: "monthly",
+          isSettled: false,
+          note: null,
+          splitShares: null,
+          ...overrides,
+        });
+        const edit = async (purchaseDate: string, scope: string, body: object) => {
+          const item = await occurrence(purchaseDate);
+          await api.data(
+            await api.request(
+              `/transactions/recurring-rules/${item.recurringRuleId}?scope=${scope}&occurrenceDate=${purchaseDate}`,
+              owner,
+              "PUT",
+              body,
+            ),
+          );
+        };
+
+        await edit(
+          "2020-02-10",
+          "future",
+          formBody(await occurrence("2020-02-10"), { amount: 150 }),
+        );
+        await edit(
+          "2020-03-10",
+          "future",
+          formBody(await occurrence("2020-03-10"), { amount: 175 }),
+        );
+        assert.deepEqual(
+          (await series()).map((item) => item.displayAmount),
+          [100, 150, 175],
+        );
+
+        await edit(
+          "2020-02-10",
+          "series",
+          formBody(await occurrence("2020-02-10"), { paymentMethod: "debit_card" }),
+        );
+        assert.deepEqual(
+          (await series()).map((item) => [item.paymentMethod, item.displayAmount]),
+          [
+            ["debit_card", 100],
+            ["debit_card", 150],
+            ["debit_card", 175],
+          ],
+        );
+      },
+    );
+
+    await t.test(
       "recurring settlement rejects foreign rules, foreign accounts and dates outside the series",
       async () => {
         const own = await api.expense(owner, {

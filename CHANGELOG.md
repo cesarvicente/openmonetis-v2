@@ -57,6 +57,12 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 ### Corrigido
 
 - `drizzle.config.ts` e os testes de integração carregam `.env` e migrations também no Windows.
+- Editar um lançamento recorrente com o escopo "esta e as próximas" ou "toda a série" sobrescrevia o
+  valor, a divisão e os demais campos de todas as versões da série com os do lançamento aberto, mesmo
+  quando só outro campo (como a forma de pagamento) tinha mudado. A API agora compara cada campo
+  recebido com o valor gravado e só altera o que de fato mudou; cada versão mantém o próprio valor.
+  A mesma regra vale para a edição de parcelamentos, que não sobrescreve o valor das parcelas quando
+  o valor enviado é igual ao gravado.
 - O campo "Conta da baixa" ao registrar pagamento ou recebimento de um lançamento mostrava o ID da
   conta em vez do nome.
 - A descrição nas tabelas de lançamentos (lançamentos, fatura do cartão, extrato da conta) e de
