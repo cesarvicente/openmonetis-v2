@@ -36,6 +36,8 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 
 ### Notas de atualização
 
+- Migration `0021_inbox_rule_payment_target` adiciona `card_id` e `account_id` a `inbox_rules`, com
+  chaves estrangeiras por usuário e a restrição de no máximo um dos dois por regra.
 - Migration `0018_signup_allowlist` cria o enum `user_role`, a coluna `user.role` e a tabela
   `signup_allowlist`. Inclua o e-mail do administrador em `INITIAL_ADMIN_EMAIL` antes de iniciar a API,
   ou nenhum novo cadastro será aceito.
