@@ -302,6 +302,25 @@ export function calculateInstallmentAllocationTotal(input: {
   return centsToMoney(untrackedAllocationCents + trackedAllocationCents);
 }
 
+/**
+ * Total of an installment purchase: the sum of its installments, including the ones
+ * paid before tracking started (estimated from the original amount).
+ */
+export function calculateInstallmentPurchaseTotal(input: {
+  originalTransactionAmount: string | number;
+  totalInstallments: number;
+  trackedFromInstallment: number;
+  trackedTransactionAmounts: Array<string | number>;
+}) {
+  if (input.trackedTransactionAmounts.length === 0) {
+    return centsToMoney(validatedCents(input.originalTransactionAmount));
+  }
+  return calculateInstallmentAllocationTotal({
+    ...input,
+    trackedAllocationAmounts: input.trackedTransactionAmounts,
+  });
+}
+
 export function calculateInstallmentAnticipation(
   items: InstallmentAnticipationItem[],
   discount: number,

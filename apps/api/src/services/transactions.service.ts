@@ -14,6 +14,7 @@ import {
   emptyDueDateRulesReader,
   resolveDueDate,
 } from "@openmonetis/domain/due-date-rules";
+import { calculateInstallmentPurchaseTotal } from "@openmonetis/domain/installments";
 import {
   getNextRecurringOccurrenceDate,
   getRecurringDueDate,
@@ -115,6 +116,7 @@ export type TransactionsServiceDependencies = Pick<
   | "insertTransferWithBalanceCheck"
   | "listImportCategoryMappingsForUser"
   | "listImportedExternalIdsForUser"
+  | "listInstallmentSeriesAmountsForUser"
   | "listPaidInvoicePeriodsForUser"
   | "listRecentEstablishmentNamesForUser"
   | "listRecurringOccurrencesForUser"
@@ -301,6 +303,7 @@ export function createTransactionsService(
     listCategoryFamilyIdsForUser,
     listImportCategoryMappingsForUser,
     listImportedExternalIdsForUser,
+    listInstallmentSeriesAmountsForUser,
     listPaidInvoicePeriodsForUser,
     listPeopleByIdsForUser,
     listRecentEstablishmentNamesForUser,
@@ -1307,6 +1310,28 @@ export function createTransactionsService(
     );
   }
 
+  async function loadInstallmentTotals(seriesIds: string[], userId: string) {
+    const rows = await listInstallmentSeriesAmountsForUser([...new Set(seriesIds)], userId);
+    const rowsBySeries = new Map<string, typeof rows>();
+    for (const row of rows) {
+      rowsBySeries.set(row.seriesId, [...(rowsBySeries.get(row.seriesId) ?? []), row]);
+    }
+    return new Map(
+      [...rowsBySeries].map(([seriesId, seriesRows]) => {
+        const representative = seriesRows[0] as (typeof rows)[number];
+        return [
+          seriesId,
+          calculateInstallmentPurchaseTotal({
+            originalTransactionAmount: representative.originalAmount,
+            totalInstallments: representative.totalInstallments,
+            trackedFromInstallment: representative.trackedFromInstallment,
+            trackedTransactionAmounts: seriesRows.map((row) => row.amount),
+          }),
+        ];
+      }),
+    );
+  }
+
   async function listTransactions(userId: string, query: ListTransactionsQuery, paginate = true) {
     if (query.categoryIds.length)
       query = {
@@ -1521,6 +1546,14 @@ export function createTransactionsService(
         )
       ).map((item) => item.transactionId),
     );
+    const installmentTotals = await loadInstallmentTotals(
+      transactions.flatMap((transaction) =>
+        transaction.condition === "installment" && transaction.seriesId
+          ? [transaction.seriesId]
+          : [],
+      ),
+      userId,
+    );
     const hydratedTransactions = [
       ...transactions.map(toTransactionOutput),
       ...recurringOccurrences,
@@ -1575,6 +1608,9 @@ export function createTransactionsService(
           ),
         })),
         isDivided: splits.length > 0,
+        installmentTotalAmount: item.seriesId
+          ? (installmentTotals.get(item.seriesId) ?? null)
+          : null,
         hasAttachments: item.recordId ? attachedTransactions.has(item.recordId) : false,
       };
     });

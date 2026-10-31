@@ -9,6 +9,9 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 
 ### Adicionado
 
+- Na tabela de lançamentos, passar o mouse sobre o valor de uma parcela mostra o total da compra
+  parcelada. A listagem passa a devolver `installmentTotalAmount`, calculado no domain a partir das
+  parcelas atuais da série (inclusive as pagas antes do início do acompanhamento).
 - Lista de e-mails autorizados a se cadastrar (`SIGNUP_POLICY=allowlist`, padrão): cadastros por senha
   ou Google de e-mails fora da lista são recusados antes de qualquer gravação no banco.
 - Papel de usuário (`member`/`admin`) definido pela lista no cadastro e Painel admin, visível só para

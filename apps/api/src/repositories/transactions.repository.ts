@@ -1812,6 +1812,24 @@ export function listTransactionSeriesForUser(seriesId: string, userId: string) {
     .orderBy(asc(transactions.currentInstallment));
 }
 
+export async function listInstallmentSeriesAmountsForUser(seriesIds: string[], userId: string) {
+  if (!seriesIds.length) return [];
+  return db
+    .select({
+      seriesId: installmentSeries.id,
+      originalAmount: installmentSeries.originalAmount,
+      totalInstallments: installmentSeries.totalInstallments,
+      trackedFromInstallment: installmentSeries.trackedFromInstallment,
+      amount: effectiveTransactionAmountSql.as("amount"),
+    })
+    .from(transactions)
+    .innerJoin(
+      installmentSeries,
+      and(eq(transactions.seriesId, installmentSeries.id), eq(installmentSeries.userId, userId)),
+    )
+    .where(and(eq(transactions.userId, userId), inArray(transactions.seriesId, seriesIds)));
+}
+
 export async function findInstallmentSeriesByIdForUser(id: string, userId: string) {
   const [series] = await db
     .select({ originalAmount: installmentSeries.originalAmount })

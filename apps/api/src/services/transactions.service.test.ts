@@ -1255,6 +1255,7 @@ test("closing-day purchases shift new singles and installments while existing an
     findTransactionByIdForUser: async () => recorded,
     listTransactionSplitsForUser: async () => [],
     listTransactionIdsWithAttachmentsForUser: async () => [],
+    listInstallmentSeriesAmountsForUser: async () => [],
     updateTransactionWithSplitsForUser: async (
       _id: string,
       _ownerId: string,
@@ -1412,6 +1413,7 @@ test("editing a transfer preserves the pair identity in both persistence payload
     findAccountByIdForUser: async () => ({ isArchived: false }),
     listTransactionSplitsForUser: async () => [],
     listTransactionIdsWithAttachmentsForUser: async () => [],
+    listInstallmentSeriesAmountsForUser: async () => [],
     getAccountBalanceSnapshotForUser: async () => ({ displayed: 69.99, persisted: 69.99 }),
     updateTransferPairForUser: async (
       id: string,
@@ -1476,6 +1478,7 @@ test("card invoice grouping replaces card purchases with one summary per card", 
       listRecurringOccurrencesForUser: async () => [],
       listTransactionSplitsForUser: async () => [],
       listTransactionIdsWithAttachmentsForUser: async () => [],
+      listInstallmentSeriesAmountsForUser: async () => [],
     },
     {
       get(target, property) {
@@ -1541,6 +1544,7 @@ test("account statement lists a paid boleto in its payment month while transacti
       listRecurringOccurrencesForUser: async () => [],
       listTransactionSplitsForUser: async () => [],
       listTransactionIdsWithAttachmentsForUser: async () => [],
+      listInstallmentSeriesAmountsForUser: async () => [],
     },
     {
       get(target, property) {
@@ -1651,6 +1655,7 @@ test("account statement includes an early recurring boleto payment before the ru
       listRecurringOccurrencesForUser: async () => [occurrence],
       listTransactionSplitsForUser: async () => [],
       listTransactionIdsWithAttachmentsForUser: async () => [],
+      listInstallmentSeriesAmountsForUser: async () => [],
     },
     {
       get(target, property) {
@@ -2072,6 +2077,7 @@ test("divided transactions become allocation rows linked to the same editable re
       listRecurringSplitsForUser: async () => [],
       listRecurringOccurrencesForUser: async () => [],
       listTransactionIdsWithAttachmentsForUser: async () => [],
+      listInstallmentSeriesAmountsForUser: async () => [],
     },
     {
       get(target, property) {
@@ -2263,6 +2269,7 @@ test("installment series reallocates divided shares proportionally for each targ
         return updates.map((update) => update.id);
       },
       listTransactionIdsWithAttachmentsForUser: async () => [],
+      listInstallmentSeriesAmountsForUser: async () => [],
     },
     {
       get(target, property) {
@@ -2447,6 +2454,7 @@ test("transaction tag filtering uses union semantics before pagination", async (
       listRecurringSplitsForUser: async () => [],
       listRecurringOccurrencesForUser: async () => [],
       listTransactionIdsWithAttachmentsForUser: async () => [],
+      listInstallmentSeriesAmountsForUser: async () => [],
     },
     {
       get(target, key) {
@@ -2506,6 +2514,7 @@ test("transaction exports preserve filters and ordering across all pages for the
       listRecurringSplitsForUser: async () => [],
       listRecurringOccurrencesForUser: async () => [],
       listTransactionIdsWithAttachmentsForUser: async () => [],
+      listInstallmentSeriesAmountsForUser: async () => [],
     },
     {
       get(target, key) {

@@ -205,6 +205,10 @@ test("financial mutations preserve cents, occurrence history and ownership", {
           items.reduce((total, item) => total + Math.round(item.displayAmount * 100), 0),
           10001,
         );
+        assert.deepEqual(
+          items.map((item) => item.installmentTotalAmount),
+          [100.01, 100.01, 100.01],
+        );
         const middle = items.find((item) => item.currentInstallment === 2);
         assert.ok(middle);
         await api.data(
@@ -258,6 +262,10 @@ test("financial mutations preserve cents, occurrence history and ownership", {
         assert.deepEqual(
           adjusted.map((item) => item.displayAmount),
           [33.34, 33.34, 33.27],
+        );
+        assert.deepEqual(
+          adjusted.map((item) => item.installmentTotalAmount),
+          [99.95, 99.95, 99.95],
         );
 
         await api.data(

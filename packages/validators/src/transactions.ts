@@ -710,6 +710,9 @@ export const TransactionOutputSchema = z
     installmentCount: z.number().int().nullable(),
     currentInstallment: z.number().int().nullable(),
     installmentEndPeriod: periodSchema.nullable(),
+    installmentTotalAmount: z.number().nonnegative().nullable().optional().openapi({
+      description: "Total of the installment purchase, present on listed installments.",
+    }),
     recurrenceFrequency: z.enum(recurrenceFrequencies).nullable(),
     recurrenceAnchorDate: dateSchema.nullable().optional(),
     recurrenceEndDate: dateSchema.nullable().optional(),

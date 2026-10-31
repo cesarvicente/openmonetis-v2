@@ -8,12 +8,14 @@ import { canDeleteTransactionOrigin } from "@openmonetis/domain/transactions";
 import { Circle, CircleCheck, CreditCard, Loader2, Minus, Scale } from "lucide-react";
 import { useState } from "react";
 import { MoneyValue } from "@/components/money-value";
+import { usePrivacyMode } from "@/components/privacy-provider";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import {
+  formatInstallmentPurchaseTotal,
   formatPaymentMethodTable,
   paymentMethodIcons,
   transactionConditionIcons,
@@ -47,6 +49,7 @@ export function TransactionRow({
   onSettleRecurringOccurrence,
   onSelectionChange,
 }: TransactionRowProps) {
+  const { isPrivacyModeEnabled } = usePrivacyMode();
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [installmentDeleteOpen, setInstallmentDeleteOpen] = useState(false);
   const [recurringAction, setRecurringAction] = useState<"pause" | "stop" | "skip" | null>(null);
@@ -118,6 +121,14 @@ export function TransactionRow({
           ? "Desfazer o pagamento e marcar como em aberto."
           : "Marcar este lançamento como pago.";
 
+  const amountValue = (
+    <MoneyValue
+      amount={visibleAmount}
+      className={`font-medium ${amountClassName}`}
+      showPositiveSign={transaction.type === "income" || isIncomingTransfer || isInvoiceReduction}
+    />
+  );
+
   return (
     <TableRow
       className={cn(
@@ -169,13 +180,24 @@ export function TransactionRow({
                   : "Transferência"}
           :
         </span>
-        <MoneyValue
-          amount={visibleAmount}
-          className={`font-medium ${amountClassName}`}
-          showPositiveSign={
-            transaction.type === "income" || isIncomingTransfer || isInvoiceReduction
-          }
-        />
+        {transaction.condition === "installment" &&
+        transaction.installmentTotalAmount != null &&
+        transaction.installmentCount !== null &&
+        !isPrivacyModeEnabled ? (
+          <Tooltip>
+            <TooltipTrigger render={<span className="inline-flex cursor-default" />}>
+              {amountValue}
+            </TooltipTrigger>
+            <TooltipContent>
+              {formatInstallmentPurchaseTotal(
+                transaction.installmentTotalAmount,
+                transaction.installmentCount,
+              )}
+            </TooltipContent>
+          </Tooltip>
+        ) : (
+          amountValue
+        )}
         {transaction.settledAmount != null &&
         transaction.plannedAmount != null &&
         transaction.settledAmount !== transaction.plannedAmount ? (

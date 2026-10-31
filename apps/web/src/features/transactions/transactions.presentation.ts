@@ -296,6 +296,10 @@ export function shouldGroupCardInvoices(search: TransactionsSearch) {
   );
 }
 
+export function formatInstallmentPurchaseTotal(totalAmount: number, installmentCount: number) {
+  return `Total da compra: ${formatCurrency(totalAmount)} em ${installmentCount} parcelas`;
+}
+
 export function formatCardInvoiceEntryCount(count: number) {
   return `${count} ${count === 1 ? "lançamento" : "lançamentos"}`;
 }
