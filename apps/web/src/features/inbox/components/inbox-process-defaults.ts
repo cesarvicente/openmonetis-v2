@@ -14,24 +14,28 @@ export function getProcessDefaults(
   suggestion: InboxRuleSuggestionOutput | null,
 ): TransactionCreateDefaults {
   const sourceMatch = getInboxSourceMatch(item.sourceAppName, accounts, cards);
-  const ruleTargetFound = Boolean(suggestion?.paymentMethod);
-  const matchedCardId = ruleTargetFound
-    ? (suggestion?.cardId ?? undefined)
-    : sourceMatch?.kind === "card"
-      ? sourceMatch.id
-      : undefined;
-  const matchedAccountId = ruleTargetFound
-    ? (suggestion?.accountId ?? undefined)
-    : sourceMatch?.kind === "account"
-      ? sourceMatch.id
-      : undefined;
+  const suggestedMethod = suggestion?.paymentMethod ?? null;
+  const sourceCardId = sourceMatch?.kind === "card" ? sourceMatch.id : undefined;
+  const sourceAccountId = sourceMatch?.kind === "account" ? sourceMatch.id : undefined;
+  const matchedCardId =
+    suggestedMethod === null
+      ? sourceCardId
+      : suggestedMethod === "credit_card"
+        ? (suggestion?.cardId ?? sourceCardId)
+        : undefined;
+  const matchedAccountId =
+    suggestedMethod === null
+      ? sourceAccountId
+      : suggestedMethod === "credit_card"
+        ? undefined
+        : (suggestion?.accountId ?? sourceAccountId);
   const fallbackAccountId = accounts.find((candidate) => !candidate.isArchived)?.id;
 
   return {
     name: item.parsedName ?? "",
     amount: item.parsedAmount === null ? "" : String(item.parsedAmount),
     purchaseDate: getInboxPurchaseDate(item.notificationTimestamp),
-    paymentMethod: suggestion?.paymentMethod ?? (matchedCardId ? "credit_card" : "pix"),
+    paymentMethod: suggestedMethod ?? (matchedCardId ? "credit_card" : "pix"),
     cardId: matchedCardId,
     accountId: matchedCardId ? undefined : (matchedAccountId ?? fallbackAccountId),
     categoryId: suggestion?.categoryId ?? undefined,

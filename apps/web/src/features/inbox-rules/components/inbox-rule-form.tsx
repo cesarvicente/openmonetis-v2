@@ -37,6 +37,7 @@ import { EntityOption } from "@/features/transactions/components/transaction-ent
 import { PaymentMethodOption } from "@/features/transactions/components/transaction-payment-method-option";
 import { showInvalidFormToast } from "@/lib/form-feedback";
 import {
+  getInboxRuleFormErrorMessage,
   inboxRuleAmountOperatorLabels,
   inboxRuleFieldLabels,
   inboxRuleTextOperatorLabels,
@@ -122,13 +123,7 @@ export function InboxRuleForm({
       );
       if (!parsed.success) {
         showInvalidFormToast();
-        setError(
-          parsed.error.issues.some((issue) => issue.path[0] === "paymentMethod")
-            ? value.paymentMethod === "credit_card"
-              ? "Selecione o cartão."
-              : "Selecione a conta."
-            : "Revise os campos da regra.",
-        );
+        setError(getInboxRuleFormErrorMessage(parsed.error.issues));
         return;
       }
       try {
@@ -453,17 +448,26 @@ export function InboxRuleForm({
                     <div className="grid gap-1.5">
                       <Label htmlFor={`${id}-card`}>Cartão</Label>
                       <Select
-                        onValueChange={(value) => field.handleChange(value ?? "")}
-                        value={field.state.value}
+                        onValueChange={(value) =>
+                          field.handleChange(!value || value === "none" ? "" : value)
+                        }
+                        value={field.state.value || "none"}
                       >
                         <SelectTrigger className="w-full" id={`${id}-card`}>
-                          <SelectValue placeholder="Selecione">
-                            <EntityOption
-                              entity={cards.find((card) => card.id === field.state.value)}
-                            />
+                          <SelectValue>
+                            {field.state.value ? (
+                              <EntityOption
+                                entity={cards.find((card) => card.id === field.state.value)}
+                              />
+                            ) : (
+                              <NotFilledOption />
+                            )}
                           </SelectValue>
                         </SelectTrigger>
                         <SelectContent>
+                          <SelectItem value="none">
+                            <NotFilledOption />
+                          </SelectItem>
                           {cards
                             .filter(
                               (card) => card.status === "active" || card.id === field.state.value,
@@ -484,17 +488,28 @@ export function InboxRuleForm({
                     <div className="grid gap-1.5">
                       <Label htmlFor={`${id}-account`}>Conta</Label>
                       <Select
-                        onValueChange={(value) => field.handleChange(value ?? "")}
-                        value={field.state.value}
+                        onValueChange={(value) =>
+                          field.handleChange(!value || value === "none" ? "" : value)
+                        }
+                        value={field.state.value || "none"}
                       >
                         <SelectTrigger className="w-full" id={`${id}-account`}>
-                          <SelectValue placeholder="Selecione">
-                            <EntityOption
-                              entity={accounts.find((account) => account.id === field.state.value)}
-                            />
+                          <SelectValue>
+                            {field.state.value ? (
+                              <EntityOption
+                                entity={accounts.find(
+                                  (account) => account.id === field.state.value,
+                                )}
+                              />
+                            ) : (
+                              <NotFilledOption />
+                            )}
                           </SelectValue>
                         </SelectTrigger>
                         <SelectContent>
+                          <SelectItem value="none">
+                            <NotFilledOption />
+                          </SelectItem>
                           {accounts
                             .filter(
                               (account) => !account.isArchived || account.id === field.state.value,

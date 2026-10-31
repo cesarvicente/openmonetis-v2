@@ -1235,11 +1235,9 @@ export const inboxRules = pgTable(
         AND ${table.accountId} is null
       ) OR (
         ${table.paymentMethod} = 'credit_card'
-        AND ${table.cardId} is not null
         AND ${table.accountId} is null
       ) OR (
         ${table.paymentMethod} <> 'credit_card'
-        AND ${table.accountId} is not null
         AND ${table.cardId} is null
       )`,
     ),

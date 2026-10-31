@@ -56,7 +56,7 @@ export type InboxRuleDraftInput = {
   conditions: InboxRuleCondition[];
   categoryId: string | null;
   personId: string | null;
-  /** Credit card rules name a card; every other payment method names an account. */
+  /** Credit card rules may name a card; every other payment method may name an account. */
   paymentMethod: PaymentMethod | null;
   cardId: string | null;
   accountId: string | null;
@@ -137,7 +137,7 @@ export function createInboxRuleDraft(input: InboxRuleDraftInput): InboxRuleDraft
   if (!isValidInboxRulePaymentTarget(input)) {
     throw new InboxRuleError(
       "inbox_rule_invalid_payment_target",
-      "Credit card rules need a card and other payment methods need an account",
+      "Only credit card rules can fill a card and only other payment methods can fill an account",
     );
   }
   if (!input.categoryId && !input.personId && !input.paymentMethod) {
@@ -165,10 +165,8 @@ export function isValidInboxRulePaymentTarget(
   input: Pick<InboxRuleDraftInput, "paymentMethod" | "cardId" | "accountId">,
 ) {
   if (input.paymentMethod === null) return input.cardId === null && input.accountId === null;
-  if (input.paymentMethod === "credit_card") {
-    return input.cardId !== null && input.accountId === null;
-  }
-  return input.accountId !== null && input.cardId === null;
+  if (input.paymentMethod === "credit_card") return input.accountId === null;
+  return input.cardId === null;
 }
 
 export function resolveInboxRules(
@@ -206,7 +204,9 @@ export function resolveInboxRules(
       resolution.paymentMethod = rule.paymentMethod;
       resolution.cardId = rule.cardId;
       resolution.accountId = rule.accountId;
-      fields.push("paymentMethod", rule.cardId ? "cardId" : "accountId");
+      fields.push("paymentMethod");
+      if (rule.cardId) fields.push("cardId");
+      if (rule.accountId) fields.push("accountId");
     }
     if (fields.length > 0) {
       resolution.appliedRules.push({ id: rule.id, name: rule.name, fields });

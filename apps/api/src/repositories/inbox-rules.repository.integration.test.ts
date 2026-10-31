@@ -147,6 +147,18 @@ test("inbox rules suggest a card or an account from the capture text", {
     assert.equal(withoutCard.paymentMethod, "debit_card");
     assert.equal(withoutCard.accountId, account.id);
 
+    const methodOnly = await service.create(
+      {
+        ...base,
+        name: "Somente crédito",
+        conditions: [{ field: "originalText", operator: "contains", value: "compra aprovada" }],
+        paymentMethod: "credit_card",
+      },
+      owner.id,
+    );
+    assert.equal(methodOnly.paymentMethod, "credit_card");
+    assert.equal(methodOnly.card, null);
+
     await assert.rejects(
       service.create(
         {

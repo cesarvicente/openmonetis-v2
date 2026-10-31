@@ -175,7 +175,7 @@ export function availableInboxRuleCandidates(rules: InboxRuleRecord[]): InboxRul
       ? rule.cardStatus === "active"
       : rule.accountId
         ? rule.accountArchived === false
-        : false;
+        : true;
     const paymentMethod = paymentTargetAvailable ? rule.paymentMethod : null;
     const cardId = paymentTargetAvailable ? rule.cardId : null;
     const accountId = paymentTargetAvailable ? rule.accountId : null;

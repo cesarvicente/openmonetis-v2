@@ -162,6 +162,13 @@
       "when": 1793471624820,
       "tag": "0022_inbox_rule_payment_method",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1793472485567,
+      "tag": "0023_inbox_rule_optional_payment_target",
+      "breakpoints": true
     }
   ]
 }

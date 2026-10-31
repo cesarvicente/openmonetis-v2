@@ -60,7 +60,7 @@ const InboxRuleEditableFieldsSchema = z
     { message: "At least one action is required" },
   )
   .refine(isValidInboxRulePaymentTarget, {
-    message: "Credit card rules need a card and other payment methods need an account",
+    message: "Only credit card rules can fill a card and only other payment methods an account",
     path: ["paymentMethod"],
   });
 

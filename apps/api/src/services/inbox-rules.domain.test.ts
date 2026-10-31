@@ -148,12 +148,12 @@ const draftBase = {
   personId: null,
 };
 
-test("payment method rules require the matching card or account", () => {
+test("a card only fits credit card rules and an account only the other methods", () => {
   for (const target of [
     { paymentMethod: "credit_card" as const, cardId: null, accountId: "account" },
     { paymentMethod: "pix" as const, cardId: "card", accountId: null },
     { paymentMethod: null, cardId: "card", accountId: null },
-    { paymentMethod: "debit_card" as const, cardId: null, accountId: null },
+    { paymentMethod: null, cardId: null, accountId: "account" },
   ]) {
     assert.throws(
       () => createInboxRuleDraft({ ...draftBase, ...target }),
@@ -182,4 +182,21 @@ test("a rule can fill only the payment method and its card or account", () => {
     }).accountId,
     "account",
   );
+});
+
+test("a rule can fill the payment method without a card or account", () => {
+  const draft = createInboxRuleDraft({
+    ...draftBase,
+    paymentMethod: "credit_card",
+    cardId: null,
+    accountId: null,
+  });
+  assert.equal(draft.paymentMethod, "credit_card");
+
+  const result = resolveInboxRules(item, [
+    rule({ id: "method", name: "Crédito", paymentMethod: "credit_card" }),
+  ]);
+  assert.equal(result.paymentMethod, "credit_card");
+  assert.equal(result.cardId, null);
+  assert.deepEqual(result.appliedRules[0]?.fields, ["paymentMethod"]);
 });

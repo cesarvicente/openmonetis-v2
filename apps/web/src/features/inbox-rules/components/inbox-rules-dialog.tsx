@@ -135,7 +135,7 @@ export function InboxRulesDialog({
               </DialogTitle>
               <DialogDescription>
                 {view.kind === "list"
-                  ? "Sugira categoria e pessoa conforme os dados capturados. Você sempre revisa antes de confirmar."
+                  ? "Sugira categoria, pessoa e forma de pagamento conforme os dados capturados. Você sempre revisa antes de confirmar."
                   : "Defina as condições e os campos que serão sugeridos no lançamento."}
               </DialogDescription>
             </div>

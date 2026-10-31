@@ -9,9 +9,9 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 
 ### Adicionado
 
-- Regras da Caixa de entrada podem preencher também a **forma de pagamento** com o **cartão**
-  (cartão de crédito) ou a **conta** (demais formas), em campos separados como no formulário de
-  lançamento. Ao revisar uma captura, a forma de pagamento da regra tem prioridade sobre a
+- Regras da Caixa de entrada podem preencher também a **forma de pagamento** e, opcionalmente, o
+  **cartão** (cartão de crédito) ou a **conta** (demais formas), em campos separados como no
+  formulário de lançamento. O formulário da regra indica qual campo precisa de ajuste. Ao revisar uma captura, a forma de pagamento da regra tem prioridade sobre a
   identificação pelo nome do app. A comparação de texto ignora maiúsculas, acentos e espaços
   repetidos. Regras com cartão inativo ou conta arquivada não sugerem a forma de pagamento.
 - Na tabela de lançamentos, passar o mouse sobre o valor de uma parcela mostra o total da compra
@@ -36,9 +36,10 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 
 ### Notas de atualização
 
-- Migrations `0021_inbox_rule_payment_target` e `0022_inbox_rule_payment_method` adicionam
-  `card_id`, `account_id` e `payment_method` a `inbox_rules`, com chaves estrangeiras por usuário.
-  Cartão de crédito exige `card_id`; as demais formas exigem `account_id`.
+- Migrations `0021_inbox_rule_payment_target`, `0022_inbox_rule_payment_method` e
+  `0023_inbox_rule_optional_payment_target` adicionam `card_id`, `account_id` e `payment_method` a
+  `inbox_rules`, com chaves estrangeiras por usuário. `card_id` só é aceito com cartão de crédito e
+  `account_id` só com as demais formas; ambos são opcionais.
 - Migration `0018_signup_allowlist` cria o enum `user_role`, a coluna `user.role` e a tabela
   `signup_allowlist`. Inclua o e-mail do administrador em `INITIAL_ADMIN_EMAIL` antes de iniciar a API,
   ou nenhum novo cadastro será aceito.
