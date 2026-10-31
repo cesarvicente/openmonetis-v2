@@ -14,8 +14,17 @@ export function getProcessDefaults(
   suggestion: InboxRuleSuggestionOutput | null,
 ): TransactionCreateDefaults {
   const sourceMatch = getInboxSourceMatch(item.sourceAppName, accounts, cards);
-  const matchedCardId = sourceMatch?.kind === "card" ? sourceMatch.id : undefined;
-  const matchedAccountId = sourceMatch?.kind === "account" ? sourceMatch.id : undefined;
+  const ruleTargetFound = Boolean(suggestion?.cardId || suggestion?.accountId);
+  const matchedCardId = ruleTargetFound
+    ? (suggestion?.cardId ?? undefined)
+    : sourceMatch?.kind === "card"
+      ? sourceMatch.id
+      : undefined;
+  const matchedAccountId = ruleTargetFound
+    ? (suggestion?.accountId ?? undefined)
+    : sourceMatch?.kind === "account"
+      ? sourceMatch.id
+      : undefined;
   const fallbackAccountId = accounts.find((candidate) => !candidate.isArchived)?.id;
 
   return {

@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { type InboxRuleCandidate, resolveInboxRules } from "@openmonetis/domain/inbox-rules";
+import {
+  createInboxRuleDraft,
+  type InboxRuleCandidate,
+  InboxRuleError,
+  resolveInboxRules,
+} from "@openmonetis/domain/inbox-rules";
 
 const item = {
   sourceApp: "com.nu.production",
@@ -21,6 +26,8 @@ function rule(overrides: Partial<InboxRuleCandidate>): InboxRuleCandidate {
     conditions: [{ field: "originalText", operator: "contains", value: "ifood" }],
     categoryId: null,
     personId: null,
+    cardId: null,
+    accountId: null,
     ...overrides,
   };
 }
@@ -95,4 +102,60 @@ test("all, any and inactive rules are evaluated deterministically", () => {
   ]);
 
   assert.equal(result.personId, "right-person");
+});
+
+test("the first matching rule fills a single payment target, card or account", () => {
+  const result = resolveInboxRules(item, [
+    rule({ id: "account", name: "Conta", priority: 20, accountId: "checking" }),
+    rule({ id: "card", name: "Cartão Samsung", priority: 10, cardId: "samsung" }),
+    rule({ id: "category", name: "iFood", priority: 30, categoryId: "restaurants" }),
+  ]);
+
+  assert.equal(result.cardId, "samsung");
+  assert.equal(result.accountId, null);
+  assert.equal(result.categoryId, "restaurants");
+  assert.deepEqual(
+    result.appliedRules.map((applied) => [applied.id, applied.fields]),
+    [
+      ["card", ["cardId"]],
+      ["category", ["categoryId"]],
+    ],
+  );
+});
+
+test("a rule cannot fill a card and an account at the same time", () => {
+  assert.throws(
+    () =>
+      createInboxRuleDraft({
+        userId: "user",
+        name: "Pagamento",
+        priority: 1,
+        isActive: true,
+        matchMode: "all",
+        conditions: [{ field: "originalText", operator: "contains", value: "samsung" }],
+        categoryId: null,
+        personId: null,
+        cardId: "card",
+        accountId: "account",
+      }),
+    (error) =>
+      error instanceof InboxRuleError && error.code === "inbox_rule_payment_target_conflict",
+  );
+});
+
+test("a rule can fill only the card", () => {
+  const draft = createInboxRuleDraft({
+    userId: "user",
+    name: "Cartão Samsung",
+    priority: 1,
+    isActive: true,
+    matchMode: "all",
+    conditions: [{ field: "originalText", operator: "contains", value: "cartão Samsung Itau" }],
+    categoryId: null,
+    personId: null,
+    cardId: "card",
+    accountId: null,
+  });
+
+  assert.equal(draft.cardId, "card");
 });

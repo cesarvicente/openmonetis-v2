@@ -1,4 +1,12 @@
-import { categories, db, inboxItems, inboxRules, people } from "@openmonetis/db";
+import {
+  cards,
+  categories,
+  db,
+  financialAccounts,
+  inboxItems,
+  inboxRules,
+  people,
+} from "@openmonetis/db";
 import type { InboxRuleCondition } from "@openmonetis/domain/inbox-rules";
 import { and, asc, eq, sql } from "drizzle-orm";
 import type { InboxRuleRecord, InboxRulesRepository } from "../services/inbox-rules.service";
@@ -18,6 +26,12 @@ const ruleSelection = {
   personId: inboxRules.personId,
   personName: people.name,
   personStatus: people.status,
+  cardId: inboxRules.cardId,
+  cardName: cards.name,
+  cardStatus: cards.status,
+  accountId: inboxRules.accountId,
+  accountName: financialAccounts.name,
+  accountArchived: financialAccounts.isArchived,
   version: inboxRules.version,
   createdAt: inboxRules.createdAt,
   updatedAt: inboxRules.updatedAt,
@@ -37,6 +51,12 @@ type RuleSelectionRow = {
   personId: string | null;
   personName: string | null;
   personStatus: "active" | "inactive" | null;
+  cardId: string | null;
+  cardName: string | null;
+  cardStatus: "active" | "inactive" | null;
+  accountId: string | null;
+  accountName: string | null;
+  accountArchived: boolean | null;
   version: number;
   createdAt: Date;
   updatedAt: Date;
@@ -156,6 +176,24 @@ export const inboxRulesRepository = {
     return person ?? null;
   },
 
+  async findCardForUser(id, userId) {
+    const [card] = await db
+      .select({ id: cards.id, status: cards.status })
+      .from(cards)
+      .where(and(eq(cards.id, id), eq(cards.userId, userId)))
+      .limit(1);
+    return card ?? null;
+  },
+
+  async findAccountForUser(id, userId) {
+    const [account] = await db
+      .select({ id: financialAccounts.id, isArchived: financialAccounts.isArchived })
+      .from(financialAccounts)
+      .where(and(eq(financialAccounts.id, id), eq(financialAccounts.userId, userId)))
+      .limit(1);
+    return account ?? null;
+  },
+
   async findInboxItemForUser(id, userId) {
     const [item] = await db
       .select({
@@ -187,9 +225,14 @@ function selectRules() {
       categories,
       and(eq(categories.id, inboxRules.categoryId), eq(categories.userId, inboxRules.userId)),
     )
+    .leftJoin(people, and(eq(people.id, inboxRules.personId), eq(people.userId, inboxRules.userId)))
+    .leftJoin(cards, and(eq(cards.id, inboxRules.cardId), eq(cards.userId, inboxRules.userId)))
     .leftJoin(
-      people,
-      and(eq(people.id, inboxRules.personId), eq(people.userId, inboxRules.userId)),
+      financialAccounts,
+      and(
+        eq(financialAccounts.id, inboxRules.accountId),
+        eq(financialAccounts.userId, inboxRules.userId),
+      ),
     );
 }
 

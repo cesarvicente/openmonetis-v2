@@ -1,3 +1,5 @@
+import type { AccountOutput } from "@openmonetis/validators/accounts";
+import type { CardOutput } from "@openmonetis/validators/cards";
 import type { CategoryOutput } from "@openmonetis/validators/categories";
 import type {
   CreateInboxRuleInput,
@@ -30,11 +32,15 @@ import { InboxRuleForm } from "./inbox-rule-form";
 type View = { kind: "list" } | { kind: "form"; rule: InboxRuleOutput | null };
 
 export function InboxRulesDialog({
+  accounts,
+  cards,
   categories,
   onOpenChange,
   open,
   people,
 }: {
+  accounts: AccountOutput[];
+  cards: CardOutput[];
   categories: CategoryOutput[];
   onOpenChange: (open: boolean) => void;
   open: boolean;
@@ -142,6 +148,8 @@ export function InboxRulesDialog({
         >
           {view.kind === "form" ? (
             <InboxRuleForm
+              accounts={accounts}
+              cards={cards}
               categories={categories}
               key={view.rule?.id ?? "new-rule"}
               onCancel={closeOrGoBack}

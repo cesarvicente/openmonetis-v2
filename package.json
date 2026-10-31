@@ -38,6 +38,7 @@
     "test": "node scripts/run-tests.mjs",
     "test:tags:integration": "TAGS_INTEGRATION_TEST=1 tsx --test apps/api/src/repositories/tags.repository.integration.test.ts",
     "typecheck": "pnpm -r typecheck && pnpm --filter @openmonetis/web exec tsc -p ../../tsconfig.tests.json",
+    "test:inbox-rules:integration": "INBOX_RULES_INTEGRATION_TEST=1 tsx --test apps/api/src/repositories/inbox-rules.repository.integration.test.ts",
     "test:categories:integration": "CATEGORIES_INTEGRATION_TEST=1 tsx --test apps/api/src/repositories/categories.repository.integration.test.ts",
     "test:recurring:integration": "RECURRING_INTEGRATION_TEST=1 tsx --test apps/api/src/repositories/recurring-transactions.repository.integration.test.ts",
     "test:settlements:integration": "SETTLEMENTS_INTEGRATION_TEST=1 tsx --test apps/api/src/repositories/settlements.repository.integration.test.ts",

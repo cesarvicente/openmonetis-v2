@@ -379,6 +379,8 @@ export function InboxPage({
       ) : null}
 
       <InboxRulesDialog
+        accounts={accountsQuery.data ?? []}
+        cards={cardsQuery.data ?? []}
         categories={categoriesQuery.data ?? []}
         onOpenChange={setRulesOpen}
         open={rulesOpen}

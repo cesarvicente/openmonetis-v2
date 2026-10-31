@@ -1,5 +1,6 @@
 import { z } from "@hono/zod-openapi";
 import {
+  inboxRuleAppliedFields,
   inboxRuleConditionValueMaximumLength,
   inboxRuleMatchModes,
   inboxRuleMaximumConditions,
@@ -47,10 +48,21 @@ const InboxRuleEditableFieldsSchema = z
     conditions: z.array(InboxRuleConditionSchema).min(1).max(inboxRuleMaximumConditions),
     categoryId: z.uuid().nullable(),
     personId: z.uuid().nullable(),
+    cardId: z.uuid().nullable().default(null),
+    accountId: z.uuid().nullable().default(null),
   })
   .strict()
-  .refine((input) => input.categoryId !== null || input.personId !== null, {
-    message: "At least one action is required",
+  .refine(
+    (input) =>
+      input.categoryId !== null ||
+      input.personId !== null ||
+      input.cardId !== null ||
+      input.accountId !== null,
+    { message: "At least one action is required" },
+  )
+  .refine((input) => input.cardId === null || input.accountId === null, {
+    message: "Choose either a card or an account",
+    path: ["accountId"],
   });
 
 export const CreateInboxRuleInputSchema =
@@ -94,6 +106,8 @@ export const InboxRuleOutputSchema = z
     conditions: z.array(InboxRuleConditionSchema),
     category: InboxRuleTargetOutputSchema.nullable(),
     person: InboxRuleTargetOutputSchema.nullable(),
+    card: InboxRuleTargetOutputSchema.nullable(),
+    account: InboxRuleTargetOutputSchema.nullable(),
     version: z.number().int().positive(),
     createdAt: z.iso.datetime(),
     updatedAt: z.iso.datetime(),
@@ -111,11 +125,13 @@ export const InboxRuleSuggestionOutputSchema = z
   .object({
     categoryId: z.uuid().nullable(),
     personId: z.uuid().nullable(),
+    cardId: z.uuid().nullable(),
+    accountId: z.uuid().nullable(),
     appliedRules: z.array(
       z.object({
         id: z.uuid(),
         name: z.string(),
-        fields: z.array(z.enum(["categoryId", "personId"])).min(1),
+        fields: z.array(z.enum(inboxRuleAppliedFields)).min(1),
       }),
     ),
   })

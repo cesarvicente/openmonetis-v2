@@ -9,6 +9,11 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 
 ### Adicionado
 
+- Regras da Caixa de entrada podem preencher também **Pagar com** (um cartão ou uma conta). Ao
+  revisar uma captura, o cartão escolhido pela regra define a forma de pagamento como cartão de
+  crédito e tem prioridade sobre a identificação pelo nome do app. A comparação de texto ignora
+  maiúsculas, acentos e espaços repetidos. Regras com cartão inativo ou conta arquivada são
+  ignoradas na sugestão.
 - Na tabela de lançamentos, passar o mouse sobre o valor de uma parcela mostra o total da compra
   parcelada. A listagem passa a devolver `installmentTotalAmount`, calculado no domain a partir das
   parcelas atuais da série (inclusive as pagas antes do início do acompanhamento).

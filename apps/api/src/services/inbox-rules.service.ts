@@ -30,6 +30,12 @@ export type InboxRuleRecord = {
   personId: string | null;
   personName: string | null;
   personStatus: "active" | "inactive" | null;
+  cardId: string | null;
+  cardName: string | null;
+  cardStatus: "active" | "inactive" | null;
+  accountId: string | null;
+  accountName: string | null;
+  accountArchived: boolean | null;
   version: number;
   createdAt: Date;
   updatedAt: Date;
@@ -42,6 +48,10 @@ type InboxRuleWriteRecord = Omit<
   | "categoryType"
   | "personName"
   | "personStatus"
+  | "cardName"
+  | "cardStatus"
+  | "accountName"
+  | "accountArchived"
   | "version"
   | "createdAt"
   | "updatedAt"
@@ -81,6 +91,14 @@ export type InboxRulesRepository = {
     id: string,
     userId: string,
   ): Promise<{ id: string; status: "active" | "inactive" } | null>;
+  findCardForUser(
+    id: string,
+    userId: string,
+  ): Promise<{ id: string; status: "active" | "inactive" } | null>;
+  findAccountForUser(
+    id: string,
+    userId: string,
+  ): Promise<{ id: string; isArchived: boolean } | null>;
   findInboxItemForUser(
     id: string,
     userId: string,
@@ -95,7 +113,7 @@ export function createInboxRulesService(repository: InboxRulesRepository) {
     },
 
     async create(input: CreateInboxRuleInput, userId: string) {
-      await assertTargetsAvailable(input.categoryId, input.personId, userId, repository);
+      await assertTargetsAvailable(input, userId, repository);
       const draft = buildDraft(input, userId);
       const record = await repository.insert(draft);
       if (!record) {
@@ -106,7 +124,7 @@ export function createInboxRulesService(repository: InboxRulesRepository) {
 
     async replace(id: string, input: ReplaceInboxRuleInput, userId: string) {
       await findRule(id, userId, repository);
-      await assertTargetsAvailable(input.categoryId, input.personId, userId, repository);
+      await assertTargetsAvailable(input, userId, repository);
       const { userId: _userId, ...draft } = buildDraft(input, userId);
       const result = await repository.replaceForUser(id, userId, input.expectedVersion, draft);
       return mutationOutput(result);
@@ -151,7 +169,9 @@ export function availableInboxRuleCandidates(rules: InboxRuleRecord[]): InboxRul
   return rules.flatMap((rule) => {
     const categoryId = rule.categoryType === "expense" ? rule.categoryId : null;
     const personId = rule.personStatus === "active" ? rule.personId : null;
-    if (!rule.isActive || (!categoryId && !personId)) return [];
+    const cardId = rule.cardStatus === "active" ? rule.cardId : null;
+    const accountId = rule.accountArchived === false ? rule.accountId : null;
+    if (!rule.isActive || (!categoryId && !personId && !cardId && !accountId)) return [];
     return [
       {
         id: rule.id,
@@ -162,6 +182,8 @@ export function availableInboxRuleCandidates(rules: InboxRuleRecord[]): InboxRul
         conditions: rule.conditions,
         categoryId,
         personId,
+        cardId,
+        accountId,
       },
     ];
   });
@@ -181,6 +203,8 @@ function buildDraft(
       conditions: input.conditions,
       categoryId: input.categoryId,
       personId: input.personId,
+      cardId: input.cardId,
+      accountId: input.accountId,
     });
   } catch (error) {
     if (error instanceof InboxRuleError) throw badRequest(error.message, error.code);
@@ -189,15 +213,33 @@ function buildDraft(
 }
 
 async function assertTargetsAvailable(
-  categoryId: string | null,
-  personId: string | null,
+  {
+    categoryId,
+    personId,
+    cardId,
+    accountId,
+  }: Pick<CreateInboxRuleInput, "categoryId" | "personId" | "cardId" | "accountId">,
   userId: string,
   repository: InboxRulesRepository,
 ) {
-  const [category, person] = await Promise.all([
+  const [category, person, card, account] = await Promise.all([
     categoryId ? repository.findCategoryForUser(categoryId, userId) : null,
     personId ? repository.findPersonForUser(personId, userId) : null,
+    cardId ? repository.findCardForUser(cardId, userId) : null,
+    accountId ? repository.findAccountForUser(accountId, userId) : null,
   ]);
+  if (cardId && card?.status !== "active") {
+    throw badRequest(
+      "Inbox rules can only use an owned active card",
+      "inbox_rule_card_unavailable",
+    );
+  }
+  if (accountId && account?.isArchived !== false) {
+    throw badRequest(
+      "Inbox rules can only use an owned active account",
+      "inbox_rule_account_unavailable",
+    );
+  }
   if (categoryId && category?.type !== "expense") {
     throw badRequest(
       "Inbox rules can only use an owned expense category",
@@ -253,6 +295,11 @@ function toOutput(record: InboxRuleRecord): InboxRuleOutput {
     person:
       record.personId && record.personName
         ? { id: record.personId, name: record.personName }
+        : null,
+    card: record.cardId && record.cardName ? { id: record.cardId, name: record.cardName } : null,
+    account:
+      record.accountId && record.accountName
+        ? { id: record.accountId, name: record.accountName }
         : null,
     version: record.version,
     createdAt: record.createdAt.toISOString(),

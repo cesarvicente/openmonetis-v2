@@ -148,6 +148,13 @@
       "when": 1793392334157,
       "tag": "0020_auto_settle",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1793470768881,
+      "tag": "0021_inbox_rule_payment_target",
+      "breakpoints": true
     }
   ]
 }

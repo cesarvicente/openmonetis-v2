@@ -55,6 +55,8 @@ export type InboxRuleDraftInput = {
   conditions: InboxRuleCondition[];
   categoryId: string | null;
   personId: string | null;
+  cardId: string | null;
+  accountId: string | null;
 };
 
 export type InboxRuleCandidate = Omit<InboxRuleDraftInput, "userId"> & {
@@ -70,11 +72,15 @@ export type InboxRuleMatchItem = {
   parsedAmount: number | null;
 };
 
-export type InboxRuleAppliedField = "categoryId" | "personId";
+export const inboxRuleAppliedFields = ["categoryId", "personId", "cardId", "accountId"] as const;
+export type InboxRuleAppliedField = (typeof inboxRuleAppliedFields)[number];
 
 export type InboxRuleResolution = {
   categoryId: string | null;
   personId: string | null;
+  /** Card or account that paid the capture; a rule fills at most one of them. */
+  cardId: string | null;
+  accountId: string | null;
   appliedRules: Array<{
     id: string;
     name: string;
@@ -88,7 +94,8 @@ export type InboxRuleCode =
   | "inbox_rule_too_many_conditions"
   | "inbox_rule_actions_required"
   | "inbox_rule_invalid_priority"
-  | "inbox_rule_invalid_condition";
+  | "inbox_rule_invalid_condition"
+  | "inbox_rule_payment_target_conflict";
 
 export class InboxRuleError extends Error {
   readonly code: InboxRuleCode;
@@ -117,7 +124,13 @@ export function createInboxRuleDraft(input: InboxRuleDraftInput): InboxRuleDraft
       "Inbox rule contains too many conditions",
     );
   }
-  if (!input.categoryId && !input.personId) {
+  if (input.cardId && input.accountId) {
+    throw new InboxRuleError(
+      "inbox_rule_payment_target_conflict",
+      "Inbox rule can fill either a card or an account",
+    );
+  }
+  if (!input.categoryId && !input.personId && !input.cardId && !input.accountId) {
     throw new InboxRuleError(
       "inbox_rule_actions_required",
       "Inbox rule must fill at least one field",
@@ -145,6 +158,8 @@ export function resolveInboxRules(
   const resolution: InboxRuleResolution = {
     categoryId: null,
     personId: null,
+    cardId: null,
+    accountId: null,
     appliedRules: [],
   };
   const orderedRules = [...rules].sort(
@@ -166,10 +181,23 @@ export function resolveInboxRules(
       resolution.personId = rule.personId;
       fields.push("personId");
     }
+    const paymentTargetResolved = resolution.cardId !== null || resolution.accountId !== null;
+    if (!paymentTargetResolved && rule.cardId) {
+      resolution.cardId = rule.cardId;
+      fields.push("cardId");
+    } else if (!paymentTargetResolved && rule.accountId) {
+      resolution.accountId = rule.accountId;
+      fields.push("accountId");
+    }
     if (fields.length > 0) {
       resolution.appliedRules.push({ id: rule.id, name: rule.name, fields });
     }
-    if (resolution.categoryId !== null && resolution.personId !== null) break;
+    if (
+      resolution.categoryId !== null &&
+      resolution.personId !== null &&
+      (resolution.cardId !== null || resolution.accountId !== null)
+    )
+      break;
   }
 
   return resolution;
