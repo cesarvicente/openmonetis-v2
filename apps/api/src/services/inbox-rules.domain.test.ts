@@ -26,6 +26,7 @@ function rule(overrides: Partial<InboxRuleCandidate>): InboxRuleCandidate {
     conditions: [{ field: "originalText", operator: "contains", value: "ifood" }],
     categoryId: null,
     personId: null,
+    paymentMethod: null,
     cardId: null,
     accountId: null,
     ...overrides,
@@ -104,58 +105,81 @@ test("all, any and inactive rules are evaluated deterministically", () => {
   assert.equal(result.personId, "right-person");
 });
 
-test("the first matching rule fills a single payment target, card or account", () => {
+test("the first matching rule fills the payment method with its card or account", () => {
   const result = resolveInboxRules(item, [
-    rule({ id: "account", name: "Conta", priority: 20, accountId: "checking" }),
-    rule({ id: "card", name: "Cartão Samsung", priority: 10, cardId: "samsung" }),
+    rule({
+      id: "account",
+      name: "Conta",
+      priority: 20,
+      paymentMethod: "pix",
+      accountId: "checking",
+    }),
+    rule({
+      id: "card",
+      name: "Cartão Samsung",
+      priority: 10,
+      paymentMethod: "credit_card",
+      cardId: "samsung",
+    }),
     rule({ id: "category", name: "iFood", priority: 30, categoryId: "restaurants" }),
   ]);
 
+  assert.equal(result.paymentMethod, "credit_card");
   assert.equal(result.cardId, "samsung");
   assert.equal(result.accountId, null);
   assert.equal(result.categoryId, "restaurants");
   assert.deepEqual(
     result.appliedRules.map((applied) => [applied.id, applied.fields]),
     [
-      ["card", ["cardId"]],
+      ["card", ["paymentMethod", "cardId"]],
       ["category", ["categoryId"]],
     ],
   );
 });
 
-test("a rule cannot fill a card and an account at the same time", () => {
-  assert.throws(
-    () =>
-      createInboxRuleDraft({
-        userId: "user",
-        name: "Pagamento",
-        priority: 1,
-        isActive: true,
-        matchMode: "all",
-        conditions: [{ field: "originalText", operator: "contains", value: "samsung" }],
-        categoryId: null,
-        personId: null,
-        cardId: "card",
-        accountId: "account",
-      }),
-    (error) =>
-      error instanceof InboxRuleError && error.code === "inbox_rule_payment_target_conflict",
-  );
+const draftBase = {
+  userId: "user",
+  name: "Pagamento",
+  priority: 1,
+  isActive: true,
+  matchMode: "all" as const,
+  conditions: [{ field: "originalText" as const, operator: "contains" as const, value: "samsung" }],
+  categoryId: null,
+  personId: null,
+};
+
+test("payment method rules require the matching card or account", () => {
+  for (const target of [
+    { paymentMethod: "credit_card" as const, cardId: null, accountId: "account" },
+    { paymentMethod: "pix" as const, cardId: "card", accountId: null },
+    { paymentMethod: null, cardId: "card", accountId: null },
+    { paymentMethod: "debit_card" as const, cardId: null, accountId: null },
+  ]) {
+    assert.throws(
+      () => createInboxRuleDraft({ ...draftBase, ...target }),
+      (error) =>
+        error instanceof InboxRuleError && error.code === "inbox_rule_invalid_payment_target",
+    );
+  }
 });
 
-test("a rule can fill only the card", () => {
-  const draft = createInboxRuleDraft({
-    userId: "user",
-    name: "Cartão Samsung",
-    priority: 1,
-    isActive: true,
-    matchMode: "all",
-    conditions: [{ field: "originalText", operator: "contains", value: "cartão Samsung Itau" }],
-    categoryId: null,
-    personId: null,
-    cardId: "card",
-    accountId: null,
-  });
-
-  assert.equal(draft.cardId, "card");
+test("a rule can fill only the payment method and its card or account", () => {
+  assert.equal(
+    createInboxRuleDraft({
+      ...draftBase,
+      paymentMethod: "credit_card",
+      cardId: "card",
+      accountId: null,
+    }).cardId,
+    "card",
+  );
+  assert.equal(
+    createInboxRuleDraft({
+      ...draftBase,
+      paymentMethod: "debit_card",
+      cardId: null,
+      accountId: "account",
+    }).accountId,
+    "account",
+  );
 });

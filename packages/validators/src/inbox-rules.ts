@@ -10,7 +10,9 @@ import {
   inboxRulePriorityMinimum,
   inboxRuleTextConditionFields,
   inboxRuleTextConditionOperators,
+  isValidInboxRulePaymentTarget,
 } from "@openmonetis/domain/inbox-rules";
+import { paymentMethods } from "@openmonetis/domain/transactions";
 
 const InboxRuleNameSchema = z.string().trim().min(1).max(inboxRuleNameMaximumLength);
 const InboxRulePrioritySchema = z
@@ -48,21 +50,18 @@ const InboxRuleEditableFieldsSchema = z
     conditions: z.array(InboxRuleConditionSchema).min(1).max(inboxRuleMaximumConditions),
     categoryId: z.uuid().nullable(),
     personId: z.uuid().nullable(),
+    paymentMethod: z.enum(paymentMethods).nullable().default(null),
     cardId: z.uuid().nullable().default(null),
     accountId: z.uuid().nullable().default(null),
   })
   .strict()
   .refine(
-    (input) =>
-      input.categoryId !== null ||
-      input.personId !== null ||
-      input.cardId !== null ||
-      input.accountId !== null,
+    (input) => input.categoryId !== null || input.personId !== null || input.paymentMethod !== null,
     { message: "At least one action is required" },
   )
-  .refine((input) => input.cardId === null || input.accountId === null, {
-    message: "Choose either a card or an account",
-    path: ["accountId"],
+  .refine(isValidInboxRulePaymentTarget, {
+    message: "Credit card rules need a card and other payment methods need an account",
+    path: ["paymentMethod"],
   });
 
 export const CreateInboxRuleInputSchema =
@@ -106,6 +105,7 @@ export const InboxRuleOutputSchema = z
     conditions: z.array(InboxRuleConditionSchema),
     category: InboxRuleTargetOutputSchema.nullable(),
     person: InboxRuleTargetOutputSchema.nullable(),
+    paymentMethod: z.enum(paymentMethods).nullable(),
     card: InboxRuleTargetOutputSchema.nullable(),
     account: InboxRuleTargetOutputSchema.nullable(),
     version: z.number().int().positive(),
@@ -125,6 +125,7 @@ export const InboxRuleSuggestionOutputSchema = z
   .object({
     categoryId: z.uuid().nullable(),
     personId: z.uuid().nullable(),
+    paymentMethod: z.enum(paymentMethods).nullable(),
     cardId: z.uuid().nullable(),
     accountId: z.uuid().nullable(),
     appliedRules: z.array(

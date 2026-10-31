@@ -8,6 +8,7 @@ import {
   type InboxRuleMatchMode,
   resolveInboxRules,
 } from "@openmonetis/domain/inbox-rules";
+import type { PaymentMethod } from "@openmonetis/domain/transactions";
 import type {
   CreateInboxRuleInput,
   InboxRuleOutput,
@@ -30,6 +31,7 @@ export type InboxRuleRecord = {
   personId: string | null;
   personName: string | null;
   personStatus: "active" | "inactive" | null;
+  paymentMethod: PaymentMethod | null;
   cardId: string | null;
   cardName: string | null;
   cardStatus: "active" | "inactive" | null;
@@ -169,9 +171,15 @@ export function availableInboxRuleCandidates(rules: InboxRuleRecord[]): InboxRul
   return rules.flatMap((rule) => {
     const categoryId = rule.categoryType === "expense" ? rule.categoryId : null;
     const personId = rule.personStatus === "active" ? rule.personId : null;
-    const cardId = rule.cardStatus === "active" ? rule.cardId : null;
-    const accountId = rule.accountArchived === false ? rule.accountId : null;
-    if (!rule.isActive || (!categoryId && !personId && !cardId && !accountId)) return [];
+    const paymentTargetAvailable = rule.cardId
+      ? rule.cardStatus === "active"
+      : rule.accountId
+        ? rule.accountArchived === false
+        : false;
+    const paymentMethod = paymentTargetAvailable ? rule.paymentMethod : null;
+    const cardId = paymentTargetAvailable ? rule.cardId : null;
+    const accountId = paymentTargetAvailable ? rule.accountId : null;
+    if (!rule.isActive || (!categoryId && !personId && !paymentMethod)) return [];
     return [
       {
         id: rule.id,
@@ -182,6 +190,7 @@ export function availableInboxRuleCandidates(rules: InboxRuleRecord[]): InboxRul
         conditions: rule.conditions,
         categoryId,
         personId,
+        paymentMethod,
         cardId,
         accountId,
       },
@@ -203,6 +212,7 @@ function buildDraft(
       conditions: input.conditions,
       categoryId: input.categoryId,
       personId: input.personId,
+      paymentMethod: input.paymentMethod,
       cardId: input.cardId,
       accountId: input.accountId,
     });
@@ -296,6 +306,7 @@ function toOutput(record: InboxRuleRecord): InboxRuleOutput {
       record.personId && record.personName
         ? { id: record.personId, name: record.personName }
         : null,
+    paymentMethod: record.paymentMethod,
     card: record.cardId && record.cardName ? { id: record.cardId, name: record.cardName } : null,
     account:
       record.accountId && record.accountName

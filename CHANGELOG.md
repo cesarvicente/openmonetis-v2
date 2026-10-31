@@ -9,11 +9,11 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 
 ### Adicionado
 
-- Regras da Caixa de entrada podem preencher também **Pagar com** (um cartão ou uma conta). Ao
-  revisar uma captura, o cartão escolhido pela regra define a forma de pagamento como cartão de
-  crédito e tem prioridade sobre a identificação pelo nome do app. A comparação de texto ignora
-  maiúsculas, acentos e espaços repetidos. Regras com cartão inativo ou conta arquivada são
-  ignoradas na sugestão.
+- Regras da Caixa de entrada podem preencher também a **forma de pagamento** com o **cartão**
+  (cartão de crédito) ou a **conta** (demais formas), em campos separados como no formulário de
+  lançamento. Ao revisar uma captura, a forma de pagamento da regra tem prioridade sobre a
+  identificação pelo nome do app. A comparação de texto ignora maiúsculas, acentos e espaços
+  repetidos. Regras com cartão inativo ou conta arquivada não sugerem a forma de pagamento.
 - Na tabela de lançamentos, passar o mouse sobre o valor de uma parcela mostra o total da compra
   parcelada. A listagem passa a devolver `installmentTotalAmount`, calculado no domain a partir das
   parcelas atuais da série (inclusive as pagas antes do início do acompanhamento).
@@ -36,8 +36,9 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 
 ### Notas de atualização
 
-- Migration `0021_inbox_rule_payment_target` adiciona `card_id` e `account_id` a `inbox_rules`, com
-  chaves estrangeiras por usuário e a restrição de no máximo um dos dois por regra.
+- Migrations `0021_inbox_rule_payment_target` e `0022_inbox_rule_payment_method` adicionam
+  `card_id`, `account_id` e `payment_method` a `inbox_rules`, com chaves estrangeiras por usuário.
+  Cartão de crédito exige `card_id`; as demais formas exigem `account_id`.
 - Migration `0018_signup_allowlist` cria o enum `user_role`, a coluna `user.role` e a tabela
   `signup_allowlist`. Inclua o e-mail do administrador em `INITIAL_ADMIN_EMAIL` antes de iniciar a API,
   ou nenhum novo cadastro será aceito.

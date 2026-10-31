@@ -5,6 +5,7 @@ import {
   inboxRuleNumericConditionOperators,
   inboxRuleTextConditionOperators,
 } from "@openmonetis/domain/inbox-rules";
+import { type PaymentMethod, paymentMethods } from "@openmonetis/domain/transactions";
 import type { AccountOutput } from "@openmonetis/validators/accounts";
 import type { CardOutput } from "@openmonetis/validators/cards";
 import type { CategoryOutput } from "@openmonetis/validators/categories";
@@ -17,7 +18,7 @@ import {
 } from "@openmonetis/validators/inbox-rules";
 import type { PersonOutput } from "@openmonetis/validators/people";
 import { useForm } from "@tanstack/react-form";
-import { CircleOff, CreditCard, Info, Landmark, Plus, Trash2 } from "lucide-react";
+import { CircleOff, Info, Plus, Trash2 } from "lucide-react";
 import { useId, useState } from "react";
 import { toast } from "sonner";
 import { MobileFormState } from "@/components/forms/mobile-form-state";
@@ -32,13 +33,13 @@ import { Switch } from "@/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { getCategoryLabel } from "@/features/categories/categories.presentation";
 import { CategoryIcon } from "@/features/categories/category-icons";
+import { EntityOption } from "@/features/transactions/components/transaction-entity-option";
+import { PaymentMethodOption } from "@/features/transactions/components/transaction-payment-method-option";
 import { showInvalidFormToast } from "@/lib/form-feedback";
 import {
   inboxRuleAmountOperatorLabels,
   inboxRuleFieldLabels,
   inboxRuleTextOperatorLabels,
-  parseInboxRulePaymentTarget,
-  toInboxRulePaymentTarget,
 } from "../inbox-rules.presentation";
 
 type EditableCondition = {
@@ -81,7 +82,9 @@ export function InboxRuleForm({
       })) ?? [createEmptyCondition()]) as EditableCondition[],
       categoryId: rule?.category?.id ?? "none",
       personId: rule?.person?.id ?? "none",
-      paymentTarget: toInboxRulePaymentTarget(rule),
+      paymentMethod: (rule?.paymentMethod ?? "none") as PaymentMethod | "none",
+      cardId: rule?.card?.id ?? "",
+      accountId: rule?.account?.id ?? "",
     },
     onSubmitInvalid: showInvalidFormToast,
     onSubmit: async ({ value }) => {
@@ -106,7 +109,12 @@ export function InboxRuleForm({
         ),
         categoryId: value.categoryId === "none" ? null : value.categoryId,
         personId: value.personId === "none" ? null : value.personId,
-        ...parseInboxRulePaymentTarget(value.paymentTarget),
+        paymentMethod: value.paymentMethod === "none" ? null : value.paymentMethod,
+        cardId: value.paymentMethod === "credit_card" ? value.cardId || null : null,
+        accountId:
+          value.paymentMethod !== "none" && value.paymentMethod !== "credit_card"
+            ? value.accountId || null
+            : null,
         ...(rule ? { expectedVersion: rule.version } : {}),
       };
       const parsed = (rule ? ReplaceInboxRuleInputSchema : CreateInboxRuleInputSchema).safeParse(
@@ -114,7 +122,13 @@ export function InboxRuleForm({
       );
       if (!parsed.success) {
         showInvalidFormToast();
-        setError("Revise os campos da regra.");
+        setError(
+          parsed.error.issues.some((issue) => issue.path[0] === "paymentMethod")
+            ? value.paymentMethod === "credit_card"
+              ? "Selecione o cartão."
+              : "Selecione a conta."
+            : "Revise os campos da regra.",
+        );
         return;
       }
       try {
@@ -395,63 +409,109 @@ export function InboxRuleForm({
               </div>
             )}
           </form.Field>
-          <form.Field name="paymentTarget">
+          <form.Field name="paymentMethod">
             {(field) => (
-              <div className="grid gap-1.5 sm:col-span-2">
-                <Label htmlFor={`${id}-payment-target`}>Pagar com</Label>
+              <div className="grid gap-1.5">
+                <Label htmlFor={`${id}-payment-method`}>Forma de pagamento</Label>
                 <Select
-                  onValueChange={(value) => value && field.handleChange(value)}
+                  onValueChange={(value) => {
+                    if (!value) return;
+                    field.handleChange(value);
+                    form.setFieldValue("cardId", "");
+                    form.setFieldValue("accountId", "");
+                  }}
                   value={field.state.value}
                 >
-                  <SelectTrigger className="w-full" id={`${id}-payment-target`}>
+                  <SelectTrigger className="w-full" id={`${id}-payment-method`}>
                     <SelectValue>
-                      <PaymentTargetOption
-                        accounts={accounts}
-                        cards={cards}
-                        value={field.state.value}
-                      />
+                      {field.state.value === "none" ? (
+                        <NotFilledOption />
+                      ) : (
+                        <PaymentMethodOption method={field.state.value as PaymentMethod} />
+                      )}
                     </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">
-                      <PaymentTargetOption accounts={accounts} cards={cards} value="none" />
+                      <NotFilledOption />
                     </SelectItem>
-                    {cards
-                      .filter(
-                        (card) =>
-                          card.status === "active" || field.state.value === `card:${card.id}`,
-                      )
-                      .map((card) => (
-                        <SelectItem key={card.id} value={`card:${card.id}`}>
-                          <PaymentTargetOption
-                            accounts={accounts}
-                            cards={cards}
-                            value={`card:${card.id}`}
-                          />
-                        </SelectItem>
-                      ))}
-                    {accounts
-                      .filter(
-                        (account) =>
-                          !account.isArchived || field.state.value === `account:${account.id}`,
-                      )
-                      .map((account) => (
-                        <SelectItem key={account.id} value={`account:${account.id}`}>
-                          <PaymentTargetOption
-                            accounts={accounts}
-                            cards={cards}
-                            value={`account:${account.id}`}
-                          />
-                        </SelectItem>
-                      ))}
+                    {paymentMethods.map((method) => (
+                      <SelectItem key={method} value={method}>
+                        <PaymentMethodOption method={method} />
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
-                <p className="text-muted-foreground text-xs">
-                  Um cartão também define a forma de pagamento como cartão de crédito.
-                </p>
               </div>
             )}
           </form.Field>
+          <form.Subscribe selector={(state) => state.values.paymentMethod}>
+            {(paymentMethod) =>
+              paymentMethod === "none" ? null : paymentMethod === "credit_card" ? (
+                <form.Field name="cardId">
+                  {(field) => (
+                    <div className="grid gap-1.5">
+                      <Label htmlFor={`${id}-card`}>Cartão</Label>
+                      <Select
+                        onValueChange={(value) => field.handleChange(value ?? "")}
+                        value={field.state.value}
+                      >
+                        <SelectTrigger className="w-full" id={`${id}-card`}>
+                          <SelectValue placeholder="Selecione">
+                            <EntityOption
+                              entity={cards.find((card) => card.id === field.state.value)}
+                            />
+                          </SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                          {cards
+                            .filter(
+                              (card) => card.status === "active" || card.id === field.state.value,
+                            )
+                            .map((card) => (
+                              <SelectItem key={card.id} value={card.id}>
+                                <EntityOption entity={card} />
+                              </SelectItem>
+                            ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                </form.Field>
+              ) : (
+                <form.Field name="accountId">
+                  {(field) => (
+                    <div className="grid gap-1.5">
+                      <Label htmlFor={`${id}-account`}>Conta</Label>
+                      <Select
+                        onValueChange={(value) => field.handleChange(value ?? "")}
+                        value={field.state.value}
+                      >
+                        <SelectTrigger className="w-full" id={`${id}-account`}>
+                          <SelectValue placeholder="Selecione">
+                            <EntityOption
+                              entity={accounts.find((account) => account.id === field.state.value)}
+                            />
+                          </SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                          {accounts
+                            .filter(
+                              (account) => !account.isArchived || account.id === field.state.value,
+                            )
+                            .map((account) => (
+                              <SelectItem key={account.id} value={account.id}>
+                                <EntityOption entity={account} />
+                              </SelectItem>
+                            ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                </form.Field>
+              )
+            }
+          </form.Subscribe>
         </div>
         <p className="text-muted-foreground text-xs">
           Escolha ao menos um campo. Se mais de uma regra coincidir, o menor número de prioridade
@@ -536,27 +596,11 @@ function CategoryOption({ category }: { category?: CategoryOutput }) {
   );
 }
 
-function PaymentTargetOption({
-  accounts,
-  cards,
-  value,
-}: {
-  accounts: AccountOutput[];
-  cards: CardOutput[];
-  value: string;
-}) {
-  const target = parseInboxRulePaymentTarget(value);
-  const card = cards.find((item) => item.id === target.cardId);
-  const account = accounts.find((item) => item.id === target.accountId);
-  const Icon = card ? CreditCard : account ? Landmark : CircleOff;
+function NotFilledOption() {
   return (
     <span className="flex min-w-0 items-center gap-2">
-      <span className="grid size-6 shrink-0 place-items-center rounded-full bg-muted text-muted-foreground">
-        <Icon aria-hidden="true" className="size-3.5" />
-      </span>
-      <span className="truncate">
-        {card ? `Cartão ${card.name}` : account ? `Conta ${account.name}` : "Não preencher"}
-      </span>
+      <CircleOff aria-hidden="true" className="size-4 text-muted-foreground" />
+      <span>Não preencher</span>
     </span>
   );
 }

@@ -1182,6 +1182,7 @@ export const inboxRules = pgTable(
     conditions: jsonb("conditions").notNull(),
     categoryId: uuid("category_id"),
     personId: uuid("person_id"),
+    paymentMethod: paymentMethod("payment_method"),
     cardId: uuid("card_id"),
     accountId: uuid("account_id"),
     version: integer("version").notNull().default(1),
@@ -1224,11 +1225,23 @@ export const inboxRules = pgTable(
     check("inbox_rules_version_positive_check", sql`${table.version} > 0`),
     check(
       "inbox_rules_actions_required_check",
-      sql`${table.categoryId} is not null or ${table.personId} is not null or ${table.cardId} is not null or ${table.accountId} is not null`,
+      sql`${table.categoryId} is not null or ${table.personId} is not null or ${table.paymentMethod} is not null`,
     ),
     check(
-      "inbox_rules_single_payment_target_check",
-      sql`${table.cardId} is null or ${table.accountId} is null`,
+      "inbox_rules_payment_target_check",
+      sql`(
+        ${table.paymentMethod} is null
+        AND ${table.cardId} is null
+        AND ${table.accountId} is null
+      ) OR (
+        ${table.paymentMethod} = 'credit_card'
+        AND ${table.cardId} is not null
+        AND ${table.accountId} is null
+      ) OR (
+        ${table.paymentMethod} <> 'credit_card'
+        AND ${table.accountId} is not null
+        AND ${table.cardId} is null
+      )`,
     ),
     check(
       "inbox_rules_conditions_array_check",

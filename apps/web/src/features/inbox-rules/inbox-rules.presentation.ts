@@ -4,6 +4,7 @@ import type {
   InboxRuleOutput,
   InboxRuleSuggestionOutput,
 } from "@openmonetis/validators/inbox-rules";
+import { paymentMethodLabels } from "@/features/transactions/transactions.presentation";
 
 export const inboxRuleFieldLabels: Record<InboxRuleConditionField, string> = {
   sourceApp: "Identificador do app",
@@ -41,27 +42,13 @@ export function formatInboxRuleCondition(condition: InboxRuleCondition) {
   return `${inboxRuleFieldLabels[condition.field]} ${operator} ${value}`;
 }
 
-/** Encodes the rule card/account as one select value: "card:<id>", "account:<id>" or "none". */
-export function toInboxRulePaymentTarget(rule: InboxRuleOutput | null) {
-  if (rule?.card) return `card:${rule.card.id}`;
-  if (rule?.account) return `account:${rule.account.id}`;
-  return "none";
-}
-
-export function parseInboxRulePaymentTarget(value: string) {
-  const [kind, id] = value.split(":");
-  return {
-    cardId: kind === "card" && id ? id : null,
-    accountId: kind === "account" && id ? id : null,
-  };
-}
-
 export function describeInboxRuleActions(rule: InboxRuleOutput) {
   return [
     rule.category ? `categoria ${rule.category.name}` : null,
     rule.person ? `pessoa ${rule.person.name}` : null,
-    rule.card ? `cartão ${rule.card.name}` : null,
-    rule.account ? `conta ${rule.account.name}` : null,
+    rule.paymentMethod
+      ? `${paymentMethodLabels[rule.paymentMethod]} (${rule.card?.name ?? rule.account?.name ?? "indisponível"})`
+      : null,
   ]
     .filter(Boolean)
     .join(" e ");

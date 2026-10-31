@@ -1,4 +1,5 @@
 import { normalizeInboxSingleLine } from "./inbox";
+import type { PaymentMethod } from "./transactions";
 
 export const inboxRuleNameMaximumLength = 120;
 export const inboxRuleConditionValueMaximumLength = 500;
@@ -55,6 +56,8 @@ export type InboxRuleDraftInput = {
   conditions: InboxRuleCondition[];
   categoryId: string | null;
   personId: string | null;
+  /** Credit card rules name a card; every other payment method names an account. */
+  paymentMethod: PaymentMethod | null;
   cardId: string | null;
   accountId: string | null;
 };
@@ -72,13 +75,20 @@ export type InboxRuleMatchItem = {
   parsedAmount: number | null;
 };
 
-export const inboxRuleAppliedFields = ["categoryId", "personId", "cardId", "accountId"] as const;
+export const inboxRuleAppliedFields = [
+  "categoryId",
+  "personId",
+  "paymentMethod",
+  "cardId",
+  "accountId",
+] as const;
 export type InboxRuleAppliedField = (typeof inboxRuleAppliedFields)[number];
 
 export type InboxRuleResolution = {
   categoryId: string | null;
   personId: string | null;
-  /** Card or account that paid the capture; a rule fills at most one of them. */
+  /** Payment method with its card or account, always filled together by one rule. */
+  paymentMethod: PaymentMethod | null;
   cardId: string | null;
   accountId: string | null;
   appliedRules: Array<{
@@ -95,7 +105,7 @@ export type InboxRuleCode =
   | "inbox_rule_actions_required"
   | "inbox_rule_invalid_priority"
   | "inbox_rule_invalid_condition"
-  | "inbox_rule_payment_target_conflict";
+  | "inbox_rule_invalid_payment_target";
 
 export class InboxRuleError extends Error {
   readonly code: InboxRuleCode;
@@ -124,13 +134,13 @@ export function createInboxRuleDraft(input: InboxRuleDraftInput): InboxRuleDraft
       "Inbox rule contains too many conditions",
     );
   }
-  if (input.cardId && input.accountId) {
+  if (!isValidInboxRulePaymentTarget(input)) {
     throw new InboxRuleError(
-      "inbox_rule_payment_target_conflict",
-      "Inbox rule can fill either a card or an account",
+      "inbox_rule_invalid_payment_target",
+      "Credit card rules need a card and other payment methods need an account",
     );
   }
-  if (!input.categoryId && !input.personId && !input.cardId && !input.accountId) {
+  if (!input.categoryId && !input.personId && !input.paymentMethod) {
     throw new InboxRuleError(
       "inbox_rule_actions_required",
       "Inbox rule must fill at least one field",
@@ -151,6 +161,16 @@ export function createInboxRuleDraft(input: InboxRuleDraftInput): InboxRuleDraft
   };
 }
 
+export function isValidInboxRulePaymentTarget(
+  input: Pick<InboxRuleDraftInput, "paymentMethod" | "cardId" | "accountId">,
+) {
+  if (input.paymentMethod === null) return input.cardId === null && input.accountId === null;
+  if (input.paymentMethod === "credit_card") {
+    return input.cardId !== null && input.accountId === null;
+  }
+  return input.accountId !== null && input.cardId === null;
+}
+
 export function resolveInboxRules(
   item: InboxRuleMatchItem,
   rules: InboxRuleCandidate[],
@@ -158,6 +178,7 @@ export function resolveInboxRules(
   const resolution: InboxRuleResolution = {
     categoryId: null,
     personId: null,
+    paymentMethod: null,
     cardId: null,
     accountId: null,
     appliedRules: [],
@@ -181,13 +202,11 @@ export function resolveInboxRules(
       resolution.personId = rule.personId;
       fields.push("personId");
     }
-    const paymentTargetResolved = resolution.cardId !== null || resolution.accountId !== null;
-    if (!paymentTargetResolved && rule.cardId) {
+    if (resolution.paymentMethod === null && rule.paymentMethod) {
+      resolution.paymentMethod = rule.paymentMethod;
       resolution.cardId = rule.cardId;
-      fields.push("cardId");
-    } else if (!paymentTargetResolved && rule.accountId) {
       resolution.accountId = rule.accountId;
-      fields.push("accountId");
+      fields.push("paymentMethod", rule.cardId ? "cardId" : "accountId");
     }
     if (fields.length > 0) {
       resolution.appliedRules.push({ id: rule.id, name: rule.name, fields });
@@ -195,7 +214,7 @@ export function resolveInboxRules(
     if (
       resolution.categoryId !== null &&
       resolution.personId !== null &&
-      (resolution.cardId !== null || resolution.accountId !== null)
+      resolution.paymentMethod !== null
     )
       break;
   }

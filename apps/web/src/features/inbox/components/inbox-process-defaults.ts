@@ -14,7 +14,7 @@ export function getProcessDefaults(
   suggestion: InboxRuleSuggestionOutput | null,
 ): TransactionCreateDefaults {
   const sourceMatch = getInboxSourceMatch(item.sourceAppName, accounts, cards);
-  const ruleTargetFound = Boolean(suggestion?.cardId || suggestion?.accountId);
+  const ruleTargetFound = Boolean(suggestion?.paymentMethod);
   const matchedCardId = ruleTargetFound
     ? (suggestion?.cardId ?? undefined)
     : sourceMatch?.kind === "card"
@@ -31,7 +31,7 @@ export function getProcessDefaults(
     name: item.parsedName ?? "",
     amount: item.parsedAmount === null ? "" : String(item.parsedAmount),
     purchaseDate: getInboxPurchaseDate(item.notificationTimestamp),
-    paymentMethod: matchedCardId ? "credit_card" : "pix",
+    paymentMethod: suggestion?.paymentMethod ?? (matchedCardId ? "credit_card" : "pix"),
     cardId: matchedCardId,
     accountId: matchedCardId ? undefined : (matchedAccountId ?? fallbackAccountId),
     categoryId: suggestion?.categoryId ?? undefined,

@@ -30,6 +30,7 @@ function record(overrides: Partial<InboxRuleRecord> = {}): InboxRuleRecord {
     personId,
     personName: "Felipe",
     personStatus: "active",
+    paymentMethod: null,
     cardId: null,
     cardName: null,
     cardStatus: null,
@@ -85,6 +86,7 @@ test("inbox rule creation validates targets through user-scoped repository metho
       conditions: [{ field: "originalText", operator: "contains", value: "IFOOD" }],
       categoryId,
       personId,
+      paymentMethod: null,
       cardId: null,
       accountId: null,
     },
@@ -110,6 +112,7 @@ test("inbox rule creation rejects categories that are not owned expense categori
         conditions: [{ field: "originalText", operator: "contains", value: "compra" }],
         categoryId,
         personId: null,
+        paymentMethod: null,
         cardId: null,
         accountId: null,
       },
@@ -200,11 +203,14 @@ test("inbox rules can fill an owned active card and reject archived accounts", a
     personId: null,
   };
 
-  const created = await service.create({ ...base, cardId, accountId: null }, userId);
+  const created = await service.create(
+    { ...base, paymentMethod: "credit_card", cardId, accountId: null },
+    userId,
+  );
   assert.deepEqual(created.card, { id: cardId, name: "Samsung Itaú" });
 
   await assert.rejects(
-    service.create({ ...base, cardId: null, accountId }, userId),
+    service.create({ ...base, paymentMethod: "pix", cardId: null, accountId }, userId),
     (error) => error instanceof ApiError && error.code === "inbox_rule_account_unavailable",
   );
 });
@@ -229,6 +235,7 @@ test("suggestions ignore rules whose card was deactivated", async () => {
           personId: null,
           personName: null,
           personStatus: null,
+          paymentMethod: "credit_card",
           cardId,
           cardName: "Samsung Itaú",
           cardStatus: "inactive",

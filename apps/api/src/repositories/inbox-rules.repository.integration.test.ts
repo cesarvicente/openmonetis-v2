@@ -89,6 +89,7 @@ test("inbox rules suggest a card or an account from the capture text", {
       matchMode: "all" as const,
       categoryId: null,
       personId: null,
+      paymentMethod: null,
       cardId: null,
       accountId: null,
     };
@@ -98,10 +99,12 @@ test("inbox rules suggest a card or an account from the capture text", {
         name: "Cartão Samsung",
         // Lowercase and accented on purpose: the capture says "Samsung Itau".
         conditions: [{ field: "originalText", operator: "contains", value: "samsung  itaú" }],
+        paymentMethod: "credit_card",
         cardId: card.id,
       },
       owner.id,
     );
+    assert.equal(cardRule.paymentMethod, "credit_card");
     assert.deepEqual(cardRule.card, { id: card.id, name: "Samsung Itaú" });
     await service.create(
       {
@@ -119,19 +122,21 @@ test("inbox rules suggest a card or an account from the capture text", {
         name: "Conta Itaú",
         priority: 30,
         conditions: [{ field: "sourceAppName", operator: "equals", value: "itau" }],
+        paymentMethod: "debit_card",
         accountId: account.id,
       },
       owner.id,
     );
 
     const suggestion = await service.resolveSuggestion(item.id, owner.id);
+    assert.equal(suggestion.paymentMethod, "credit_card");
     assert.equal(suggestion.cardId, card.id);
     assert.equal(suggestion.accountId, null);
     assert.equal(suggestion.categoryId, transport.id);
     assert.deepEqual(
       suggestion.appliedRules.map((rule) => [rule.name, rule.fields]),
       [
-        ["Cartão Samsung", ["cardId"]],
+        ["Cartão Samsung", ["paymentMethod", "cardId"]],
         ["Uber", ["categoryId"]],
       ],
     );
@@ -139,6 +144,7 @@ test("inbox rules suggest a card or an account from the capture text", {
     await db.update(schema.cards).set({ status: "inactive" }).where(eq(schema.cards.id, card.id));
     const withoutCard = await service.resolveSuggestion(item.id, owner.id);
     assert.equal(withoutCard.cardId, null);
+    assert.equal(withoutCard.paymentMethod, "debit_card");
     assert.equal(withoutCard.accountId, account.id);
 
     await assert.rejects(
@@ -147,6 +153,7 @@ test("inbox rules suggest a card or an account from the capture text", {
           ...base,
           name: "Conta de outro usuário",
           conditions: [{ field: "originalText", operator: "contains", value: "compra" }],
+          paymentMethod: "pix",
           accountId: strangerAccount.id,
         },
         owner.id,
@@ -156,10 +163,18 @@ test("inbox rules suggest a card or an account from the capture text", {
     await assert.rejects(
       db.insert(schema.inboxRules).values({
         userId: owner.id,
-        name: "Alvo duplo",
+        name: "Cartão sem forma de pagamento",
         conditions: [{ field: "originalText", operator: "contains", value: "compra" }],
         cardId: card.id,
-        accountId: account.id,
+      }),
+    );
+    await assert.rejects(
+      db.insert(schema.inboxRules).values({
+        userId: owner.id,
+        name: "Pix com cartão",
+        conditions: [{ field: "originalText", operator: "contains", value: "compra" }],
+        paymentMethod: "pix",
+        cardId: card.id,
       }),
     );
   } finally {
