@@ -1,9 +1,34 @@
-import type { MobileShortcutDestination } from "@openmonetis/domain/preferences";
+import type {
+  ApplicationColorTheme,
+  MobileShortcutDestination,
+} from "@openmonetis/domain/preferences";
 import type { UserPreferencesOutput } from "@openmonetis/validators/preferences";
 import type { TransactionCreateDefaults } from "@/features/transactions/components/transaction-form.validation";
 import { PreferencesApiError } from "./preferences.api";
 
 export const automaticPreferenceValue = "automatic";
+
+export const colorThemeLabels: Record<ApplicationColorTheme, string> = {
+  sepia: "Sépia",
+  graphite: "Grafite",
+  blue: "Azul",
+  green: "Verde",
+  violet: "Violeta",
+  rose: "Rosé",
+  nord: "Nord",
+  catppuccin: "Catppuccin",
+};
+
+export const colorThemeDescriptions: Record<ApplicationColorTheme, string> = {
+  sepia: "Tons quentes de papel, o tema original",
+  graphite: "Neutro em cinza, sóbrio e tradicional",
+  blue: "Clássico, com destaque azul",
+  green: "Esmeralda, com destaque verde",
+  violet: "Moderno, com destaque roxo",
+  rose: "Rosa suave no claro e vinho no escuro",
+  nord: "Azul ártico, popular em editores de código",
+  catppuccin: "Pastel, com as variantes Latte e Mocha",
+};
 
 export const mobileShortcutLabels: Record<MobileShortcutDestination, string> = {
   accounts: "Contas",

@@ -1,0 +1,1 @@
+ALTER TABLE "user_preferences" ADD COLUMN "color_theme" varchar(20) DEFAULT 'sepia' NOT NULL;

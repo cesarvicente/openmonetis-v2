@@ -1,5 +1,6 @@
 @import "./fonts.css";
 @import "./mobile-forms.css";
+@import "./color-themes.css";
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
@@ -49,7 +50,8 @@
 }
 
 :root {
-  --palette-coral: oklch(76.042% 0.16904 61.306);
+  --palette-amber: oklch(76.042% 0.16904 61.306);
+  --palette-coral: var(--palette-amber);
   --palette-charcoal: oklch(29.182% 0.05685 64.634);
   --palette-blue: oklch(55.852% 0.22132 266.167);
   --palette-green: oklch(51.858% 0.10354 157.143);
@@ -71,7 +73,7 @@
   --destructive: color-mix(in srgb, var(--palette-red) 90%, var(--palette-charcoal));
   --info: color-mix(in srgb, var(--palette-blue) 70%, var(--palette-charcoal));
   --success: var(--palette-green);
-  --warning: color-mix(in srgb, var(--palette-coral) 70%, var(--palette-charcoal));
+  --warning: color-mix(in srgb, var(--palette-amber) 70%, oklch(29.182% 0.05685 64.634));
   --brand: var(--palette-coral);
   --brand-strong: color-mix(in srgb, var(--palette-coral) 45%, var(--palette-charcoal));
   --brand-foreground: var(--palette-charcoal);

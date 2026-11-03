@@ -7,6 +7,7 @@ export const preferencesRepository = {
     const [preferences] = await db
       .select({
         theme: userPreferences.theme,
+        colorTheme: userPreferences.colorTheme,
         hideValuesOnStart: userPreferences.hideValuesOnStart,
         defaultPaymentMethod: userPreferences.defaultPaymentMethod,
         defaultAccountId: financialAccounts.id,

@@ -1,11 +1,19 @@
-import { applicationThemes } from "@openmonetis/domain/preferences";
+import {
+  type ApplicationColorTheme,
+  applicationColorThemes,
+  applicationThemes,
+} from "@openmonetis/domain/preferences";
 import type { UserPreferencesOutput } from "@openmonetis/validators/preferences";
 import { Check, Monitor, Moon, ShieldCheck, Sun } from "lucide-react";
 import { useId } from "react";
+import { MobileSelect as Select } from "@/components/forms/mobile-select";
+import { MobileSelectContent as SelectContent } from "@/components/forms/mobile-select-content";
 import { SettingsSection } from "@/components/settings-panel";
 import { Label } from "@/components/ui/label";
+import { SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
+import { colorThemeDescriptions, colorThemeLabels } from "../preferences.presentation";
 import type { PreferencesFormApi } from "../usePreferencesForm";
 
 export function PreferencesDisplaySections({
@@ -16,10 +24,11 @@ export function PreferencesDisplaySections({
   disabled: boolean;
 }) {
   const privacyId = useId();
+  const colorThemeId = useId();
   return (
     <>
       <SettingsSection
-        description="Escolha um tema. A mudança será aplicada ao salvar."
+        description="Escolha o modo e a paleta de cores. A mudança será aplicada ao salvar."
         icon={Sun}
         title="Aparência"
       >
@@ -65,6 +74,38 @@ export function PreferencesDisplaySections({
             </fieldset>
           )}
         </form.Field>
+        <form.Field name="colorTheme">
+          {(field) => (
+            <div className="mt-4 grid gap-1.5">
+              <Label htmlFor={colorThemeId}>Paleta de cores</Label>
+              <Select
+                disabled={isMutating}
+                onValueChange={(value) => value && field.handleChange(value)}
+                value={field.state.value}
+              >
+                <SelectTrigger
+                  aria-describedby={`${colorThemeId}-description`}
+                  className="h-auto min-h-11 w-full"
+                  id={colorThemeId}
+                >
+                  <SelectValue>
+                    <ColorThemeOption colorTheme={field.state.value} />
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {applicationColorThemes.map((colorTheme) => (
+                    <SelectItem key={colorTheme} value={colorTheme}>
+                      <ColorThemeOption colorTheme={colorTheme} described />
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-muted-foreground text-xs" id={`${colorThemeId}-description`}>
+                Cada paleta tem versão clara e escura; o botão de tema no topo alterna entre elas.
+              </p>
+            </div>
+          )}
+        </form.Field>
       </SettingsSection>
 
       <SettingsSection
@@ -107,6 +148,36 @@ export function PreferencesDisplaySections({
     </>
   );
 }
+function ColorThemeOption({
+  colorTheme,
+  described = false,
+}: {
+  colorTheme: ApplicationColorTheme;
+  described?: boolean;
+}) {
+  return (
+    <span className="flex min-w-0 items-center gap-3">
+      <span
+        aria-hidden="true"
+        className="flex shrink-0 items-center gap-0.5 rounded-full border border-border bg-background p-1"
+        data-color-theme={colorTheme}
+      >
+        <span className="size-3.5 rounded-full bg-brand" />
+        <span className="size-3.5 rounded-full bg-foreground" />
+        <span className="size-3.5 rounded-full border border-border bg-card" />
+      </span>
+      <span className="grid min-w-0 text-left">
+        <span className="truncate">{colorThemeLabels[colorTheme]}</span>
+        {described ? (
+          <span className="truncate text-muted-foreground text-xs">
+            {colorThemeDescriptions[colorTheme]}
+          </span>
+        ) : null}
+      </span>
+    </span>
+  );
+}
+
 const themeIcons = {
   system: Monitor,
   light: Sun,

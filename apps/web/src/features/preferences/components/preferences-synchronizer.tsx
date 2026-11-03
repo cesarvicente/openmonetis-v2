@@ -10,12 +10,14 @@ export function PreferencesSynchronizer() {
   const userId = session.data?.user.id;
   const preferencesQuery = useQuery(userPreferencesQueryOptions(Boolean(userId)));
   const { setPrivacyModeEnabled } = usePrivacyMode();
-  const { setTheme } = useTheme();
+  const { setColorTheme, setTheme } = useTheme();
   const privacyInitializedForUser = useRef<string | null>(null);
 
   useEffect(() => {
-    if (preferencesQuery.data) setTheme(preferencesQuery.data.theme);
-  }, [preferencesQuery.data, setTheme]);
+    if (!preferencesQuery.data) return;
+    setTheme(preferencesQuery.data.theme);
+    setColorTheme(preferencesQuery.data.colorTheme);
+  }, [preferencesQuery.data, setColorTheme, setTheme]);
 
   useEffect(() => {
     if (!userId) {

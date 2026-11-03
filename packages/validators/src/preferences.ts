@@ -1,5 +1,6 @@
 import { z } from "@hono/zod-openapi";
 import {
+  applicationColorThemes,
   applicationThemes,
   autoSettleTimePattern,
   mobileShortcutDestinations,
@@ -28,6 +29,9 @@ const TransactionsPageSizeSchema = z.union(
 export const UserPreferencesOutputSchema = z
   .object({
     theme: z.enum(applicationThemes),
+    colorTheme: z.enum(applicationColorThemes).openapi({
+      description: "Color palette; its light or dark variant follows `theme`.",
+    }),
     hideValuesOnStart: z.boolean(),
     defaultPaymentMethod: z.enum(paymentMethods),
     defaultAccountId: z.uuid().nullable(),

@@ -1,6 +1,18 @@
 import { type PaymentMethod, paymentMethods } from "./transactions";
 
 export const applicationThemes = ["system", "light", "dark"] as const;
+/** Color palettes; each one has a light and a dark variant, chosen by `theme`. */
+export const applicationColorThemes = [
+  "sepia",
+  "graphite",
+  "blue",
+  "green",
+  "violet",
+  "rose",
+  "nord",
+  "catppuccin",
+] as const;
+export const defaultApplicationColorTheme = "sepia";
 export const notificationDueSoonDayOptions = [1, 3, 5, 7] as const;
 export const transactionPageSizeOptions = [20, 30, 50] as const;
 export const mobileShortcutDestinations = [
@@ -19,12 +31,14 @@ export const defaultAutoSettleTime = "08:00";
 export const autoSettleTimePattern = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 export type ApplicationTheme = (typeof applicationThemes)[number];
+export type ApplicationColorTheme = (typeof applicationColorThemes)[number];
 export type NotificationDueSoonDays = (typeof notificationDueSoonDayOptions)[number];
 export type TransactionPageSize = (typeof transactionPageSizeOptions)[number];
 export type MobileShortcutDestination = (typeof mobileShortcutDestinations)[number];
 
 export type UserPreferences = {
   theme: ApplicationTheme;
+  colorTheme: ApplicationColorTheme;
   hideValuesOnStart: boolean;
   defaultPaymentMethod: PaymentMethod;
   defaultAccountId: string | null;
@@ -37,6 +51,7 @@ export type UserPreferences = {
 
 export type UserPreferencesRecord = {
   theme: string;
+  colorTheme: string;
   hideValuesOnStart: boolean;
   defaultPaymentMethod: string;
   defaultAccountId: string | null;
@@ -48,6 +63,7 @@ export type UserPreferencesRecord = {
 };
 
 const applicationThemeSet = new Set<string>(applicationThemes);
+const applicationColorThemeSet = new Set<string>(applicationColorThemes);
 const notificationDueSoonDaySet = new Set<number>(notificationDueSoonDayOptions);
 const paymentMethodSet = new Set<string>(paymentMethods);
 const transactionPageSizeSet = new Set<number>(transactionPageSizeOptions);
@@ -56,6 +72,7 @@ const mobileShortcutDestinationSet = new Set<string>(mobileShortcutDestinations)
 export function createDefaultUserPreferences(): UserPreferences {
   return {
     theme: "system",
+    colorTheme: defaultApplicationColorTheme,
     hideValuesOnStart: false,
     defaultPaymentMethod: "credit_card",
     defaultAccountId: null,
@@ -77,6 +94,9 @@ export function normalizeUserPreferences(
     theme: applicationThemeSet.has(preferences.theme ?? "")
       ? (preferences.theme as ApplicationTheme)
       : defaults.theme,
+    colorTheme: applicationColorThemeSet.has(preferences.colorTheme ?? "")
+      ? (preferences.colorTheme as ApplicationColorTheme)
+      : defaults.colorTheme,
     hideValuesOnStart:
       typeof preferences.hideValuesOnStart === "boolean"
         ? preferences.hideValuesOnStart

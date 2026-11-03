@@ -548,6 +548,7 @@ export const userPreferences = pgTable(
     transactionsPageSize: integer("transactions_page_size").notNull().default(30),
     mobileShortcut: mobileShortcutDestination("mobile_shortcut").notNull().default("accounts"),
     autoSettleTime: varchar("auto_settle_time", { length: 5 }).notNull().default("08:00"),
+    colorTheme: varchar("color_theme", { length: 20 }).notNull().default("sepia"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at")
       .notNull()

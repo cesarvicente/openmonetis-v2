@@ -14,7 +14,7 @@ import { defaultUserPreferencesQueryOptions } from "./preferences.queries";
 export function usePreferencesForm(preferences: UserPreferencesOutput) {
   const queryClient = useQueryClient();
   const updatePreferences = useUpdateUserPreferencesMutation();
-  const { setTheme } = useTheme();
+  const { setColorTheme, setTheme } = useTheme();
   const [isRestoring, setIsRestoring] = useState(false);
   const form = useForm({
     defaultValues: preferences,
@@ -39,6 +39,7 @@ export function usePreferencesForm(preferences: UserPreferencesOutput) {
         );
         form.reset(saved);
         setTheme(saved.theme);
+        setColorTheme(saved.colorTheme);
         toast.success("Preferências salvas");
       } catch (error) {
         toast.error(preferencesMutationErrorMessage(error));

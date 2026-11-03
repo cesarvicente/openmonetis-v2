@@ -1,0 +1,429 @@
+/*
+ * Color palettes. Each one has a light and a dark variant: the palette comes from
+ * `data-color-theme` and the variant from the `.dark` class, both set on <html> by the
+ * ThemeProvider. Sepia is the default palette defined in app.css (no override here).
+ * Light selectors exclude `.dark` so they never leak into dark mode; tokens are declared
+ * on the element itself so palette previews (`data-color-theme` on any element) work too.
+ * Menus and selects are always dark (`.dark` on the popup), so they take the dark variant.
+ */
+
+/* Grafite: neutro em tons de cinza, no estilo shadcn/ui */
+[data-color-theme="graphite"]:not(.dark):not(.dark *) {
+  --palette-coral: oklch(21% 0.006 285.9);
+  --palette-charcoal: oklch(21% 0.006 285.9);
+  --background: oklch(98.5% 0 0);
+  --foreground: oklch(21% 0.006 285.9);
+  --card: var(--background);
+  --card-foreground: var(--foreground);
+  --popover: var(--background);
+  --popover-foreground: var(--foreground);
+  --secondary: oklch(95.5% 0.0015 286);
+  --secondary-foreground: var(--foreground);
+  --muted: var(--secondary);
+  --muted-foreground: color-mix(in srgb, oklch(21% 0.006 285.9) 68%, oklch(98.5% 0 0));
+  --accent: color-mix(in srgb, oklch(21% 0.006 285.9) 12%, oklch(98.5% 0 0));
+  --accent-foreground: var(--foreground);
+  --brand: oklch(21% 0.006 285.9);
+  --brand-strong: oklch(21% 0.006 285.9);
+  --brand-foreground: oklch(98.5% 0 0);
+  --primary: oklch(21% 0.006 285.9);
+  --primary-foreground: oklch(98.5% 0 0);
+  --border: oklch(21% 0.006 285.9 / 0.14);
+  --input: color-mix(in srgb, oklch(21% 0.006 285.9) 30%, oklch(98.5% 0 0));
+  --overlay: color-mix(in srgb, oklch(21% 0.006 285.9) 18%, transparent);
+  --chart-1: oklch(21% 0.006 285.9);
+  --chart-4: color-mix(in srgb, oklch(21% 0.006 285.9) 45%, var(--palette-blue));
+  --chart-5: color-mix(in srgb, var(--palette-blue) 55%, oklch(21% 0.006 285.9));
+  --shadow-md: color-mix(in srgb, oklch(21% 0.006 285.9) 10%, transparent) 0 0 10px;
+  --primary-action-shadow-color: oklch(21% 0.006 285.9);
+}
+
+.dark[data-color-theme="graphite"],
+.dark [data-color-theme="graphite"],
+[data-color-theme="graphite"] .dark {
+  --palette-charcoal: oklch(21% 0.006 285.9);
+  --background: oklch(16.5% 0.004 286);
+  --foreground: oklch(97% 0.001 286);
+  --card: oklch(20% 0.005 286);
+  --card-foreground: var(--foreground);
+  --popover: oklch(23% 0.006 286);
+  --popover-foreground: var(--foreground);
+  --secondary: color-mix(in srgb, oklch(97% 0.001 286) 11%, oklch(16.5% 0.004 286));
+  --secondary-foreground: var(--foreground);
+  --muted: color-mix(in srgb, oklch(97% 0.001 286) 9%, oklch(16.5% 0.004 286));
+  --muted-foreground: oklch(70.5% 0.015 286.1);
+  --accent: color-mix(in srgb, oklch(92% 0.004 286.3) 14%, oklch(23% 0.006 286));
+  --accent-foreground: var(--foreground);
+  --brand: oklch(92% 0.004 286.3);
+  --brand-strong: oklch(92% 0.004 286.3);
+  --brand-foreground: oklch(21% 0.006 285.9);
+  --primary: oklch(92% 0.004 286.3);
+  --primary-foreground: oklch(21% 0.006 285.9);
+  --border: oklch(29% 0.006 286);
+  --input: color-mix(in srgb, oklch(97% 0.001 286) 25%, oklch(16.5% 0.004 286));
+  --chart-1: oklch(92% 0.004 286.3);
+  --primary-action-shadow-color: oklch(92% 0.004 286.3);
+}
+
+/* Azul: tradicional, com fundo frio e destaque azul */
+[data-color-theme="blue"]:not(.dark):not(.dark *) {
+  --palette-coral: oklch(54.6% 0.215 262.9);
+  --palette-charcoal: oklch(25.5% 0.045 262);
+  --background: oklch(98.4% 0.003 247.9);
+  --foreground: oklch(25.5% 0.045 262);
+  --card: var(--background);
+  --card-foreground: var(--foreground);
+  --popover: var(--background);
+  --popover-foreground: var(--foreground);
+  --secondary: oklch(95.2% 0.013 250);
+  --secondary-foreground: var(--foreground);
+  --muted: var(--secondary);
+  --muted-foreground: color-mix(in srgb, oklch(25.5% 0.045 262) 68%, oklch(98.4% 0.003 247.9));
+  --accent: color-mix(in srgb, oklch(54.6% 0.215 262.9) 12%, oklch(98.4% 0.003 247.9));
+  --accent-foreground: var(--foreground);
+  --brand: oklch(54.6% 0.215 262.9);
+  --brand-strong: oklch(48.8% 0.217 264.4);
+  --brand-foreground: oklch(98.5% 0.003 247.9);
+  --primary: oklch(54.6% 0.215 262.9);
+  --primary-foreground: oklch(98.5% 0.003 247.9);
+  --border: oklch(25.5% 0.045 262 / 0.15);
+  --input: color-mix(in srgb, oklch(25.5% 0.045 262) 30%, oklch(98.4% 0.003 247.9));
+  --overlay: color-mix(in srgb, oklch(25.5% 0.045 262) 18%, transparent);
+  --chart-1: oklch(54.6% 0.215 262.9);
+  --chart-4: color-mix(in srgb, oklch(54.6% 0.215 262.9) 45%, var(--palette-blue));
+  --chart-5: color-mix(in srgb, var(--palette-blue) 55%, oklch(25.5% 0.045 262));
+  --shadow-md: color-mix(in srgb, oklch(25.5% 0.045 262) 10%, transparent) 0 0 10px;
+  --primary-action-shadow-color: oklch(25.5% 0.045 262);
+}
+
+.dark[data-color-theme="blue"],
+.dark [data-color-theme="blue"],
+[data-color-theme="blue"] .dark {
+  --palette-charcoal: oklch(20% 0.05 262);
+  --background: oklch(17.5% 0.022 262);
+  --foreground: oklch(97% 0.008 250);
+  --card: oklch(21% 0.027 262);
+  --card-foreground: var(--foreground);
+  --popover: oklch(24% 0.03 262);
+  --popover-foreground: var(--foreground);
+  --secondary: color-mix(in srgb, oklch(97% 0.008 250) 11%, oklch(17.5% 0.022 262));
+  --secondary-foreground: var(--foreground);
+  --muted: color-mix(in srgb, oklch(97% 0.008 250) 9%, oklch(17.5% 0.022 262));
+  --muted-foreground: oklch(71% 0.035 256);
+  --accent: color-mix(in srgb, oklch(70.7% 0.165 254.6) 14%, oklch(24% 0.03 262));
+  --accent-foreground: var(--foreground);
+  --brand: oklch(70.7% 0.165 254.6);
+  --brand-strong: oklch(70.7% 0.165 254.6);
+  --brand-foreground: oklch(20% 0.05 262);
+  --primary: oklch(70.7% 0.165 254.6);
+  --primary-foreground: oklch(20% 0.05 262);
+  --border: oklch(30% 0.035 262);
+  --input: color-mix(in srgb, oklch(97% 0.008 250) 25%, oklch(17.5% 0.022 262));
+  --chart-1: oklch(70.7% 0.165 254.6);
+  --primary-action-shadow-color: oklch(70.7% 0.165 254.6);
+}
+
+/* Verde: esmeralda, associado a dinheiro e equilíbrio */
+[data-color-theme="green"]:not(.dark):not(.dark *) {
+  --palette-coral: oklch(59.6% 0.145 163.2);
+  --palette-charcoal: oklch(26% 0.045 168);
+  --background: oklch(98.5% 0.006 165);
+  --foreground: oklch(26% 0.045 168);
+  --card: var(--background);
+  --card-foreground: var(--foreground);
+  --popover: var(--background);
+  --popover-foreground: var(--foreground);
+  --secondary: oklch(95.3% 0.02 165);
+  --secondary-foreground: var(--foreground);
+  --muted: var(--secondary);
+  --muted-foreground: color-mix(in srgb, oklch(26% 0.045 168) 68%, oklch(98.5% 0.006 165));
+  --accent: color-mix(in srgb, oklch(59.6% 0.145 163.2) 12%, oklch(98.5% 0.006 165));
+  --accent-foreground: var(--foreground);
+  --brand: oklch(59.6% 0.145 163.2);
+  --brand-strong: oklch(50.8% 0.118 165.6);
+  --brand-foreground: oklch(98.5% 0.006 165);
+  --primary: oklch(59.6% 0.145 163.2);
+  --primary-foreground: oklch(98.5% 0.006 165);
+  --border: oklch(26% 0.045 168 / 0.15);
+  --input: color-mix(in srgb, oklch(26% 0.045 168) 30%, oklch(98.5% 0.006 165));
+  --overlay: color-mix(in srgb, oklch(26% 0.045 168) 18%, transparent);
+  --chart-1: oklch(59.6% 0.145 163.2);
+  --chart-4: color-mix(in srgb, oklch(59.6% 0.145 163.2) 45%, var(--palette-blue));
+  --chart-5: color-mix(in srgb, var(--palette-blue) 55%, oklch(26% 0.045 168));
+  --shadow-md: color-mix(in srgb, oklch(26% 0.045 168) 10%, transparent) 0 0 10px;
+  --primary-action-shadow-color: oklch(26% 0.045 168);
+}
+
+.dark[data-color-theme="green"],
+.dark [data-color-theme="green"],
+[data-color-theme="green"] .dark {
+  --palette-charcoal: oklch(20% 0.045 168);
+  --background: oklch(17.5% 0.018 168);
+  --foreground: oklch(97% 0.01 165);
+  --card: oklch(21% 0.022 168);
+  --card-foreground: var(--foreground);
+  --popover: oklch(24% 0.025 168);
+  --popover-foreground: var(--foreground);
+  --secondary: color-mix(in srgb, oklch(97% 0.01 165) 11%, oklch(17.5% 0.018 168));
+  --secondary-foreground: var(--foreground);
+  --muted: color-mix(in srgb, oklch(97% 0.01 165) 9%, oklch(17.5% 0.018 168));
+  --muted-foreground: oklch(72% 0.035 166);
+  --accent: color-mix(in srgb, oklch(76.5% 0.177 163.2) 14%, oklch(24% 0.025 168));
+  --accent-foreground: var(--foreground);
+  --brand: oklch(76.5% 0.177 163.2);
+  --brand-strong: oklch(76.5% 0.177 163.2);
+  --brand-foreground: oklch(20% 0.045 168);
+  --primary: oklch(76.5% 0.177 163.2);
+  --primary-foreground: oklch(20% 0.045 168);
+  --border: oklch(30% 0.03 168);
+  --input: color-mix(in srgb, oklch(97% 0.01 165) 25%, oklch(17.5% 0.018 168));
+  --chart-1: oklch(76.5% 0.177 163.2);
+  --primary-action-shadow-color: oklch(76.5% 0.177 163.2);
+}
+
+/* Violeta: roxo moderno, comum em apps de produtividade */
+[data-color-theme="violet"]:not(.dark):not(.dark *) {
+  --palette-coral: oklch(54.1% 0.247 293);
+  --palette-charcoal: oklch(27% 0.06 293);
+  --background: oklch(98.6% 0.006 300);
+  --foreground: oklch(27% 0.06 293);
+  --card: var(--background);
+  --card-foreground: var(--foreground);
+  --popover: var(--background);
+  --popover-foreground: var(--foreground);
+  --secondary: oklch(95.4% 0.02 300);
+  --secondary-foreground: var(--foreground);
+  --muted: var(--secondary);
+  --muted-foreground: color-mix(in srgb, oklch(27% 0.06 293) 68%, oklch(98.6% 0.006 300));
+  --accent: color-mix(in srgb, oklch(54.1% 0.247 293) 12%, oklch(98.6% 0.006 300));
+  --accent-foreground: var(--foreground);
+  --brand: oklch(54.1% 0.247 293);
+  --brand-strong: oklch(49.1% 0.27 292.6);
+  --brand-foreground: oklch(98.6% 0.006 300);
+  --primary: oklch(54.1% 0.247 293);
+  --primary-foreground: oklch(98.6% 0.006 300);
+  --border: oklch(27% 0.06 293 / 0.15);
+  --input: color-mix(in srgb, oklch(27% 0.06 293) 30%, oklch(98.6% 0.006 300));
+  --overlay: color-mix(in srgb, oklch(27% 0.06 293) 18%, transparent);
+  --chart-1: oklch(54.1% 0.247 293);
+  --chart-4: color-mix(in srgb, oklch(54.1% 0.247 293) 45%, var(--palette-blue));
+  --chart-5: color-mix(in srgb, var(--palette-blue) 55%, oklch(27% 0.06 293));
+  --shadow-md: color-mix(in srgb, oklch(27% 0.06 293) 10%, transparent) 0 0 10px;
+  --primary-action-shadow-color: oklch(27% 0.06 293);
+}
+
+.dark[data-color-theme="violet"],
+.dark [data-color-theme="violet"],
+[data-color-theme="violet"] .dark {
+  --palette-charcoal: oklch(20% 0.06 293);
+  --background: oklch(17.5% 0.025 293);
+  --foreground: oklch(97% 0.012 300);
+  --card: oklch(21% 0.032 293);
+  --card-foreground: var(--foreground);
+  --popover: oklch(24% 0.036 293);
+  --popover-foreground: var(--foreground);
+  --secondary: color-mix(in srgb, oklch(97% 0.012 300) 11%, oklch(17.5% 0.025 293));
+  --secondary-foreground: var(--foreground);
+  --muted: color-mix(in srgb, oklch(97% 0.012 300) 9%, oklch(17.5% 0.025 293));
+  --muted-foreground: oklch(72% 0.045 293);
+  --accent: color-mix(in srgb, oklch(70.2% 0.183 293.5) 14%, oklch(24% 0.036 293));
+  --accent-foreground: var(--foreground);
+  --brand: oklch(70.2% 0.183 293.5);
+  --brand-strong: oklch(70.2% 0.183 293.5);
+  --brand-foreground: oklch(20% 0.06 293);
+  --primary: oklch(70.2% 0.183 293.5);
+  --primary-foreground: oklch(20% 0.06 293);
+  --border: oklch(31% 0.045 293);
+  --input: color-mix(in srgb, oklch(97% 0.012 300) 25%, oklch(17.5% 0.025 293));
+  --chart-1: oklch(70.2% 0.183 293.5);
+  --primary-action-shadow-color: oklch(70.2% 0.183 293.5);
+}
+
+/* Rosé: rosa suave no claro e vinho no escuro */
+[data-color-theme="rose"]:not(.dark):not(.dark *) {
+  --palette-coral: oklch(65.6% 0.212 354.3);
+  --palette-charcoal: oklch(31% 0.075 356);
+  --background: oklch(98.4% 0.01 354);
+  --foreground: oklch(31% 0.075 356);
+  --card: var(--background);
+  --card-foreground: var(--foreground);
+  --popover: var(--background);
+  --popover-foreground: var(--foreground);
+  --secondary: oklch(95.2% 0.027 354);
+  --secondary-foreground: var(--foreground);
+  --muted: var(--secondary);
+  --muted-foreground: color-mix(in srgb, oklch(31% 0.075 356) 68%, oklch(98.4% 0.01 354));
+  --accent: color-mix(in srgb, oklch(65.6% 0.212 354.3) 12%, oklch(98.4% 0.01 354));
+  --accent-foreground: var(--foreground);
+  --brand: oklch(65.6% 0.212 354.3);
+  --brand-strong: oklch(52.5% 0.223 3.958);
+  --brand-foreground: oklch(98.7% 0.008 354);
+  --primary: oklch(65.6% 0.212 354.3);
+  --primary-foreground: oklch(98.7% 0.008 354);
+  --border: oklch(31% 0.075 356 / 0.16);
+  --input: color-mix(in srgb, oklch(31% 0.075 356) 30%, oklch(98.4% 0.01 354));
+  --overlay: color-mix(in srgb, oklch(31% 0.075 356) 18%, transparent);
+  --chart-1: oklch(65.6% 0.212 354.3);
+  --chart-4: color-mix(in srgb, oklch(65.6% 0.212 354.3) 45%, var(--palette-blue));
+  --chart-5: color-mix(in srgb, var(--palette-blue) 55%, oklch(31% 0.075 356));
+  --shadow-md: color-mix(in srgb, oklch(31% 0.075 356) 10%, transparent) 0 0 10px;
+  --primary-action-shadow-color: oklch(31% 0.075 356);
+}
+
+.dark[data-color-theme="rose"],
+.dark [data-color-theme="rose"],
+[data-color-theme="rose"] .dark {
+  --palette-charcoal: oklch(20% 0.06 352);
+  --background: oklch(18% 0.025 352);
+  --foreground: oklch(97% 0.012 354);
+  --card: oklch(21.5% 0.032 352);
+  --card-foreground: var(--foreground);
+  --popover: oklch(24.5% 0.036 352);
+  --popover-foreground: var(--foreground);
+  --secondary: color-mix(in srgb, oklch(97% 0.012 354) 11%, oklch(18% 0.025 352));
+  --secondary-foreground: var(--foreground);
+  --muted: color-mix(in srgb, oklch(97% 0.012 354) 9%, oklch(18% 0.025 352));
+  --muted-foreground: oklch(73% 0.045 352);
+  --accent: color-mix(in srgb, oklch(71.8% 0.202 349.8) 14%, oklch(24.5% 0.036 352));
+  --accent-foreground: var(--foreground);
+  --brand: oklch(71.8% 0.202 349.8);
+  --brand-strong: oklch(71.8% 0.202 349.8);
+  --brand-foreground: oklch(20% 0.06 352);
+  --primary: oklch(71.8% 0.202 349.8);
+  --primary-foreground: oklch(20% 0.06 352);
+  --border: oklch(32% 0.045 352);
+  --input: color-mix(in srgb, oklch(97% 0.012 354) 25%, oklch(18% 0.025 352));
+  --chart-1: oklch(71.8% 0.202 349.8);
+  --primary-action-shadow-color: oklch(71.8% 0.202 349.8);
+}
+
+/* Nord: paleta ártica azulada, popular em editores e terminais */
+[data-color-theme="nord"]:not(.dark):not(.dark *) {
+  --palette-coral: oklch(59.4% 0.077 254);
+  --palette-charcoal: oklch(32.4% 0.023 264.2);
+  --background: oklch(95.3% 0.009 264.5);
+  --foreground: oklch(32.4% 0.023 264.2);
+  --card: var(--background);
+  --card-foreground: var(--foreground);
+  --popover: var(--background);
+  --popover-foreground: var(--foreground);
+  --secondary: oklch(91.7% 0.014 264);
+  --secondary-foreground: var(--foreground);
+  --muted: var(--secondary);
+  --muted-foreground: color-mix(in srgb, oklch(32.4% 0.023 264.2) 68%, oklch(95.3% 0.009 264.5));
+  --accent: color-mix(in srgb, oklch(59.4% 0.077 254) 12%, oklch(95.3% 0.009 264.5));
+  --accent-foreground: var(--foreground);
+  --brand: oklch(59.4% 0.077 254);
+  --brand-strong: oklch(52% 0.08 256);
+  --brand-foreground: oklch(98% 0.005 264);
+  --primary: oklch(59.4% 0.077 254);
+  --primary-foreground: oklch(98% 0.005 264);
+  --border: oklch(32.4% 0.023 264.2 / 0.16);
+  --input: color-mix(in srgb, oklch(32.4% 0.023 264.2) 30%, oklch(95.3% 0.009 264.5));
+  --overlay: color-mix(in srgb, oklch(32.4% 0.023 264.2) 18%, transparent);
+  --chart-1: oklch(59.4% 0.077 254);
+  --chart-4: color-mix(in srgb, oklch(59.4% 0.077 254) 45%, var(--palette-blue));
+  --chart-5: color-mix(in srgb, var(--palette-blue) 55%, oklch(32.4% 0.023 264.2));
+  --shadow-md: color-mix(in srgb, oklch(32.4% 0.023 264.2) 10%, transparent) 0 0 10px;
+  --primary-action-shadow-color: oklch(32.4% 0.023 264.2);
+}
+
+.dark[data-color-theme="nord"],
+.dark [data-color-theme="nord"],
+[data-color-theme="nord"] .dark {
+  --palette-charcoal: oklch(32.4% 0.023 264.2);
+  --background: oklch(32.4% 0.023 264.2);
+  --foreground: oklch(95.3% 0.009 264.5);
+  --card: oklch(37.9% 0.029 266.5);
+  --card-foreground: var(--foreground);
+  --popover: oklch(42.4% 0.035 266.6);
+  --popover-foreground: var(--foreground);
+  --secondary: color-mix(in srgb, oklch(95.3% 0.009 264.5) 11%, oklch(32.4% 0.023 264.2));
+  --secondary-foreground: var(--foreground);
+  --muted: color-mix(in srgb, oklch(95.3% 0.009 264.5) 9%, oklch(32.4% 0.023 264.2));
+  --muted-foreground: oklch(80% 0.022 262);
+  --accent: color-mix(in srgb, oklch(77.5% 0.062 217.5) 14%, oklch(42.4% 0.035 266.6));
+  --accent-foreground: var(--foreground);
+  --brand: oklch(77.5% 0.062 217.5);
+  --brand-strong: oklch(77.5% 0.062 217.5);
+  --brand-foreground: oklch(32.4% 0.023 264.2);
+  --primary: oklch(77.5% 0.062 217.5);
+  --primary-foreground: oklch(32.4% 0.023 264.2);
+  --border: oklch(46.6% 0.037 265.3);
+  --input: color-mix(in srgb, oklch(95.3% 0.009 264.5) 25%, oklch(32.4% 0.023 264.2));
+  --chart-1: oklch(77.5% 0.062 217.5);
+  --primary-action-shadow-color: oklch(77.5% 0.062 217.5);
+}
+
+/* Catppuccin: pastel com Latte (claro) e Mocha (escuro) */
+[data-color-theme="catppuccin"]:not(.dark):not(.dark *) {
+  --palette-coral: oklch(55.5% 0.25 297);
+  --palette-charcoal: oklch(43.6% 0.043 279.3);
+  --background: oklch(95.8% 0.007 264.5);
+  --foreground: oklch(43.6% 0.043 279.3);
+  --card: var(--background);
+  --card-foreground: var(--foreground);
+  --popover: var(--background);
+  --popover-foreground: var(--foreground);
+  --secondary: oklch(92.6% 0.011 265);
+  --secondary-foreground: var(--foreground);
+  --muted: var(--secondary);
+  --muted-foreground: color-mix(in srgb, oklch(43.6% 0.043 279.3) 68%, oklch(95.8% 0.007 264.5));
+  --accent: color-mix(in srgb, oklch(55.5% 0.25 297) 12%, oklch(95.8% 0.007 264.5));
+  --accent-foreground: var(--foreground);
+  --brand: oklch(55.5% 0.25 297);
+  --brand-strong: oklch(50% 0.25 297);
+  --brand-foreground: oklch(98% 0.005 264);
+  --primary: oklch(55.5% 0.25 297);
+  --primary-foreground: oklch(98% 0.005 264);
+  --border: oklch(43.6% 0.043 279.3 / 0.18);
+  --input: color-mix(in srgb, oklch(43.6% 0.043 279.3) 30%, oklch(95.8% 0.007 264.5));
+  --overlay: color-mix(in srgb, oklch(43.6% 0.043 279.3) 18%, transparent);
+  --chart-1: oklch(55.5% 0.25 297);
+  --chart-4: color-mix(in srgb, oklch(55.5% 0.25 297) 45%, var(--palette-blue));
+  --chart-5: color-mix(in srgb, var(--palette-blue) 55%, oklch(43.6% 0.043 279.3));
+  --shadow-md: color-mix(in srgb, oklch(43.6% 0.043 279.3) 10%, transparent) 0 0 10px;
+  --primary-action-shadow-color: oklch(43.6% 0.043 279.3);
+}
+
+.dark[data-color-theme="catppuccin"],
+.dark [data-color-theme="catppuccin"],
+[data-color-theme="catppuccin"] .dark {
+  --palette-charcoal: oklch(24.3% 0.03 283.9);
+  --background: oklch(24.3% 0.03 283.9);
+  --foreground: oklch(87.9% 0.043 272.3);
+  --card: oklch(27.5% 0.032 283);
+  --card-foreground: var(--foreground);
+  --popover: oklch(32.4% 0.032 282);
+  --popover-foreground: var(--foreground);
+  --secondary: color-mix(in srgb, oklch(87.9% 0.043 272.3) 11%, oklch(24.3% 0.03 283.9));
+  --secondary-foreground: var(--foreground);
+  --muted: color-mix(in srgb, oklch(87.9% 0.043 272.3) 9%, oklch(24.3% 0.03 283.9));
+  --muted-foreground: oklch(75.2% 0.04 274.8);
+  --accent: color-mix(in srgb, oklch(78.7% 0.119 304.8) 14%, oklch(32.4% 0.032 282));
+  --accent-foreground: var(--foreground);
+  --brand: oklch(78.7% 0.119 304.8);
+  --brand-strong: oklch(78.7% 0.119 304.8);
+  --brand-foreground: oklch(24.3% 0.03 283.9);
+  --primary: oklch(78.7% 0.119 304.8);
+  --primary-foreground: oklch(24.3% 0.03 283.9);
+  --border: oklch(39.9% 0.032 280.2);
+  --input: color-mix(in srgb, oklch(87.9% 0.043 272.3) 25%, oklch(24.3% 0.03 283.9));
+  --chart-1: oklch(78.7% 0.119 304.8);
+  --primary-action-shadow-color: oklch(78.7% 0.119 304.8);
+}
+
+/* Sépia (padrão), declarada para as prévias da paleta dentro de outros temas. */
+[data-color-theme="sepia"]:not(:root):not(.dark *) {
+  --background: oklch(96.785% 0.00443 77.988);
+  --foreground: oklch(29.182% 0.05685 64.634);
+  --card: var(--background);
+  --brand: oklch(76.042% 0.16904 61.306);
+}
+
+.dark [data-color-theme="sepia"] {
+  --background: oklch(20.823% 0.00866 59.154);
+  --foreground: oklch(96.936% 0.00962 72.662);
+  --card: oklch(24.084% 0.01032 80.604);
+  --brand: oklch(74.356% 0.14984 57.814);
+}

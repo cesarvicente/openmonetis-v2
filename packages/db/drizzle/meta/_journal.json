@@ -169,6 +169,13 @@
       "when": 1793472485567,
       "tag": "0023_inbox_rule_optional_payment_target",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1793697452231,
+      "tag": "0024_user_color_theme",
+      "breakpoints": true
     }
   ]
 }
