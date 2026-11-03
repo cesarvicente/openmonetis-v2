@@ -11,7 +11,8 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 
 - Paletas de cores em Ajustes > Aparência: Sépia (padrão), Grafite, Azul, Verde, Violeta, Rosé, Nord
   e Catppuccin. Cada paleta tem versão clara e escura, e o botão de tema do topo continua alternando
-  entre elas. A escolha fica salva nas preferências (`colorTheme`).
+  entre elas. A escolha fica salva nas preferências (`colorTheme`). Ao escolher uma paleta, ela é
+  aplicada na hora como prévia; sem salvar, a paleta anterior volta ao sair dos ajustes.
 - Regras da Caixa de entrada podem preencher também a **forma de pagamento** e, opcionalmente, o
   **cartão** (cartão de crédito) ou a **conta** (demais formas), em campos separados como no
   formulário de lançamento. O formulário da regra indica qual campo precisa de ajuste. Ao revisar uma captura, a forma de pagamento da regra tem prioridade sobre a

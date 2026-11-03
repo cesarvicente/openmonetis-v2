@@ -2,9 +2,9 @@ import {
   UpdateUserPreferencesInputSchema,
   type UserPreferencesOutput,
 } from "@openmonetis/validators/preferences";
-import { useForm } from "@tanstack/react-form";
+import { useForm, useStore } from "@tanstack/react-form";
 import { useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useTheme } from "@/components/theme-provider";
 import { useUpdateUserPreferencesMutation } from "./preferences.mutations";
@@ -16,6 +16,7 @@ export function usePreferencesForm(preferences: UserPreferencesOutput) {
   const updatePreferences = useUpdateUserPreferencesMutation();
   const { setColorTheme, setTheme } = useTheme();
   const [isRestoring, setIsRestoring] = useState(false);
+  const savedColorTheme = useRef(preferences.colorTheme);
   const form = useForm({
     defaultValues: preferences,
     validators: {
@@ -37,6 +38,7 @@ export function usePreferencesForm(preferences: UserPreferencesOutput) {
         const saved = await updatePreferences.mutateAsync(
           UpdateUserPreferencesInputSchema.parse(changes),
         );
+        savedColorTheme.current = saved.colorTheme;
         form.reset(saved);
         setTheme(saved.theme);
         setColorTheme(saved.colorTheme);
@@ -46,6 +48,14 @@ export function usePreferencesForm(preferences: UserPreferencesOutput) {
       }
     },
   });
+
+  // Live preview: the chosen palette is applied while editing and the saved one comes back
+  // when leaving the settings without saving.
+  const previewColorTheme = useStore(form.store, (state) => state.values.colorTheme);
+  useEffect(() => {
+    setColorTheme(previewColorTheme);
+  }, [previewColorTheme, setColorTheme]);
+  useEffect(() => () => setColorTheme(savedColorTheme.current), [setColorTheme]);
 
   async function restoreDefaults() {
     setIsRestoring(true);

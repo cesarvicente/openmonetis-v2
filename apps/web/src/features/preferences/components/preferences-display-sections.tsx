@@ -28,7 +28,7 @@ export function PreferencesDisplaySections({
   return (
     <>
       <SettingsSection
-        description="Escolha o modo e a paleta de cores. A mudança será aplicada ao salvar."
+        description="Escolha o modo e a paleta de cores. A paleta aparece na hora; salve para mantê-la."
         icon={Sun}
         title="Aparência"
       >
@@ -102,6 +102,7 @@ export function PreferencesDisplaySections({
               </Select>
               <p className="text-muted-foreground text-xs" id={`${colorThemeId}-description`}>
                 Cada paleta tem versão clara e escura; o botão de tema no topo alterna entre elas.
+                Sem salvar, a paleta anterior volta ao sair dos ajustes.
               </p>
             </div>
           )}
