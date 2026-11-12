@@ -1,0 +1,4 @@
+ALTER TABLE "inbox_rules" DROP CONSTRAINT "inbox_rules_actions_required_check";--> statement-breakpoint
+ALTER TABLE "inbox_rules" ADD COLUMN "transaction_type" "transaction_type";--> statement-breakpoint
+ALTER TABLE "inbox_rules" ADD CONSTRAINT "inbox_rules_transaction_type_check" CHECK ("inbox_rules"."transaction_type" is null or "inbox_rules"."transaction_type" in ('expense', 'income'));--> statement-breakpoint
+ALTER TABLE "inbox_rules" ADD CONSTRAINT "inbox_rules_actions_required_check" CHECK ("inbox_rules"."transaction_type" is not null or "inbox_rules"."category_id" is not null or "inbox_rules"."person_id" is not null or "inbox_rules"."payment_method" is not null);

@@ -3,6 +3,7 @@ import {
   inboxBatchMaximumSize,
   inboxClearableStatuses,
   inboxClientIdMaximumLength,
+  inboxDiscardReasons,
   inboxItemStatuses,
   inboxOriginalTextMaximumLength,
   inboxOriginalTitleMaximumLength,
@@ -117,6 +118,9 @@ export const InboxItemSummaryOutputSchema = z
     transactionId: z.uuid().nullable(),
     processedAt: z.iso.datetime().nullable(),
     discardedAt: z.iso.datetime().nullable(),
+    discardReason: z.enum(inboxDiscardReasons).nullable().openapi({
+      description: "Set when the capture was discarded automatically, e.g. as a duplicate.",
+    }),
     createdAt: z.iso.datetime(),
     updatedAt: z.iso.datetime(),
   })

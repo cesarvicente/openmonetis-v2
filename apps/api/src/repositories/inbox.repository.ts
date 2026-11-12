@@ -4,21 +4,35 @@ import { and, asc, count, desc, eq, inArray, isNotNull, sql } from "drizzle-orm"
 import type { InboxRepository } from "../services/inbox.service";
 
 export const inboxRepository: InboxRepository = {
-  async insertOrFind(draft) {
-    const [inserted] = await db
-      .insert(inboxItems)
-      .values(draft)
-      .onConflictDoNothing({ target: [inboxItems.userId, inboxItems.clientId] })
-      .returning();
-    if (inserted) return { record: inserted, duplicate: false };
+  async insertOrFind(draft, initialState) {
+    return db.transaction(async (transaction) => {
+      // Serializes captures of the same user so two identical ones cannot both enter pending.
+      await transaction.execute(
+        sql`select pg_advisory_xact_lock(hashtextextended(${`inbox:${draft.userId}`}, 0))`,
+      );
+      const [existingRecord] = await transaction
+        .select()
+        .from(inboxItems)
+        .where(and(eq(inboxItems.userId, draft.userId), eq(inboxItems.clientId, draft.clientId)))
+        .limit(1);
+      if (existingRecord) return { record: existingRecord, duplicate: true };
 
-    const [existingRecord] = await db
-      .select()
-      .from(inboxItems)
-      .where(and(eq(inboxItems.userId, draft.userId), eq(inboxItems.clientId, draft.clientId)))
-      .limit(1);
-    const existing = existingRecord as typeof inboxItems.$inferSelect;
-    return { record: existing, duplicate: true };
+      const [identical] = await transaction
+        .select({ id: inboxItems.id })
+        .from(inboxItems)
+        .where(
+          and(
+            eq(inboxItems.userId, draft.userId),
+            eq(inboxItems.payloadFingerprint, draft.payloadFingerprint),
+          ),
+        )
+        .limit(1);
+      const [inserted] = await transaction
+        .insert(inboxItems)
+        .values({ ...draft, ...initialState(Boolean(identical)) })
+        .returning();
+      return { record: inserted as typeof inboxItems.$inferSelect, duplicate: false };
+    });
   },
 
   async listForUser(userId, query, matchingItemIds) {
@@ -174,6 +188,7 @@ export const inboxRepository: InboxRepository = {
         transactionId: processed ? (input.transactionId ?? null) : null,
         processedAt: processed ? input.changedAt : null,
         discardedAt: discarded ? input.changedAt : null,
+        discardReason: null,
         updatedAt: input.changedAt,
       })
       .where(

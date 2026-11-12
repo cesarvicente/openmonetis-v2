@@ -1,7 +1,9 @@
 import { createHash } from "node:crypto";
 import {
   assertInboxItemTransition,
+  getInboxCaptureInitialState,
   type InboxClearableStatus,
+  type InboxDiscardReason,
   type InboxItemStatus,
   InboxTransitionError,
   isInboxNotificationTimestampAllowed,
@@ -38,17 +40,35 @@ export type InboxItemRecord = {
   transactionId: string | null;
   processedAt: Date | null;
   discardedAt: Date | null;
+  discardReason: InboxDiscardReason | null;
   createdAt: Date;
   updatedAt: Date;
 };
 
 type InboxItemDraft = Omit<
   InboxItemRecord,
-  "id" | "status" | "transactionId" | "processedAt" | "discardedAt" | "createdAt" | "updatedAt"
+  | "id"
+  | "status"
+  | "transactionId"
+  | "processedAt"
+  | "discardedAt"
+  | "discardReason"
+  | "createdAt"
+  | "updatedAt"
 >;
 
+export type InboxCaptureInitialState = ReturnType<typeof getInboxCaptureInitialState>;
+
 export type InboxRepository = {
-  insertOrFind(draft: InboxItemDraft): Promise<{
+  /**
+   * Inserts the capture, or returns the one already stored with the same clientId (a retry).
+   * `initialState` decides the state of a new capture given whether an identical one
+   * (same payload fingerprint) already exists for the user; the check and the insert are atomic.
+   */
+  insertOrFind(
+    draft: InboxItemDraft,
+    initialState: (hasIdenticalCapture: boolean) => InboxCaptureInitialState,
+  ): Promise<{
     record: InboxItemRecord;
     duplicate: boolean;
   }>;
@@ -118,10 +138,12 @@ export function createInboxService(
   } = {},
 ) {
   const now = options.now ?? (() => new Date());
+  const initialState = (hasIdenticalCapture: boolean) =>
+    getInboxCaptureInitialState({ hasIdenticalCapture, now: now() });
 
   async function ingest(input: CompanionInboxItemInput, context: InboxIngestionContext) {
     const draft = buildDraft(input, context, now());
-    const result = await repository.insertOrFind(draft);
+    const result = await repository.insertOrFind(draft, initialState);
 
     if (result.record.payloadFingerprint !== draft.payloadFingerprint) {
       throw conflict(
@@ -156,7 +178,7 @@ export function createInboxService(
           }
           seen.set(draft.clientId, draft.payloadFingerprint);
 
-          const result = await repository.insertOrFind(draft);
+          const result = await repository.insertOrFind(draft, initialState);
           if (result.record.payloadFingerprint !== draft.payloadFingerprint) {
             throw conflict(
               "The notification identifier was already used with different content",
@@ -405,6 +427,7 @@ function toSummaryOutput(record: InboxItemRecord): InboxItemSummaryOutput {
     transactionId: record.transactionId,
     processedAt: record.processedAt?.toISOString() ?? null,
     discardedAt: record.discardedAt?.toISOString() ?? null,
+    discardReason: record.discardReason,
     createdAt: record.createdAt.toISOString(),
     updatedAt: record.updatedAt.toISOString(),
   };

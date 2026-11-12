@@ -24,6 +24,7 @@ function rule(overrides: Partial<InboxRuleCandidate>): InboxRuleCandidate {
     isActive: true,
     matchMode: "all",
     conditions: [{ field: "originalText", operator: "contains", value: "ifood" }],
+    transactionType: null,
     categoryId: null,
     personId: null,
     paymentMethod: null,
@@ -36,6 +37,7 @@ function rule(overrides: Partial<InboxRuleCandidate>): InboxRuleCandidate {
 test("inbox rules match text without case or accent sensitivity", () => {
   const result = resolveInboxRules(item, [
     rule({
+      transactionType: null,
       categoryId: "food",
       conditions: [{ field: "originalText", operator: "contains", value: "COMPRA APROVÁDA" }],
     }),
@@ -144,6 +146,7 @@ const draftBase = {
   isActive: true,
   matchMode: "all" as const,
   conditions: [{ field: "originalText" as const, operator: "contains" as const, value: "samsung" }],
+  transactionType: null,
   categoryId: null,
   personId: null,
 };
@@ -199,4 +202,44 @@ test("a rule can fill the payment method without a card or account", () => {
   assert.equal(result.paymentMethod, "credit_card");
   assert.equal(result.cardId, null);
   assert.deepEqual(result.appliedRules[0]?.fields, ["paymentMethod"]);
+});
+
+test("without a typed rule the capture keeps the default expense type", () => {
+  const result = resolveInboxRules(item, [
+    rule({ id: "category", name: "iFood", categoryId: "restaurants" }),
+  ]);
+
+  assert.equal(result.transactionType, null);
+  assert.equal(result.categoryId, "restaurants");
+});
+
+test("an income rule sets the type and only income categories are filled", () => {
+  const result = resolveInboxRules(item, [
+    rule({ id: "expense-category", name: "Despesa", priority: 1, categoryId: "restaurants" }),
+    rule({
+      id: "income",
+      name: "Pix recebido",
+      priority: 5,
+      transactionType: "income",
+      categoryId: "salary",
+    }),
+  ]);
+
+  assert.equal(result.transactionType, "income");
+  assert.equal(result.categoryId, "salary");
+  assert.deepEqual(
+    result.appliedRules.map((applied) => [applied.id, applied.fields]),
+    [["income", ["transactionType", "categoryId"]]],
+  );
+});
+
+test("a rule can fill only the transaction type", () => {
+  const draft = createInboxRuleDraft({
+    ...draftBase,
+    transactionType: "income",
+    paymentMethod: null,
+    cardId: null,
+    accountId: null,
+  });
+  assert.equal(draft.transactionType, "income");
 });

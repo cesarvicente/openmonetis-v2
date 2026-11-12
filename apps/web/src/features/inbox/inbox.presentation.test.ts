@@ -16,6 +16,7 @@ const baseItem = {
   transactionId: null,
   processedAt: null,
   discardedAt: null,
+  discardReason: null,
   createdAt: "2026-08-18T03:05:00.000Z",
   updatedAt: "2026-08-18T03:05:00.000Z",
 };

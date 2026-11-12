@@ -7,7 +7,7 @@ import {
   inboxRules,
   people,
 } from "@openmonetis/db";
-import type { InboxRuleCondition } from "@openmonetis/domain/inbox-rules";
+import type { InboxRuleCondition, InboxRuleTransactionType } from "@openmonetis/domain/inbox-rules";
 import type { PaymentMethod } from "@openmonetis/domain/transactions";
 import { and, asc, eq, sql } from "drizzle-orm";
 import type { InboxRuleRecord, InboxRulesRepository } from "../services/inbox-rules.service";
@@ -21,6 +21,7 @@ const ruleSelection = {
   isActive: inboxRules.isActive,
   matchMode: inboxRules.matchMode,
   conditions: inboxRules.conditions,
+  transactionType: inboxRules.transactionType,
   categoryId: inboxRules.categoryId,
   categoryName: categoryLabelSql(categories),
   categoryType: categories.type,
@@ -47,6 +48,7 @@ type RuleSelectionRow = {
   isActive: boolean;
   matchMode: "all" | "any";
   conditions: unknown;
+  transactionType: "income" | "expense" | "transfer" | null;
   categoryId: string | null;
   categoryName: string | null;
   categoryType: "income" | "expense" | null;
@@ -265,6 +267,8 @@ function toRecord(row: RuleSelectionRow) {
   return {
     ...row,
     conditions: row.conditions as InboxRuleCondition[],
+    // The database check only allows expense or income here.
+    transactionType: row.transactionType as InboxRuleTransactionType | null,
   } satisfies InboxRuleRecord;
 }
 

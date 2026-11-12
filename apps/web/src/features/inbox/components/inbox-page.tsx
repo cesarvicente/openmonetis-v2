@@ -352,7 +352,7 @@ export function InboxPage({
           createDefaults={processDefaults}
           createDescription={`${describeInboxRuleSuggestion(processSuggestion) ?? "Confira os dados capturados e complete o que faltar."} Ao confirmar, será criado um lançamento e a captura sairá das pendentes.`}
           createTitle="Revisar captura"
-          defaultType="expense"
+          defaultType={processSuggestion?.transactionType ?? "expense"}
           key={processItem?.id ?? "closed"}
           onCreate={async (data) => {
             if (!processItem) throw new Error("inbox_item_not_selected");

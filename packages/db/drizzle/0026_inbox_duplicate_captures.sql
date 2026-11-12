@@ -1,0 +1,3 @@
+ALTER TABLE "inbox_items" ADD COLUMN "discard_reason" varchar(20);--> statement-breakpoint
+CREATE INDEX "inbox_items_user_id_payload_fingerprint_idx" ON "inbox_items" USING btree ("user_id","payload_fingerprint");--> statement-breakpoint
+ALTER TABLE "inbox_items" ADD CONSTRAINT "inbox_items_discard_reason_check" CHECK ("inbox_items"."discard_reason" IS NULL OR ("inbox_items"."status" = 'discarded' AND "inbox_items"."discard_reason" = 'duplicate'));

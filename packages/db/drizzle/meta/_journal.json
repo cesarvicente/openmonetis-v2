@@ -176,6 +176,20 @@
       "when": 1793697452231,
       "tag": "0024_user_color_theme",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1794496022343,
+      "tag": "0025_inbox_rule_transaction_type",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1794496158157,
+      "tag": "0026_inbox_duplicate_captures",
+      "breakpoints": true
     }
   ]
 }

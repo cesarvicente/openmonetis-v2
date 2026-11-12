@@ -24,6 +24,7 @@ function record(overrides: Partial<InboxRuleRecord> = {}): InboxRuleRecord {
     isActive: true,
     matchMode: "all",
     conditions: [{ field: "originalText", operator: "contains", value: "ifood" }],
+    transactionType: null,
     categoryId,
     categoryName: "Alimentação",
     categoryType: "expense",
@@ -84,6 +85,7 @@ test("inbox rule creation validates targets through user-scoped repository metho
       isActive: true,
       matchMode: "all",
       conditions: [{ field: "originalText", operator: "contains", value: "IFOOD" }],
+      transactionType: null,
       categoryId,
       personId,
       paymentMethod: null,
@@ -110,6 +112,7 @@ test("inbox rule creation rejects categories that are not owned expense categori
         isActive: true,
         matchMode: "all",
         conditions: [{ field: "originalText", operator: "contains", value: "compra" }],
+        transactionType: null,
         categoryId,
         personId: null,
         paymentMethod: null,
@@ -146,6 +149,7 @@ test("suggestion resolution only exposes available targets from active rules", a
           id: "00000000-0000-4000-8000-000000000006",
           name: "Pessoa indisponível",
           priority: 1,
+          transactionType: null,
           categoryId: null,
           categoryName: null,
           categoryType: null,
@@ -199,6 +203,7 @@ test("inbox rules can fill an owned active card and reject archived accounts", a
     conditions: [
       { field: "originalText" as const, operator: "contains" as const, value: "Samsung Itau" },
     ],
+    transactionType: null,
     categoryId: null,
     personId: null,
   };
@@ -229,6 +234,7 @@ test("suggestions ignore rules whose card was deactivated", async () => {
       }),
       listActiveByUser: async () => [
         record({
+          transactionType: null,
           categoryId: null,
           categoryName: null,
           categoryType: null,
@@ -248,4 +254,30 @@ test("suggestions ignore rules whose card was deactivated", async () => {
   const suggestion = await service.resolveSuggestion(inboxItemId, userId);
   assert.equal(suggestion.cardId, null);
   assert.deepEqual(suggestion.appliedRules, []);
+});
+
+test("income rules only accept income categories", async () => {
+  const service = createInboxRulesService(repository());
+  const input = {
+    name: "Pix recebido",
+    priority: 10,
+    isActive: true,
+    matchMode: "all" as const,
+    conditions: [
+      { field: "originalText" as const, operator: "contains" as const, value: "Pix recebido" },
+    ],
+    transactionType: "income" as const,
+    personId: null,
+    paymentMethod: null,
+    cardId: null,
+    accountId: null,
+  };
+
+  // The fixture category is an expense category.
+  await assert.rejects(
+    service.create({ ...input, categoryId }, userId),
+    (error) => error instanceof ApiError && error.code === "inbox_rule_category_unavailable",
+  );
+  const created = await service.create({ ...input, categoryId: null }, userId);
+  assert.equal(created.transactionType, "income");
 });

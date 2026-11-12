@@ -1,11 +1,13 @@
 import type { InboxItemStatus } from "@openmonetis/domain/inbox";
 import {
   createInboxRuleDraft,
+  getInboxRuleEffectiveType,
   type InboxRuleCandidate,
   type InboxRuleCondition,
   InboxRuleError,
   type InboxRuleMatchItem,
   type InboxRuleMatchMode,
+  type InboxRuleTransactionType,
   resolveInboxRules,
 } from "@openmonetis/domain/inbox-rules";
 import type { PaymentMethod } from "@openmonetis/domain/transactions";
@@ -25,6 +27,7 @@ export type InboxRuleRecord = {
   isActive: boolean;
   matchMode: InboxRuleMatchMode;
   conditions: InboxRuleCondition[];
+  transactionType: InboxRuleTransactionType | null;
   categoryId: string | null;
   categoryName: string | null;
   categoryType: "income" | "expense" | null;
@@ -169,7 +172,8 @@ export function createInboxRulesService(repository: InboxRulesRepository) {
 
 export function availableInboxRuleCandidates(rules: InboxRuleRecord[]): InboxRuleCandidate[] {
   return rules.flatMap((rule) => {
-    const categoryId = rule.categoryType === "expense" ? rule.categoryId : null;
+    const categoryId =
+      rule.categoryType === getInboxRuleEffectiveType(rule) ? rule.categoryId : null;
     const personId = rule.personStatus === "active" ? rule.personId : null;
     const paymentTargetAvailable = rule.cardId
       ? rule.cardStatus === "active"
@@ -179,7 +183,8 @@ export function availableInboxRuleCandidates(rules: InboxRuleRecord[]): InboxRul
     const paymentMethod = paymentTargetAvailable ? rule.paymentMethod : null;
     const cardId = paymentTargetAvailable ? rule.cardId : null;
     const accountId = paymentTargetAvailable ? rule.accountId : null;
-    if (!rule.isActive || (!categoryId && !personId && !paymentMethod)) return [];
+    if (!rule.isActive || (!rule.transactionType && !categoryId && !personId && !paymentMethod))
+      return [];
     return [
       {
         id: rule.id,
@@ -188,6 +193,7 @@ export function availableInboxRuleCandidates(rules: InboxRuleRecord[]): InboxRul
         isActive: rule.isActive,
         matchMode: rule.matchMode,
         conditions: rule.conditions,
+        transactionType: rule.transactionType,
         categoryId,
         personId,
         paymentMethod,
@@ -210,6 +216,7 @@ function buildDraft(
       isActive: input.isActive,
       matchMode: input.matchMode,
       conditions: input.conditions,
+      transactionType: input.transactionType,
       categoryId: input.categoryId,
       personId: input.personId,
       paymentMethod: input.paymentMethod,
@@ -224,11 +231,15 @@ function buildDraft(
 
 async function assertTargetsAvailable(
   {
+    transactionType,
     categoryId,
     personId,
     cardId,
     accountId,
-  }: Pick<CreateInboxRuleInput, "categoryId" | "personId" | "cardId" | "accountId">,
+  }: Pick<
+    CreateInboxRuleInput,
+    "transactionType" | "categoryId" | "personId" | "cardId" | "accountId"
+  >,
   userId: string,
   repository: InboxRulesRepository,
 ) {
@@ -250,9 +261,9 @@ async function assertTargetsAvailable(
       "inbox_rule_account_unavailable",
     );
   }
-  if (categoryId && category?.type !== "expense") {
+  if (categoryId && category?.type !== getInboxRuleEffectiveType({ transactionType })) {
     throw badRequest(
-      "Inbox rules can only use an owned expense category",
+      "Inbox rules can only use an owned category of the rule transaction type",
       "inbox_rule_category_unavailable",
     );
   }
@@ -298,6 +309,7 @@ function toOutput(record: InboxRuleRecord): InboxRuleOutput {
     isActive: record.isActive,
     matchMode: record.matchMode,
     conditions: record.conditions,
+    transactionType: record.transactionType,
     category:
       record.categoryId && record.categoryName
         ? { id: record.categoryId, name: record.categoryName }

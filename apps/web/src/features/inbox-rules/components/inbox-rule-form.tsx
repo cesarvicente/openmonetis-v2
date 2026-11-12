@@ -1,9 +1,11 @@
 import {
   type InboxRuleConditionField,
+  type InboxRuleTransactionType,
   inboxRuleConditionFields,
   inboxRuleMaximumConditions,
   inboxRuleNumericConditionOperators,
   inboxRuleTextConditionOperators,
+  inboxRuleTransactionTypes,
 } from "@openmonetis/domain/inbox-rules";
 import { type PaymentMethod, paymentMethods } from "@openmonetis/domain/transactions";
 import type { AccountOutput } from "@openmonetis/validators/accounts";
@@ -41,6 +43,7 @@ import {
   inboxRuleAmountOperatorLabels,
   inboxRuleFieldLabels,
   inboxRuleTextOperatorLabels,
+  inboxRuleTransactionTypeLabels,
 } from "../inbox-rules.presentation";
 
 type EditableCondition = {
@@ -81,6 +84,7 @@ export function InboxRuleForm({
         operator: condition.operator,
         value: String(condition.value),
       })) ?? [createEmptyCondition()]) as EditableCondition[],
+      transactionType: (rule?.transactionType ?? "none") as InboxRuleTransactionType | "none",
       categoryId: rule?.category?.id ?? "none",
       personId: rule?.person?.id ?? "none",
       paymentMethod: (rule?.paymentMethod ?? "none") as PaymentMethod | "none",
@@ -108,6 +112,7 @@ export function InboxRuleForm({
                 value: condition.value,
               },
         ),
+        transactionType: value.transactionType === "none" ? null : value.transactionType,
         categoryId: value.categoryId === "none" ? null : value.categoryId,
         personId: value.personId === "none" ? null : value.personId,
         paymentMethod: value.paymentMethod === "none" ? null : value.paymentMethod,
@@ -342,37 +347,79 @@ export function InboxRuleForm({
       <fieldset className="grid gap-3">
         <legend className="font-medium text-sm tracking-tight">Preencher</legend>
         <div className="grid gap-4 sm:grid-cols-2">
-          <form.Field name="categoryId">
+          <form.Field name="transactionType">
             {(field) => (
               <div className="grid gap-1.5">
-                <Label htmlFor={`${id}-category`}>Categoria</Label>
+                <Label htmlFor={`${id}-transaction-type`}>Tipo de transação</Label>
                 <Select
-                  onValueChange={(value) => value && field.handleChange(value)}
+                  onValueChange={(value) => {
+                    if (!value) return;
+                    field.handleChange(value);
+                    const nextType = value === "none" ? "expense" : value;
+                    const category = categories.find(
+                      (item) => item.id === form.getFieldValue("categoryId"),
+                    );
+                    if (category && category.type !== nextType) {
+                      form.setFieldValue("categoryId", "none");
+                    }
+                  }}
                   value={field.state.value}
                 >
-                  <SelectTrigger className="w-full" id={`${id}-category`}>
-                    <SelectValue>
-                      <CategoryOption
-                        category={categories.find((category) => category.id === field.state.value)}
-                      />
-                    </SelectValue>
+                  <SelectTrigger className="w-full" id={`${id}-transaction-type`}>
+                    <SelectValue>{inboxRuleTransactionTypeLabels[field.state.value]}</SelectValue>
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="none">
-                      <CategoryOption />
-                    </SelectItem>
-                    {categories
-                      .filter((category) => category.type === "expense")
-                      .map((category) => (
-                        <SelectItem key={category.id} value={category.id}>
-                          <CategoryOption category={category} />
-                        </SelectItem>
-                      ))}
+                    {(["none", ...inboxRuleTransactionTypes] as const).map((type) => (
+                      <SelectItem key={type} value={type}>
+                        {inboxRuleTransactionTypeLabels[type]}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
             )}
           </form.Field>
+          <form.Subscribe
+            selector={(state) =>
+              state.values.transactionType === "none" ? "expense" : state.values.transactionType
+            }
+          >
+            {(categoryType) => (
+              <form.Field name="categoryId">
+                {(field) => (
+                  <div className="grid gap-1.5">
+                    <Label htmlFor={`${id}-category`}>Categoria</Label>
+                    <Select
+                      onValueChange={(value) => value && field.handleChange(value)}
+                      value={field.state.value}
+                    >
+                      <SelectTrigger className="w-full" id={`${id}-category`}>
+                        <SelectValue>
+                          <CategoryOption
+                            category={categories.find(
+                              (category) => category.id === field.state.value,
+                            )}
+                          />
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">
+                          <CategoryOption />
+                        </SelectItem>
+                        {categories
+                          .filter((category) => category.type === categoryType)
+                          .map((category) => (
+                            <SelectItem key={category.id} value={category.id}>
+                              <CategoryOption category={category} />
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+              </form.Field>
+            )}
+          </form.Subscribe>
           <form.Field name="personId">
             {(field) => (
               <div className="grid gap-1.5">

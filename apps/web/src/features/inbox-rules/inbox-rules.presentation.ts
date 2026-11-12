@@ -42,8 +42,15 @@ export function formatInboxRuleCondition(condition: InboxRuleCondition) {
   return `${inboxRuleFieldLabels[condition.field]} ${operator} ${value}`;
 }
 
+export const inboxRuleTransactionTypeLabels = {
+  none: "Não preencher (despesa)",
+  expense: "Despesa",
+  income: "Receita",
+} as const;
+
 export function describeInboxRuleActions(rule: InboxRuleOutput) {
   return [
+    rule.transactionType ? `tipo ${inboxRuleTransactionTypeLabels[rule.transactionType]}` : null,
     rule.category ? `categoria ${rule.category.name}` : null,
     rule.person ? `pessoa ${rule.person.name}` : null,
     rule.paymentMethod

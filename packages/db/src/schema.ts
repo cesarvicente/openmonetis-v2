@@ -1116,6 +1116,8 @@ export const inboxItems = pgTable(
     }),
     processedAt: timestamp("processed_at", { withTimezone: true }),
     discardedAt: timestamp("discarded_at", { withTimezone: true }),
+    // Only "duplicate" for now (see inboxDiscardReasons in the domain and the check below).
+    discardReason: varchar("discard_reason", { length: 20 }).$type<"duplicate">(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .notNull()
@@ -1124,6 +1126,11 @@ export const inboxItems = pgTable(
   },
   (table) => [
     uniqueIndex("inbox_items_user_id_client_id_unique").on(table.userId, table.clientId),
+    index("inbox_items_user_id_payload_fingerprint_idx").on(table.userId, table.payloadFingerprint),
+    check(
+      "inbox_items_discard_reason_check",
+      sql`${table.discardReason} IS NULL OR (${table.status} = 'discarded' AND ${table.discardReason} = 'duplicate')`,
+    ),
     index("inbox_items_user_id_status_notification_idx").on(
       table.userId,
       table.status,
@@ -1181,6 +1188,7 @@ export const inboxRules = pgTable(
     isActive: boolean("is_active").notNull().default(true),
     matchMode: inboxRuleMatchMode("match_mode").notNull().default("all"),
     conditions: jsonb("conditions").notNull(),
+    transactionType: transactionType("transaction_type"),
     categoryId: uuid("category_id"),
     personId: uuid("person_id"),
     paymentMethod: paymentMethod("payment_method"),
@@ -1226,7 +1234,11 @@ export const inboxRules = pgTable(
     check("inbox_rules_version_positive_check", sql`${table.version} > 0`),
     check(
       "inbox_rules_actions_required_check",
-      sql`${table.categoryId} is not null or ${table.personId} is not null or ${table.paymentMethod} is not null`,
+      sql`${table.transactionType} is not null or ${table.categoryId} is not null or ${table.personId} is not null or ${table.paymentMethod} is not null`,
+    ),
+    check(
+      "inbox_rules_transaction_type_check",
+      sql`${table.transactionType} is null or ${table.transactionType} in ('expense', 'income')`,
     ),
     check(
       "inbox_rules_payment_target_check",

@@ -10,6 +10,7 @@ import {
   inboxRulePriorityMinimum,
   inboxRuleTextConditionFields,
   inboxRuleTextConditionOperators,
+  inboxRuleTransactionTypes,
   isValidInboxRulePaymentTarget,
 } from "@openmonetis/domain/inbox-rules";
 import { paymentMethods } from "@openmonetis/domain/transactions";
@@ -48,6 +49,9 @@ const InboxRuleEditableFieldsSchema = z
     isActive: z.boolean(),
     matchMode: z.enum(inboxRuleMatchModes),
     conditions: z.array(InboxRuleConditionSchema).min(1).max(inboxRuleMaximumConditions),
+    transactionType: z.enum(inboxRuleTransactionTypes).nullable().default(null).openapi({
+      description: "Suggested transaction type; null keeps the default (expense).",
+    }),
     categoryId: z.uuid().nullable(),
     personId: z.uuid().nullable(),
     paymentMethod: z.enum(paymentMethods).nullable().default(null),
@@ -56,7 +60,11 @@ const InboxRuleEditableFieldsSchema = z
   })
   .strict()
   .refine(
-    (input) => input.categoryId !== null || input.personId !== null || input.paymentMethod !== null,
+    (input) =>
+      input.transactionType !== null ||
+      input.categoryId !== null ||
+      input.personId !== null ||
+      input.paymentMethod !== null,
     { message: "At least one action is required" },
   )
   .refine(isValidInboxRulePaymentTarget, {
@@ -103,6 +111,7 @@ export const InboxRuleOutputSchema = z
     isActive: z.boolean(),
     matchMode: z.enum(inboxRuleMatchModes),
     conditions: z.array(InboxRuleConditionSchema),
+    transactionType: z.enum(inboxRuleTransactionTypes).nullable(),
     category: InboxRuleTargetOutputSchema.nullable(),
     person: InboxRuleTargetOutputSchema.nullable(),
     paymentMethod: z.enum(paymentMethods).nullable(),
@@ -123,6 +132,7 @@ export const InboxRulesListOutputSchema = z
 
 export const InboxRuleSuggestionOutputSchema = z
   .object({
+    transactionType: z.enum(inboxRuleTransactionTypes).nullable(),
     categoryId: z.uuid().nullable(),
     personId: z.uuid().nullable(),
     paymentMethod: z.enum(paymentMethods).nullable(),

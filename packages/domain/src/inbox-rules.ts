@@ -8,6 +8,10 @@ export const inboxRulePriorityMinimum = 0;
 export const inboxRulePriorityMaximum = 9_999;
 
 export const inboxRuleMatchModes = ["all", "any"] as const;
+/** Transaction types a rule can suggest; without one, captures are reviewed as expenses. */
+export const inboxRuleTransactionTypes = ["expense", "income"] as const;
+export type InboxRuleTransactionType = (typeof inboxRuleTransactionTypes)[number];
+export const defaultInboxTransactionType: InboxRuleTransactionType = "expense";
 export type InboxRuleMatchMode = (typeof inboxRuleMatchModes)[number];
 
 export const inboxRuleTextConditionFields = [
@@ -54,6 +58,8 @@ export type InboxRuleDraftInput = {
   isActive: boolean;
   matchMode: InboxRuleMatchMode;
   conditions: InboxRuleCondition[];
+  /** Null keeps the default (expense); the category must belong to the effective type. */
+  transactionType: InboxRuleTransactionType | null;
   categoryId: string | null;
   personId: string | null;
   /** Credit card rules may name a card; every other payment method may name an account. */
@@ -76,6 +82,7 @@ export type InboxRuleMatchItem = {
 };
 
 export const inboxRuleAppliedFields = [
+  "transactionType",
   "categoryId",
   "personId",
   "paymentMethod",
@@ -85,6 +92,7 @@ export const inboxRuleAppliedFields = [
 export type InboxRuleAppliedField = (typeof inboxRuleAppliedFields)[number];
 
 export type InboxRuleResolution = {
+  transactionType: InboxRuleTransactionType | null;
   categoryId: string | null;
   personId: string | null;
   /** Payment method with its card or account, always filled together by one rule. */
@@ -140,7 +148,7 @@ export function createInboxRuleDraft(input: InboxRuleDraftInput): InboxRuleDraft
       "Only credit card rules can fill a card and only other payment methods can fill an account",
     );
   }
-  if (!input.categoryId && !input.personId && !input.paymentMethod) {
+  if (!input.transactionType && !input.categoryId && !input.personId && !input.paymentMethod) {
     throw new InboxRuleError(
       "inbox_rule_actions_required",
       "Inbox rule must fill at least one field",
@@ -169,11 +177,17 @@ export function isValidInboxRulePaymentTarget(
   return input.cardId === null;
 }
 
+/** Type whose categories a rule may fill: its own type, or the default expense. */
+export function getInboxRuleEffectiveType(rule: Pick<InboxRuleDraftInput, "transactionType">) {
+  return rule.transactionType ?? defaultInboxTransactionType;
+}
+
 export function resolveInboxRules(
   item: InboxRuleMatchItem,
   rules: InboxRuleCandidate[],
 ): InboxRuleResolution {
   const resolution: InboxRuleResolution = {
+    transactionType: null,
     categoryId: null,
     personId: null,
     paymentMethod: null,
@@ -188,11 +202,20 @@ export function resolveInboxRules(
       left.id.localeCompare(right.id),
   );
 
-  for (const rule of orderedRules) {
-    if (!rule.isActive || !matchesRule(item, rule)) continue;
+  const matchingRules = orderedRules.filter((rule) => rule.isActive && matchesRule(item, rule));
+  // The type is decided first so categories from rules of the other type are never mixed in.
+  const typeRule = matchingRules.find((rule) => rule.transactionType !== null);
+  resolution.transactionType = typeRule?.transactionType ?? null;
+  const resolvedType = resolution.transactionType ?? defaultInboxTransactionType;
 
+  for (const rule of matchingRules) {
     const fields: InboxRuleAppliedField[] = [];
-    if (resolution.categoryId === null && rule.categoryId) {
+    if (rule === typeRule) fields.push("transactionType");
+    if (
+      resolution.categoryId === null &&
+      rule.categoryId &&
+      getInboxRuleEffectiveType(rule) === resolvedType
+    ) {
       resolution.categoryId = rule.categoryId;
       fields.push("categoryId");
     }
@@ -211,12 +234,6 @@ export function resolveInboxRules(
     if (fields.length > 0) {
       resolution.appliedRules.push({ id: rule.id, name: rule.name, fields });
     }
-    if (
-      resolution.categoryId !== null &&
-      resolution.personId !== null &&
-      resolution.paymentMethod !== null
-    )
-      break;
   }
 
   return resolution;

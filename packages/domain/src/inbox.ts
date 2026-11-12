@@ -2,6 +2,25 @@ export const inboxItemStatuses = ["pending", "processed", "discarded"] as const;
 export const inboxClearableStatuses = ["processed", "discarded"] as const;
 
 export type InboxItemStatus = (typeof inboxItemStatuses)[number];
+
+/** Why a capture was discarded without the user acting on it. */
+export const inboxDiscardReasons = ["duplicate"] as const;
+export type InboxDiscardReason = (typeof inboxDiscardReasons)[number];
+
+/**
+ * Initial state of a new capture. A capture whose whole content (app, app name, title, text,
+ * notification time, identified name and amount) equals an existing capture of the same user is a
+ * duplicate and enters discarded; any different field makes it a new pending capture.
+ */
+export function getInboxCaptureInitialState(input: { hasIdenticalCapture: boolean; now: Date }) {
+  return input.hasIdenticalCapture
+    ? {
+        status: "discarded" as const,
+        discardedAt: input.now,
+        discardReason: "duplicate" as const,
+      }
+    : { status: "pending" as const, discardedAt: null, discardReason: null };
+}
 export type InboxClearableStatus = (typeof inboxClearableStatuses)[number];
 
 export const inboxSourceAppMaximumLength = 255;

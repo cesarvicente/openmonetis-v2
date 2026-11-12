@@ -49,6 +49,13 @@ export function InboxItemCard({
     ? `${sourceMatch.kind === "card" ? "Cartão" : "Conta"} · ${sourceMatch.name}`
     : (item.sourceAppName ?? "App financeiro");
 
+  const duplicateBadge =
+    item.discardReason === "duplicate" ? (
+      <Badge title="Descartada automaticamente: igual a outra captura" variant="destructive">
+        Duplicada
+      </Badge>
+    ) : null;
+
   function rulePersonAvatar(ruleId: string) {
     const person = peopleByRuleId.get(ruleId);
     if (!person) return null;
@@ -78,6 +85,7 @@ export function InboxItemCard({
               <p className="mt-1 truncate text-muted-foreground text-xs">
                 {formatInboxTime(item.notificationTimestamp)} · {sourceLabel}
               </p>
+              {duplicateBadge ? <div className="mt-1.5">{duplicateBadge}</div> : null}
             </div>
           </div>
           {item.status === "pending" && suggestionQuery.data?.appliedRules.length ? (
@@ -125,6 +133,7 @@ export function InboxItemCard({
               </span>
             </p>
             <Badge variant="secondary">{sourceLabel}</Badge>
+            {duplicateBadge}
             {item.status === "pending"
               ? suggestionQuery.data?.appliedRules.map((rule) => (
                   <Badge

@@ -9,6 +9,12 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 
 ### Adicionado
 
+- Regras da Caixa de entrada podem definir o **Tipo de transação** (Despesa ou Receita). Sem regra
+  ou sem tipo definido, a revisão continua abrindo como Despesa; com uma regra de Receita, abre como
+  Receita e só aceita categorias de receita.
+- Capturas duplicadas são descartadas ao entrar na Caixa de entrada quando app, nome do app, título,
+  texto, horário, nome identificado e valor são todos iguais a outra captura do usuário. Elas aparecem
+  em Descartados com a tag "Duplicada" e podem ser restauradas.
 - Paletas de cores em Ajustes > Aparência: Sépia (padrão), Grafite, Azul, Verde, Violeta, Rosé, Nord
   e Catppuccin. Cada paleta tem versão clara e escura, e o botão de tema do topo continua alternando
   entre elas. A escolha fica salva nas preferências (`colorTheme`). Ao escolher uma paleta, ela é
@@ -40,6 +46,9 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 
 ### Notas de atualização
 
+- Migrations `0025_inbox_rule_transaction_type` (coluna `inbox_rules.transaction_type`) e
+  `0026_inbox_duplicate_captures` (coluna `inbox_items.discard_reason` e índice por
+  `payload_fingerprint`). Capturas já existentes não são reclassificadas.
 - Migration `0024_user_color_theme` adiciona `user_preferences.color_theme` (padrão `sepia`).
 - Migrations `0021_inbox_rule_payment_target`, `0022_inbox_rule_payment_method` e
   `0023_inbox_rule_optional_payment_target` adicionam `card_id`, `account_id` e `payment_method` a
