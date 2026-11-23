@@ -20,6 +20,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { DashboardWidget } from "@/features/dashboard/components/dashboard-widget";
 import { DashboardWidgetEmptyState } from "@/features/dashboard/components/dashboard-widget-empty-state";
 import { dashboardWidgetFooterNavigationLinkClassName } from "@/features/dashboard/components/dashboard-widget-footer-link";
+import { useDashboardWidgetItems } from "@/features/dashboard/components/dashboard-widget-layout";
 import { DashboardWidgetRow } from "@/features/dashboard/components/dashboard-widget-row";
 import {
   useCreateNoteMutation,
@@ -32,8 +33,6 @@ import { notesDashboardQueryOptions } from "../notes.queries";
 import { NoteDetailsDialog } from "./note-details-dialog";
 import { NoteDialog } from "./note-dialog";
 
-const maximumVisibleNotes = 4;
-
 export function NotesWidget() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingNote, setEditingNote] = useState<NoteOutput | null>(null);
@@ -44,6 +43,9 @@ export function NotesWidget() {
   const completionMutation = useSetNoteItemCompletionMutation();
   const taskCompletionMutation = useSetTaskCompletionMutation();
   const notes = query.data?.items ?? [];
+  const { visibleItems } = useDashboardWidgetItems(notes, {
+    structure: notes.some((note) => note.kind === "checklist") ? "progress" : "details",
+  });
   const viewingNote = notes.find((note) => note.id === viewingNoteId) ?? null;
   const pendingItemId = completionMutation.isPending
     ? completionMutation.variables?.itemId
@@ -109,7 +111,7 @@ export function NotesWidget() {
         footer={
           notes.length > 0 ? (
             <Link className={dashboardWidgetFooterNavigationLinkClassName} to="/notes">
-              Ver anotações <ArrowRight aria-hidden="true" className="size-4" />
+              Ver anotações <ArrowRight aria-hidden="true" className="size-3.5" />
             </Link>
           ) : undefined
         }
@@ -141,11 +143,7 @@ export function NotesWidget() {
               title="Nenhuma anotação ativa"
             />
           ) : (
-            <NotesWidgetList
-              notes={notes.slice(0, maximumVisibleNotes)}
-              onEdit={openEdit}
-              onOpen={setViewingNoteId}
-            />
+            <NotesWidgetList notes={visibleItems} onEdit={openEdit} onOpen={setViewingNoteId} />
           )
         ) : null}
       </DashboardWidget>
@@ -195,7 +193,7 @@ function NotesWidgetList({
             key={note.id}
             structure={checklist ? "progress" : "details"}
           >
-            <span className="grid size-9 shrink-0 place-items-center rounded-full bg-muted text-muted-foreground">
+            <span className="grid size-8 shrink-0 place-items-center rounded-full bg-muted text-muted-foreground">
               {checklist ? (
                 <CheckSquare2 aria-hidden="true" className="size-4" />
               ) : task ? (
@@ -213,7 +211,7 @@ function NotesWidgetList({
                 {note.title}
               </button>
               {checklist ? (
-                <div className="mt-1 grid gap-1">
+                <div className="grid gap-1">
                   <p className="truncate text-muted-foreground text-xs">
                     {getChecklistProgressLabel(note)}
                   </p>
@@ -269,7 +267,7 @@ function NotesWidgetLoading() {
   return (
     <div aria-label="Carregando anotações" className="grid gap-3" role="status">
       {["first", "second", "third", "fourth"].map((key) => (
-        <Skeleton className="h-16 w-full" key={key} />
+        <Skeleton className="h-12 w-full" key={key} />
       ))}
     </div>
   );

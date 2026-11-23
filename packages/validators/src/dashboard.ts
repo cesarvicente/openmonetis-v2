@@ -1,6 +1,10 @@
 import { z } from "@hono/zod-openapi";
 import { accountTypes } from "@openmonetis/domain/accounts";
-import { dashboardWidgetIds } from "@openmonetis/domain/dashboard";
+import {
+  dashboardGridColumns,
+  dashboardWidgetIds,
+  dashboardWidgetSpan,
+} from "@openmonetis/domain/dashboard";
 import { paymentMethods, transactionConditions } from "@openmonetis/domain/transactions";
 
 const periodSchema = z.string().regex(/^[1-9]\d{3}-(0[1-9]|1[0-2])$/);
@@ -27,14 +31,38 @@ export const DashboardQuerySchema = z
 
 export const DashboardWidgetIdSchema = z.enum(dashboardWidgetIds);
 
+const dashboardColumnsSchema = z
+  .number()
+  .int()
+  .min(dashboardGridColumns.min)
+  .max(dashboardGridColumns.max);
+const dashboardSpanSchema = z
+  .number()
+  .int()
+  .min(dashboardWidgetSpan.min)
+  .max(dashboardWidgetSpan.max);
+
+export const DashboardWidgetLayoutSchema = z
+  .object({
+    autoHeight: z.boolean(),
+    height: dashboardSpanSchema,
+    scroll: z.boolean(),
+    width: dashboardSpanSchema,
+  })
+  .strict()
+  .openapi("DashboardWidgetLayout");
+
 export const DashboardWidgetPreferencesInputSchema = z
   .object({
     order: z.array(DashboardWidgetIdSchema).max(dashboardWidgetIds.length),
     hidden: z.array(DashboardWidgetIdSchema).max(dashboardWidgetIds.length),
+    columns: dashboardColumnsSchema.optional(),
+    layouts: z.partialRecord(DashboardWidgetIdSchema, DashboardWidgetLayoutSchema).optional(),
   })
   .strict()
   .superRefine((preferences, context) => {
-    for (const [field, values] of Object.entries(preferences)) {
+    for (const field of ["order", "hidden"] as const) {
+      const values = preferences[field];
       if (new Set(values).size !== values.length) {
         context.addIssue({
           code: "custom",
@@ -50,6 +78,8 @@ export const DashboardWidgetPreferencesOutputSchema = z
   .object({
     order: z.array(DashboardWidgetIdSchema).length(dashboardWidgetIds.length),
     hidden: z.array(DashboardWidgetIdSchema).max(dashboardWidgetIds.length),
+    columns: dashboardColumnsSchema,
+    layouts: z.record(DashboardWidgetIdSchema, DashboardWidgetLayoutSchema),
   })
   .openapi("DashboardWidgetPreferences");
 

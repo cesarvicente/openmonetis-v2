@@ -9,6 +9,9 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 
 ### Adicionado
 
+- "Personalizar dashboard" define as colunas do mosaico (1 a 4) e, em cada card, a largura, a altura, a
+  altura responsiva (cresce com o conteúdo até o limite) e a barra de rolagem no lugar de "Ver mais".
+  Uma largura maior que o mosaico é limitada só na exibição e volta quando ele tiver colunas suficientes.
 - Novos usuários (e quem redefine os dados) recebem categorias padrão com subcategorias. Quem já tem
   conta não é afetado.
 - Ícones de roupas e calçados no grupo "Geral" (calça, short, camisa, vestido, casaco, roupa íntima,
@@ -81,6 +84,8 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 
 ### Alterado
 
+- Os cards do dashboard ficaram mais compactos, com a mesma quantidade de itens, e o painel de
+  personalização ficou mais largo.
 - Em Ajustes > Aparência, o modo claro, escuro ou do sistema também é aplicado na hora como prévia; sem
   salvar, o anterior volta ao sair dos ajustes.
 - O seletor de categoria é o mesmo nos lançamentos e nas regras da Caixa de entrada, que passam a ter

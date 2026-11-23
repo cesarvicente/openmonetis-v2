@@ -54,11 +54,15 @@ export function DashboardDistributionChart({
   return (
     <div
       className={cn(
-        "flex w-full flex-col items-center gap-4 sm:flex-row",
+        "flex min-h-0 w-full flex-1 flex-col items-stretch gap-2 @sm:flex-row @sm:items-center",
         isPrivacyModeEnabled && "pointer-events-none blur-sm select-none",
       )}
     >
-      <ChartContainer aria-label={label} className="h-64 min-w-0 flex-1" config={chartConfig}>
+      <ChartContainer
+        aria-label={label}
+        className="aspect-auto min-h-0 min-w-0 flex-1 @sm:h-full"
+        config={chartConfig}
+      >
         <PieChart accessibilityLayer>
           <Pie
             data={chartData}
@@ -68,7 +72,7 @@ export function DashboardDistributionChart({
             }
             labelLine={false}
             nameKey="key"
-            outerRadius={75}
+            outerRadius="62%"
           />
           <Tooltip
             content={({ active, payload }) => {
@@ -94,7 +98,7 @@ export function DashboardDistributionChart({
         </PieChart>
       </ChartContainer>
 
-      <div className="grid w-full grid-cols-2 gap-2 sm:w-auto sm:min-w-35 sm:grid-cols-1">
+      <div className="grid w-full grid-cols-2 gap-x-2 gap-y-0.5 @sm:w-auto @sm:min-w-35 @sm:grid-cols-1 @sm:gap-2">
         {chartData.map((entry) => (
           <div className="flex items-center gap-2" key={entry.key}>
             <ChartLegendMarker color={entry.fill} />

@@ -30,13 +30,13 @@ export function DashboardWidgetListSheet({
       <SheetTrigger
         render={
           <Button
-            className="mr-auto h-auto px-0 py-0 font-normal text-muted-foreground text-sm"
+            className="mr-auto h-auto px-0 py-0 font-normal text-muted-foreground text-xs"
             size="sm"
             variant="link"
           />
         }
       >
-        <List aria-hidden="true" className="size-4" />
+        <List aria-hidden="true" className="size-3.5" />
         {triggerLabel}
       </SheetTrigger>
       <SheetContent className="w-full sm:max-w-md">

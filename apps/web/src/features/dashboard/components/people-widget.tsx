@@ -16,20 +16,21 @@ import { DashboardItemLinkArrow } from "./dashboard-item-link-arrow";
 import { DashboardWidget } from "./dashboard-widget";
 import { DashboardWidgetEmptyState } from "./dashboard-widget-empty-state";
 import { dashboardWidgetFooterNavigationLinkClassName } from "./dashboard-widget-footer-link";
+import { useDashboardWidgetItems } from "./dashboard-widget-layout";
 import { DashboardWidgetListSheet } from "./dashboard-widget-list-sheet";
 import { DashboardWidgetRow } from "./dashboard-widget-row";
 
 type PersonExpense = DashboardPeopleExpensesOutput["items"][number];
 
-const maximumVisiblePeople = 4;
 const peopleSkeletonKeys = ["first", "second", "third", "fourth"] as const;
 
 export function PeopleWidget({ period }: { period: string }) {
   const [isListOpen, setIsListOpen] = useState(false);
   const query = useQuery(dashboardPeopleExpensesQueryOptions(period));
   const people = query.data?.items ?? [];
-  const visiblePeople = people.slice(0, maximumVisiblePeople);
-  const hiddenCount = Math.max(0, people.length - visiblePeople.length);
+  const { hiddenCount, visibleItems: visiblePeople } = useDashboardWidgetItems(people, {
+    structure: "progress",
+  });
 
   return (
     <DashboardWidget
@@ -51,7 +52,7 @@ export function PeopleWidget({ period }: { period: string }) {
               <span />
             )}
             <Link className={dashboardWidgetFooterNavigationLinkClassName} to="/people">
-              Ver pessoas <ArrowRight aria-hidden="true" className="size-4" />
+              Ver pessoas <ArrowRight aria-hidden="true" className="size-3.5" />
             </Link>
           </div>
         ) : undefined
@@ -79,7 +80,7 @@ function PeopleList({ people }: { people: PersonExpense[] }) {
     <ol className="divide-y">
       {people.map((person) => (
         <DashboardWidgetRow key={person.personId} structure="progress">
-          <Avatar className="size-9 overflow-hidden">
+          <Avatar className="size-8 overflow-hidden">
             {person.personAvatarUrl ? (
               <AvatarImage
                 alt={`Avatar de ${person.personName}`}
@@ -89,7 +90,7 @@ function PeopleList({ people }: { people: PersonExpense[] }) {
             ) : null}
             <AvatarFallback>{getInitials(person.personName)}</AvatarFallback>
           </Avatar>
-          <div className="grid min-w-0 flex-1 gap-2">
+          <div className="grid min-w-0 flex-1 grid-cols-1 gap-1">
             <div className="flex items-center gap-3">
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1.5">
@@ -106,13 +107,13 @@ function PeopleList({ people }: { people: PersonExpense[] }) {
                     <span className="shrink-0 text-muted-foreground text-[0.65rem]">Inativa</span>
                   ) : null}
                 </div>
-                <p className="mt-0.5 truncate text-muted-foreground text-xs">
+                <p className="truncate text-muted-foreground text-xs">
                   {formatDashboardTransactionCount(person.count)}
                 </p>
               </div>
               <div className="shrink-0 text-right">
                 <MoneyValue amount={person.amount} className="font-medium text-sm" />
-                <p className="mt-0.5 text-muted-foreground text-xs tabular-nums">
+                <p className="text-muted-foreground text-xs tabular-nums">
                   {formatPercentage(person.percentage)}%
                 </p>
               </div>
@@ -134,7 +135,7 @@ function PeopleLoading() {
   return (
     <div aria-label="Carregando despesas por pessoa" className="grid gap-3" role="status">
       {peopleSkeletonKeys.map((key) => (
-        <Skeleton className="h-20 w-full" key={key} />
+        <Skeleton className="h-15 w-full" key={key} />
       ))}
     </div>
   );

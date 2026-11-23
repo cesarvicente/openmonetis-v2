@@ -16,14 +16,13 @@ import { DashboardItemLinkArrow } from "./dashboard-item-link-arrow";
 import { DashboardWidget } from "./dashboard-widget";
 import { DashboardWidgetEmptyState } from "./dashboard-widget-empty-state";
 import { dashboardWidgetFooterNavigationLinkClassName } from "./dashboard-widget-footer-link";
+import { useDashboardWidgetItems } from "./dashboard-widget-layout";
 import { DashboardWidgetListSheet } from "./dashboard-widget-list-sheet";
 import { DashboardWidgetRow } from "./dashboard-widget-row";
 import { DashboardWidgetViewToggle } from "./dashboard-widget-view-toggle";
 
 type CategoryBreakdownItem = DashboardCategoryBreakdownOutput["expenses"][number];
 type CategoryBreakdownVariant = "expense" | "income";
-
-const maximumVisibleCategories = 4;
 
 const variantContent = {
   expense: {
@@ -57,8 +56,10 @@ export function CategoryBreakdownWidget({
   const adminPersonSlug = useAdminPersonSlug();
   const config = variantContent[variant];
   const items = query.data?.[variant === "expense" ? "expenses" : "income"] ?? [];
-  const visibleItems = items.slice(0, maximumVisibleCategories);
-  const hiddenCount = Math.max(0, items.length - visibleItems.length);
+  const { hiddenCount, visibleItems } = useDashboardWidgetItems(items, {
+    active: activeView === "list",
+    structure: "progress",
+  });
 
   return (
     <DashboardWidget
@@ -98,7 +99,7 @@ export function CategoryBreakdownWidget({
                 search={{ people: adminPersonSlug, period, type: variant }}
                 to="/transactions"
               >
-                Ver {config.itemLabel} <ArrowRight aria-hidden="true" className="size-4" />
+                Ver {config.itemLabel} <ArrowRight aria-hidden="true" className="size-3.5" />
               </Link>
             ) : null}
           </div>
@@ -117,7 +118,7 @@ export function CategoryBreakdownWidget({
             title={config.emptyTitle}
           />
         ) : activeView === "chart" ? (
-          <div aria-busy={query.isFetching} className="flex flex-1 items-center">
+          <div aria-busy={query.isFetching} className="flex min-h-0 flex-1">
             <CategoryBreakdownChart
               items={items}
               percentageDigits={variant === "expense" ? 0 : 1}
@@ -153,10 +154,10 @@ function CategoryBreakdownList({
     <ol className="divide-y">
       {items.map((item) => (
         <DashboardWidgetRow key={item.categoryId} structure="progress">
-          <span className="grid size-9 shrink-0 place-items-center rounded-full bg-muted text-muted-foreground">
+          <span className="grid size-8 shrink-0 place-items-center rounded-full bg-muted text-muted-foreground">
             <CategoryIcon className="size-4" name={item.categoryIcon} />
           </span>
-          <div className="grid min-w-0 flex-1 gap-2">
+          <div className="grid min-w-0 flex-1 grid-cols-1 gap-1">
             <div className="flex items-center gap-3">
               <div className="min-w-0 flex-1">
                 <Link
@@ -168,13 +169,13 @@ function CategoryBreakdownList({
                   <span className="truncate">{item.categoryName}</span>
                   <DashboardItemLinkArrow />
                 </Link>
-                <p className="mt-0.5 truncate text-muted-foreground text-xs">
+                <p className="truncate text-muted-foreground text-xs">
                   {formatDashboardTransactionCount(item.count)}
                 </p>
               </div>
               <div className="shrink-0 text-right">
                 <MoneyValue amount={item.amount} className="font-medium text-sm" />
-                <p className="mt-0.5 text-muted-foreground text-xs tabular-nums">
+                <p className="text-muted-foreground text-xs tabular-nums">
                   {formatPercentage(item.percentage)}%
                 </p>
               </div>
@@ -196,7 +197,7 @@ function CategoryBreakdownLoading() {
   return (
     <div aria-label="Carregando categorias" className="grid gap-3" role="status">
       {["first", "second", "third", "fourth"].map((key) => (
-        <Skeleton className="h-20 w-full" key={key} />
+        <Skeleton className="h-15 w-full" key={key} />
       ))}
     </div>
   );

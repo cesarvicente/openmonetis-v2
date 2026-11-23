@@ -29,7 +29,11 @@ import { dashboardCategoryBreakdownQueryOptions } from "../dashboard.queries";
 import { DashboardWidget } from "./dashboard-widget";
 import { DashboardWidgetEmptyState } from "./dashboard-widget-empty-state";
 import { dashboardWidgetFooterNavigationLinkClassName } from "./dashboard-widget-footer-link";
+import { useDashboardWidgetItems } from "./dashboard-widget-layout";
 import { DashboardWidgetRow } from "./dashboard-widget-row";
+
+/** Altura do seletor de categoria com o espaçamento. */
+const categorySelectRem = 2.75;
 
 type CategoryOption = DashboardCategoryBreakdownOutput["expenses"][number] & {
   type: "expense" | "income";
@@ -51,11 +55,14 @@ export function CategoryTransactionsWidget({ period }: { period: string }) {
   const transactionsQuery = useQuery({
     ...transactionsQueryOptions({
       categoryIds: selectedCategory ? [selectedCategory.categoryId] : [],
-      pageSize: 5,
+      pageSize: 50,
       period,
       personIds: adminPerson ? [adminPerson.id] : [],
     }),
     enabled: Boolean(selectedCategory && adminPerson),
+  });
+  const { visibleItems } = useDashboardWidgetItems(transactionsQuery.data?.items ?? [], {
+    reservedRem: categorySelectRem,
   });
   const initialLoading = categoriesQuery.isLoading || peopleQuery.isLoading;
   const initialError = categoriesQuery.isError || peopleQuery.isError;
@@ -77,7 +84,7 @@ export function CategoryTransactionsWidget({ period }: { period: string }) {
               search={{ period }}
               to="/categories/$categoryId"
             >
-              Ver histórico <ArrowRight aria-hidden="true" className="size-4" />
+              Ver histórico <ArrowRight aria-hidden="true" className="size-3.5" />
             </Link>
           </div>
         ) : undefined
@@ -98,7 +105,7 @@ export function CategoryTransactionsWidget({ period }: { period: string }) {
         <CategoryTransactionsEmpty />
       ) : null}
       {!initialLoading && !initialError && selectedCategory ? (
-        <div className="flex flex-1 flex-col gap-3">
+        <div className="flex flex-1 flex-col gap-1 pt-1">
           <CategorySelect
             groups={categoryGroups}
             onValueChange={setSelectedCategoryId}
@@ -111,7 +118,7 @@ export function CategoryTransactionsWidget({ period }: { period: string }) {
           ) : null}
           {transactionsQuery.data && !transactionsQuery.isError ? (
             transactionsQuery.data.items.length ? (
-              <TransactionRows items={transactionsQuery.data.items.slice(0, 4)} />
+              <TransactionRows items={visibleItems} />
             ) : (
               <DashboardWidgetEmptyState
                 description="Os lançamentos da categoria aparecerão aqui."
@@ -181,7 +188,7 @@ function TransactionRows({ items }: { items: TransactionOutput[] }) {
           <EstablishmentLogo
             categoryIcon={transaction.categoryIcon}
             name={transaction.name}
-            size={36}
+            size={32}
           />
           <div className="min-w-0 flex-1">
             <p className="truncate font-medium text-sm">{transaction.name}</p>
@@ -209,7 +216,7 @@ function CategoryTransactionsLoading() {
     <div aria-label="Carregando lançamentos por categoria" className="grid gap-3" role="status">
       <Skeleton className="h-9 w-full" />
       {transactionSkeletonKeys.map((key) => (
-        <Skeleton className="h-16 w-full" key={key} />
+        <Skeleton className="h-12 w-full" key={key} />
       ))}
     </div>
   );
@@ -219,7 +226,7 @@ function TransactionRowsLoading() {
   return (
     <div aria-label="Carregando lançamentos" className="grid gap-2" role="status">
       {transactionSkeletonKeys.map((key) => (
-        <Skeleton className="h-16 w-full" key={key} />
+        <Skeleton className="h-12 w-full" key={key} />
       ))}
     </div>
   );

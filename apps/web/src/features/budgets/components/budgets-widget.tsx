@@ -13,6 +13,7 @@ import { DashboardItemLinkArrow } from "@/features/dashboard/components/dashboar
 import { DashboardWidget } from "@/features/dashboard/components/dashboard-widget";
 import { DashboardWidgetEmptyState } from "@/features/dashboard/components/dashboard-widget-empty-state";
 import { dashboardWidgetFooterNavigationLinkClassName } from "@/features/dashboard/components/dashboard-widget-footer-link";
+import { useDashboardWidgetItems } from "@/features/dashboard/components/dashboard-widget-layout";
 import { DashboardWidgetListSheet } from "@/features/dashboard/components/dashboard-widget-list-sheet";
 import { DashboardWidgetRow } from "@/features/dashboard/components/dashboard-widget-row";
 import { cn } from "@/lib/utils";
@@ -25,16 +26,13 @@ import {
 import { budgetsQueryOptions } from "../budgets.queries";
 import { BudgetDialog } from "./budget-dialog";
 
-const maximumVisibleBudgets = 4;
-
 export function BudgetsWidget({ period }: { period: string }) {
   const query = useQuery(budgetsQueryOptions(period));
   const updateMutation = useUpdateBudgetMutation();
   const [listOpen, setListOpen] = useState(false);
   const [editingBudget, setEditingBudget] = useState<BudgetOutput | null>(null);
   const items = getBudgetWidgetItems(query.data?.items ?? []);
-  const visibleItems = items.slice(0, maximumVisibleBudgets);
-  const hiddenCount = Math.max(0, items.length - maximumVisibleBudgets);
+  const { hiddenCount, visibleItems } = useDashboardWidgetItems(items, { structure: "progress" });
 
   const editBudget = (budget: BudgetOutput) => {
     setListOpen(false);
@@ -64,7 +62,7 @@ export function BudgetsWidget({ period }: { period: string }) {
                 search={{ period }}
                 to="/budgets"
               >
-                Ver orçamentos <ArrowRight aria-hidden="true" className="size-4" />
+                Ver orçamentos <ArrowRight aria-hidden="true" className="size-3.5" />
               </Link>
             </div>
           ) : (
@@ -73,7 +71,7 @@ export function BudgetsWidget({ period }: { period: string }) {
               search={{ period }}
               to="/budgets"
             >
-              Criar orçamento <ArrowRight aria-hidden="true" className="size-4" />
+              Criar orçamento <ArrowRight aria-hidden="true" className="size-3.5" />
             </Link>
           )
         }
@@ -164,10 +162,10 @@ function BudgetProgressRow({
 
   return (
     <DashboardWidgetRow structure="progress">
-      <span className="grid size-9 shrink-0 place-items-center rounded-full bg-muted text-muted-foreground">
+      <span className="grid size-8 shrink-0 place-items-center rounded-full bg-muted text-muted-foreground">
         <CategoryIcon className="size-4" name={budget.categoryIcon} />
       </span>
-      <div className="grid min-w-0 flex-1 gap-2">
+      <div className="grid min-w-0 flex-1 grid-cols-1 gap-1">
         <div className="min-w-0">
           <div className="flex items-center justify-between gap-3">
             <Link
@@ -192,7 +190,7 @@ function BudgetProgressRow({
               </span>
               <Button
                 aria-label={`Editar orçamento de ${budget.categoryName}`}
-                className="size-7 text-muted-foreground"
+                className="size-6 text-muted-foreground"
                 onClick={() => onEdit(budget)}
                 size="icon-sm"
                 type="button"
@@ -202,7 +200,7 @@ function BudgetProgressRow({
               </Button>
             </span>
           </div>
-          <p className="mt-0.5 truncate text-muted-foreground text-xs">
+          <p className="truncate text-muted-foreground text-xs">
             <MoneyValue amount={budget.committedAmount} className="text-xs" /> de{" "}
             <MoneyValue amount={budget.amount} className="text-xs" />
             <span aria-hidden="true"> · </span>
@@ -241,7 +239,7 @@ function BudgetsWidgetLoading() {
       {["first", "second", "third", "fourth"].map((key) => (
         <div className="grid gap-2" key={key}>
           <div className="flex items-center gap-3">
-            <Skeleton className="size-9 rounded-full" />
+            <Skeleton className="size-8 rounded-full" />
             <Skeleton className="h-8 flex-1" />
           </div>
           <div className="ml-12">

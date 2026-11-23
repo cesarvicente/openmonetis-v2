@@ -44,6 +44,8 @@ export type DashboardWidgetDefinition = {
   description: string;
   icon: LucideIcon;
   id: DashboardWidgetId;
+  /** Falso para widgets sem lista, que não usam altura responsiva nem barra de rolagem. */
+  isList: boolean;
   render: (period: string) => ReactNode;
   title: string;
 };
@@ -54,6 +56,7 @@ export const dashboardWidgetRegistry: readonly DashboardWidgetDefinition[] = [
     title: "Minhas contas",
     description: "Saldos disponíveis e consolidado",
     icon: Landmark,
+    isList: true,
     render: (period) => <MyAccountsWidget period={period} />,
   },
   {
@@ -61,6 +64,7 @@ export const dashboardWidgetRegistry: readonly DashboardWidgetDefinition[] = [
     title: "Minhas faturas",
     description: "Resumo das faturas do período",
     icon: CreditCard,
+    isList: true,
     render: (period) => <InvoicesWidget period={period} />,
   },
   {
@@ -68,6 +72,7 @@ export const dashboardWidgetRegistry: readonly DashboardWidgetDefinition[] = [
     title: "Contas a pagar",
     description: "Vencimentos e pagamentos do período",
     icon: ReceiptText,
+    isList: true,
     render: (period) => <BillsWidget period={period} />,
   },
   {
@@ -75,6 +80,7 @@ export const dashboardWidgetRegistry: readonly DashboardWidgetDefinition[] = [
     title: "Status de pagamento",
     description: "Valores confirmados e pendentes",
     icon: CircleDollarSign,
+    isList: false,
     render: (period) => <PaymentStatusWidget period={period} />,
   },
   {
@@ -82,6 +88,7 @@ export const dashboardWidgetRegistry: readonly DashboardWidgetDefinition[] = [
     title: "Caixa de entrada",
     description: "Capturas e itens pendentes de revisão",
     icon: FileClock,
+    isList: true,
     render: () => <InboxWidget />,
   },
   {
@@ -89,6 +96,7 @@ export const dashboardWidgetRegistry: readonly DashboardWidgetDefinition[] = [
     title: "Acertos por pessoas",
     description: "Valores a receber e créditos do mês",
     icon: HandCoins,
+    isList: true,
     render: (period) => <PersonSettlementsWidget period={period} />,
   },
   {
@@ -96,6 +104,7 @@ export const dashboardWidgetRegistry: readonly DashboardWidgetDefinition[] = [
     title: "Receitas, despesas e resultado",
     description: "Evolução dos últimos seis meses",
     icon: ChartNoAxesCombined,
+    isList: false,
     render: (period) => <IncomeExpenseBalanceWidget period={period} />,
   },
   {
@@ -103,6 +112,7 @@ export const dashboardWidgetRegistry: readonly DashboardWidgetDefinition[] = [
     title: "Orçamentos",
     description: "Progresso por categoria no período",
     icon: FolderKanban,
+    isList: true,
     render: (period) => <BudgetsWidget period={period} />,
   },
   {
@@ -110,6 +120,7 @@ export const dashboardWidgetRegistry: readonly DashboardWidgetDefinition[] = [
     title: "Metas",
     description: "Progresso dos objetivos ativos",
     icon: Goal,
+    isList: true,
     render: () => <GoalsWidget />,
   },
   {
@@ -117,6 +128,7 @@ export const dashboardWidgetRegistry: readonly DashboardWidgetDefinition[] = [
     title: "Tendências de categorias",
     description: "Maiores variações contra o mês anterior",
     icon: Target,
+    isList: true,
     render: (period) => <CategoryTrendsWidget period={period} />,
   },
   {
@@ -124,6 +136,7 @@ export const dashboardWidgetRegistry: readonly DashboardWidgetDefinition[] = [
     title: "Despesas por categoria",
     description: "Distribuição das despesas do período",
     icon: PieChart,
+    isList: true,
     render: (period) => <CategoryBreakdownWidget period={period} variant="expense" />,
   },
   {
@@ -131,6 +144,7 @@ export const dashboardWidgetRegistry: readonly DashboardWidgetDefinition[] = [
     title: "Receitas por categoria",
     description: "Distribuição das receitas do período",
     icon: PieChart,
+    isList: true,
     render: (period) => <CategoryBreakdownWidget period={period} variant="income" />,
   },
   {
@@ -138,6 +152,7 @@ export const dashboardWidgetRegistry: readonly DashboardWidgetDefinition[] = [
     title: "Lançamentos por categoria",
     description: "Categorias com maior movimentação",
     icon: Tags,
+    isList: true,
     render: (period) => <CategoryTransactionsWidget period={period} />,
   },
   {
@@ -145,6 +160,7 @@ export const dashboardWidgetRegistry: readonly DashboardWidgetDefinition[] = [
     title: "Pessoas",
     description: "Despesas por pessoa no período",
     icon: Users,
+    isList: true,
     render: (period) => <PeopleWidget period={period} />,
   },
   {
@@ -152,6 +168,7 @@ export const dashboardWidgetRegistry: readonly DashboardWidgetDefinition[] = [
     title: "Condições de pagamento",
     description: "À vista, parceladas e recorrentes",
     icon: Waypoints,
+    isList: true,
     render: (period) => <PaymentConditionsWidget period={period} />,
   },
   {
@@ -159,6 +176,7 @@ export const dashboardWidgetRegistry: readonly DashboardWidgetDefinition[] = [
     title: "Formas de pagamento",
     description: "Distribuição por meio de pagamento",
     icon: WalletCards,
+    isList: true,
     render: (period) => <PaymentMethodsWidget period={period} />,
   },
   {
@@ -166,6 +184,7 @@ export const dashboardWidgetRegistry: readonly DashboardWidgetDefinition[] = [
     title: "Lançamentos parcelados",
     description: "Parcelas abertas e andamento",
     icon: CalendarClock,
+    isList: true,
     render: (period) => <InstallmentExpensesWidget period={period} />,
   },
   {
@@ -173,6 +192,7 @@ export const dashboardWidgetRegistry: readonly DashboardWidgetDefinition[] = [
     title: "Lançamentos recorrentes",
     description: "Compromissos recorrentes do período",
     icon: RefreshCcw,
+    isList: true,
     render: (period) => <RecurringExpensesWidget period={period} />,
   },
   {
@@ -180,6 +200,7 @@ export const dashboardWidgetRegistry: readonly DashboardWidgetDefinition[] = [
     title: "Anotações",
     description: "Anotações ativas mais recentes",
     icon: BookOpenText,
+    isList: true,
     render: () => <NotesWidget />,
   },
 ] as const;

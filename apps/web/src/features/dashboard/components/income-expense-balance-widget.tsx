@@ -48,7 +48,7 @@ export function IncomeExpenseBalanceWidget({ period }: { period: string }) {
             search={{ people: adminPersonSlug, period }}
             to="/transactions"
           >
-            Ver lançamentos <ArrowRight aria-hidden="true" className="size-4" />
+            Ver lançamentos <ArrowRight aria-hidden="true" className="size-3.5" />
           </Link>
         ) : undefined
       }
@@ -97,11 +97,11 @@ function FinancialHistoryChart({
   const { isPrivacyModeEnabled } = usePrivacyMode();
 
   return (
-    <div aria-busy={isFetching} className="flex flex-1 flex-col justify-center">
+    <div aria-busy={isFetching} className="flex min-h-0 flex-1 flex-col">
       <ChartContainer
         aria-label="Receitas, despesas e balanço dos últimos seis meses"
         className={cn(
-          "h-64 w-full transition-[filter]",
+          "aspect-auto min-h-0 w-full flex-1 transition-[filter]",
           isPrivacyModeEnabled && "pointer-events-none blur-sm select-none",
         )}
         config={chartConfig}
@@ -154,7 +154,7 @@ function FinancialHistoryChart({
         </ComposedChart>
       </ChartContainer>
 
-      <div className="mt-2 flex flex-wrap items-center justify-center gap-x-5 gap-y-1 text-muted-foreground text-xs">
+      <div className="mt-1 flex flex-wrap items-center justify-center gap-x-5 gap-y-1 text-muted-foreground text-xs">
         {Object.values(chartConfig).map((item) => (
           <ChartLegendItem color={item.color} key={item.label} label={item.label} />
         ))}
@@ -178,7 +178,7 @@ function ChartLegendItem({ color, label }: { color: string; label: string }) {
 function ChartLoading() {
   return (
     <div aria-label="Carregando evolução financeira" className="grid flex-1 gap-4" role="status">
-      <Skeleton className="h-64 w-full" />
+      <Skeleton className="h-48 w-full" />
       <Skeleton className="mx-auto h-4 w-48" />
     </div>
   );

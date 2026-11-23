@@ -13,6 +13,7 @@ import { DashboardItemLinkArrow } from "@/features/dashboard/components/dashboar
 import { DashboardWidget } from "@/features/dashboard/components/dashboard-widget";
 import { DashboardWidgetEmptyState } from "@/features/dashboard/components/dashboard-widget-empty-state";
 import { dashboardWidgetFooterNavigationLinkClassName } from "@/features/dashboard/components/dashboard-widget-footer-link";
+import { useDashboardWidgetItems } from "@/features/dashboard/components/dashboard-widget-layout";
 import { getInitials } from "@/lib/name-presentation";
 import { cn } from "@/lib/utils";
 import {
@@ -21,13 +22,13 @@ import {
 } from "../person-settlements.presentation";
 import { personSettlementsSummaryQueryOptions } from "../person-settlements.queries";
 
-const maximumVisiblePeople = 2;
 const skeletonKeys = ["first", "second"] as const;
 
 export function PersonSettlementsWidget({ period }: { period: string }) {
   const query = useQuery(personSettlementsSummaryQueryOptions(period));
   const summary = query.data;
   const items = summary?.items ?? [];
+  const { visibleItems } = useDashboardWidgetItems(items, { structure: "settlement" });
 
   return (
     <DashboardWidget
@@ -40,7 +41,7 @@ export function PersonSettlementsWidget({ period }: { period: string }) {
       footer={
         items.length ? (
           <Link className={dashboardWidgetFooterNavigationLinkClassName} to="/people">
-            Ver pessoas <ArrowRight aria-hidden="true" className="size-4" />
+            Ver pessoas <ArrowRight aria-hidden="true" className="size-3.5" />
           </Link>
         ) : undefined
       }
@@ -67,7 +68,7 @@ export function PersonSettlementsWidget({ period }: { period: string }) {
       {summary && !query.isError ? (
         items.length ? (
           <div aria-busy={query.isFetching} className="flex flex-1 flex-col">
-            <PersonSettlementList items={items.slice(0, maximumVisiblePeople)} period={period} />
+            <PersonSettlementList items={visibleItems} period={period} />
           </div>
         ) : (
           <DashboardWidgetEmptyState
@@ -110,9 +111,9 @@ function PersonSettlementItem({
   const percentage = getSettlementProgressPercentage(balance.coveredAmount, balance.dueAmount);
 
   return (
-    <li className="grid gap-3 py-4">
+    <li className="grid h-29 content-center gap-2">
       <div className="flex items-center gap-3">
-        <Avatar className={cn("size-9 overflow-hidden", isSettled && "opacity-70")}>
+        <Avatar className={cn("size-8 overflow-hidden", isSettled && "opacity-70")}>
           {item.personAvatarUrl ? (
             <AvatarImage
               alt={`Avatar de ${item.personName}`}
@@ -137,7 +138,7 @@ function PersonSettlementItem({
               <span className="shrink-0 text-muted-foreground text-[0.65rem]">Inativa</span>
             ) : null}
           </div>
-          <p className="mt-0.5 text-muted-foreground text-xs">
+          <p className="text-muted-foreground text-xs">
             {isSettled ? "Acertado" : `${percentage}% recebido`}
           </p>
         </div>
@@ -157,7 +158,7 @@ function PersonSettlementItem({
             <ChartLegendMarker className="text-success" />
             Recebido
           </span>
-          <MoneyValue amount={balance.coveredAmount} className="mt-1 font-medium text-sm" />
+          <MoneyValue amount={balance.coveredAmount} className="font-medium text-sm" />
         </div>
         <div className="min-w-0 text-right">
           <span className="flex items-center justify-end gap-1.5 text-muted-foreground">
@@ -166,7 +167,7 @@ function PersonSettlementItem({
           </span>
           <MoneyValue
             amount={isCredit ? balance.creditAmount : balance.receivableAmount}
-            className="mt-1 font-medium text-sm"
+            className="font-medium text-sm"
           />
         </div>
       </div>
@@ -178,7 +179,7 @@ function PersonSettlementsLoading() {
   return (
     <div aria-label="Carregando acertos por pessoas" className="grid gap-3 py-3" role="status">
       {skeletonKeys.map((key) => (
-        <Skeleton className="h-32 w-full" key={key} />
+        <Skeleton className="h-29 w-full" key={key} />
       ))}
     </div>
   );

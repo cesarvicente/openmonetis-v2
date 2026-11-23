@@ -56,6 +56,8 @@ export const dashboardRepository = {
       .select({
         order: dashboardPreferences.widgetOrder,
         hidden: dashboardPreferences.hiddenWidgets,
+        columns: dashboardPreferences.gridColumns,
+        layouts: dashboardPreferences.widgetLayouts,
       })
       .from(dashboardPreferences)
       .where(eq(dashboardPreferences.userId, userId))
@@ -70,12 +72,16 @@ export const dashboardRepository = {
         userId,
         widgetOrder: preferences.order,
         hiddenWidgets: preferences.hidden,
+        gridColumns: preferences.columns,
+        widgetLayouts: preferences.layouts,
       })
       .onConflictDoUpdate({
         target: dashboardPreferences.userId,
         set: {
           widgetOrder: preferences.order,
           hiddenWidgets: preferences.hidden,
+          gridColumns: preferences.columns,
+          widgetLayouts: preferences.layouts,
           updatedAt: new Date(),
         },
       });

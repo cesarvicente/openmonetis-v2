@@ -53,9 +53,33 @@ const previousDefaultDashboardWidgetOrder = [
 
 export type DashboardWidgetId = (typeof dashboardWidgetIds)[number];
 
+export const dashboardGridColumns = { min: 1, max: 4, default: 3 } as const;
+export const dashboardWidgetSpan = { min: 1, max: 4, default: 1 } as const;
+
+/** Size of a widget in grid cells. `width` is kept even when the grid has fewer columns. */
+export type DashboardWidgetLayout = {
+  /** Starts at one row and grows with the content up to `height`. */
+  autoHeight: boolean;
+  height: number;
+  /** Shows every item with a scrollbar instead of the "see more" list. */
+  scroll: boolean;
+  width: number;
+};
+
+export type DashboardWidgetLayouts = Record<DashboardWidgetId, DashboardWidgetLayout>;
+
 export type DashboardWidgetPreferences = {
+  columns: number;
   hidden: DashboardWidgetId[];
+  layouts: DashboardWidgetLayouts;
   order: DashboardWidgetId[];
+};
+
+export type StoredDashboardWidgetPreferences = {
+  columns?: number;
+  hidden: string[];
+  layouts?: Readonly<Record<string, Partial<DashboardWidgetLayout> | undefined>>;
+  order: string[];
 };
 
 const dashboardWidgetIdSet = new Set<string>(dashboardWidgetIds);
@@ -64,11 +88,57 @@ const legacyDashboardWidgetIds: Readonly<Record<string, DashboardWidgetId>> = {
 };
 
 export function createDefaultDashboardWidgetPreferences(): DashboardWidgetPreferences {
-  return { hidden: [], order: [...dashboardWidgetIds] };
+  return {
+    columns: dashboardGridColumns.default,
+    hidden: [],
+    layouts: normalizeDashboardWidgetLayouts(),
+    order: [...dashboardWidgetIds],
+  };
+}
+
+function normalizeDashboardWidgetLayouts(
+  layouts: StoredDashboardWidgetPreferences["layouts"] = {},
+): DashboardWidgetLayouts {
+  return Object.fromEntries(
+    dashboardWidgetIds.map((widgetId) => {
+      const layout = layouts[widgetId];
+      return [
+        widgetId,
+        {
+          autoHeight: layout?.autoHeight ?? false,
+          height: boundedInteger(layout?.height, dashboardWidgetSpan),
+          scroll: layout?.scroll ?? false,
+          width: boundedInteger(layout?.width, dashboardWidgetSpan),
+        },
+      ];
+    }),
+  ) as DashboardWidgetLayouts;
+}
+
+function boundedInteger(
+  value: number | undefined,
+  range: { default: number; max: number; min: number },
+) {
+  if (value === undefined || !Number.isInteger(value)) return range.default;
+  return Math.min(range.max, Math.max(range.min, value));
+}
+
+/** The configured width is an upper bound: a narrower grid uses all of its columns. */
+export function resolveDashboardWidgetWidth(width: number, columns: number) {
+  return Math.min(width, columns);
+}
+
+/** A fixed height always takes its rows; an automatic one takes only what the content needs. */
+export function resolveDashboardWidgetHeight(
+  layout: Pick<DashboardWidgetLayout, "autoHeight" | "height">,
+  contentHeight: number,
+) {
+  if (!layout.autoHeight) return layout.height;
+  return Math.min(layout.height, Math.max(dashboardWidgetSpan.min, contentHeight));
 }
 
 export function normalizeDashboardWidgetPreferences(
-  preferences?: { hidden: string[]; order: string[] } | null,
+  preferences?: StoredDashboardWidgetPreferences | null,
 ): DashboardWidgetPreferences {
   if (!preferences) return createDefaultDashboardWidgetPreferences();
 
@@ -125,6 +195,8 @@ export function normalizeDashboardWidgetPreferences(
   }
 
   return {
+    columns: boundedInteger(preferences.columns, dashboardGridColumns),
+    layouts: normalizeDashboardWidgetLayouts(preferences.layouts),
     order,
     hidden: uniqueDashboardWidgetIds(preferences.hidden),
   };

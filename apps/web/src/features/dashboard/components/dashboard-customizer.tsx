@@ -1,7 +1,11 @@
 import {
   createDefaultDashboardWidgetPreferences,
   type DashboardWidgetId,
+  type DashboardWidgetLayout,
   type DashboardWidgetPreferences,
+  dashboardGridColumns,
+  dashboardWidgetSpan,
+  resolveDashboardWidgetWidth,
 } from "@openmonetis/domain/dashboard";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowDown, ArrowUp, Check, LoaderCircle, PanelsTopLeft, RotateCcw } from "lucide-react";
@@ -22,10 +26,12 @@ import { cn } from "@/lib/utils";
 import { useSaveDashboardWidgetPreferencesMutation } from "../dashboard.mutations";
 import {
   areDashboardWidgetPreferencesEqual,
+  changeDashboardWidgetLayout,
   moveDashboardWidget,
   toggleDashboardWidget,
 } from "../dashboard.presentation";
 import { dashboardWidgetPreferencesQueryOptions } from "../dashboard.queries";
+import { DashboardSpanPicker } from "./dashboard-span-picker";
 import {
   type DashboardWidgetDefinition,
   dashboardWidgetById,
@@ -73,11 +79,11 @@ export function DashboardCustomizer() {
         </TooltipTrigger>
         <TooltipContent>Personalizar dashboard</TooltipContent>
       </Tooltip>
-      <SheetContent className="min-w-0 gap-0 data-[side=right]:w-full data-[side=right]:sm:max-w-lg">
+      <SheetContent className="min-w-0 gap-0 data-[side=right]:w-full data-[side=right]:sm:max-w-4xl">
         <SheetHeader className="shrink-0 border-b pr-14">
           <SheetTitle>Personalizar dashboard</SheetTitle>
           <SheetDescription>
-            Escolha o que aparece e organize os widgets na ordem mais útil para você.
+            Escolha o que aparece, a ordem, o tamanho de cada card e as colunas do mosaico.
           </SheetDescription>
         </SheetHeader>
 
@@ -135,9 +141,19 @@ function DashboardCustomizationEditor({
     <>
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">
         <div className="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-2 border-b bg-popover/95 px-4 py-3 backdrop-blur">
-          <p className="text-muted-foreground text-sm">
-            <span className="font-medium text-foreground">{visibleCount}</span> visíveis
-          </p>
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+            <DashboardSpanPicker
+              disabled={saveMutation.isPending}
+              label="Colunas do mosaico"
+              max={dashboardGridColumns.max}
+              min={dashboardGridColumns.min}
+              onChange={(columns) => onChange({ ...draft, columns })}
+              value={draft.columns}
+            />
+            <p className="text-muted-foreground text-sm">
+              <span className="font-medium text-foreground">{visibleCount}</span> visíveis
+            </p>
+          </div>
           <Button
             className="gap-2"
             disabled={saveMutation.isPending}
@@ -155,10 +171,15 @@ function DashboardCustomizationEditor({
             const widget = dashboardWidgetById.get(widgetId);
             return widget ? (
               <DashboardWidgetEditorItem
+                columns={draft.columns}
                 index={index}
                 isVisible={!draft.hidden.includes(widgetId)}
                 key={widgetId}
+                layout={draft.layouts[widgetId]}
                 moveRevision={lastMove?.widgetId === widgetId ? lastMove.revision : 0}
+                onLayoutChange={(changes) =>
+                  onChange(changeDashboardWidgetLayout(draft, widgetId, changes))
+                }
                 onMove={(direction) => handleMove(widgetId, direction)}
                 onToggle={() => onChange(toggleDashboardWidget(draft, widgetId))}
                 total={draft.order.length}
@@ -187,17 +208,23 @@ function DashboardCustomizationEditor({
 }
 
 function DashboardWidgetEditorItem({
+  columns,
   index,
   isVisible,
+  layout,
   moveRevision,
+  onLayoutChange,
   onMove,
   onToggle,
   total,
   widget,
 }: {
+  columns: number;
   index: number;
   isVisible: boolean;
+  layout: DashboardWidgetLayout;
   moveRevision: number;
+  onLayoutChange: (changes: Partial<DashboardWidgetLayout>) => void;
   onMove: (direction: -1 | 1) => void;
   onToggle: () => void;
   total: number;
@@ -286,6 +313,96 @@ function DashboardWidgetEditorItem({
         id={checkboxId}
         onCheckedChange={onToggle}
       />
+      {isVisible ? (
+        <DashboardWidgetLayoutFields
+          columns={columns}
+          isList={widget.isList}
+          layout={layout}
+          onChange={onLayoutChange}
+          title={widget.title}
+        />
+      ) : null}
     </li>
+  );
+}
+
+function DashboardWidgetLayoutFields({
+  columns,
+  isList,
+  layout,
+  onChange,
+  title,
+}: {
+  columns: number;
+  isList: boolean;
+  layout: DashboardWidgetLayout;
+  onChange: (changes: Partial<DashboardWidgetLayout>) => void;
+  title: string;
+}) {
+  const displayedWidth = resolveDashboardWidgetWidth(layout.width, columns);
+
+  return (
+    <div className="col-span-full flex flex-wrap items-center gap-x-5 gap-y-2 border-t pt-2 sm:col-start-2">
+      <DashboardSpanPicker
+        context={title}
+        label="Largura"
+        max={dashboardWidgetSpan.max}
+        min={dashboardWidgetSpan.min}
+        onChange={(width) => onChange({ width })}
+        value={layout.width}
+      />
+      <DashboardSpanPicker
+        context={title}
+        label={isList && layout.autoHeight ? "Altura máxima" : "Altura"}
+        max={dashboardWidgetSpan.max}
+        min={dashboardWidgetSpan.min}
+        onChange={(height) => onChange({ height })}
+        value={layout.height}
+      />
+      {isList ? (
+        <>
+          <LayoutCheckbox
+            checked={layout.autoHeight}
+            label="Altura responsiva"
+            onChange={(autoHeight) => onChange({ autoHeight })}
+            title={title}
+          />
+          <LayoutCheckbox
+            checked={layout.scroll}
+            label="Usar barra de rolagem"
+            onChange={(scroll) => onChange({ scroll })}
+            title={title}
+          />
+        </>
+      ) : null}
+      {displayedWidth < layout.width ? (
+        <p className="basis-full text-muted-foreground text-xs">
+          Exibido com largura {displayedWidth}, o máximo do mosaico atual.
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+function LayoutCheckbox({
+  checked,
+  label,
+  onChange,
+  title,
+}: {
+  checked: boolean;
+  label: string;
+  onChange: (checked: boolean) => void;
+  title: string;
+}) {
+  const id = useId();
+  return (
+    <div className="flex items-center gap-2 max-md:min-h-11">
+      <Checkbox checked={checked} id={id} onCheckedChange={(value) => onChange(value === true)} />
+      <label className="cursor-pointer text-xs" htmlFor={id}>
+        {label}
+        <span className="sr-only"> de {title}</span>
+      </label>
+    </div>
   );
 }

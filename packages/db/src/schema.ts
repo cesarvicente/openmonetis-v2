@@ -254,6 +254,13 @@ export const dashboardPreferences = pgTable("dashboard_preferences", {
     .references(() => user.id, { onDelete: "cascade" }),
   widgetOrder: jsonb("widget_order").$type<string[]>().notNull(),
   hiddenWidgets: jsonb("hidden_widgets").$type<string[]>().notNull(),
+  gridColumns: integer("grid_columns").notNull().default(3),
+  widgetLayouts: jsonb("widget_layouts")
+    .$type<
+      Record<string, { autoHeight: boolean; height: number; scroll: boolean; width: number }>
+    >()
+    .notNull()
+    .default({}),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at")
     .notNull()

@@ -1,4 +1,10 @@
-import type { DashboardWidgetId, DashboardWidgetPreferences } from "@openmonetis/domain/dashboard";
+import {
+  type DashboardWidgetId,
+  type DashboardWidgetLayout,
+  type DashboardWidgetPreferences,
+  dashboardWidgetIds,
+  dashboardWidgetSpan,
+} from "@openmonetis/domain/dashboard";
 import {
   formatDateInBrazil,
   getCurrentHourInBrazil,
@@ -120,14 +126,80 @@ export function toggleDashboardWidget(
   };
 }
 
+export function changeDashboardWidgetLayout(
+  preferences: DashboardWidgetPreferences,
+  widgetId: DashboardWidgetId,
+  changes: Partial<DashboardWidgetLayout>,
+): DashboardWidgetPreferences {
+  return {
+    ...preferences,
+    layouts: {
+      ...preferences.layouts,
+      [widgetId]: { ...preferences.layouts[widgetId], ...changes },
+    },
+  };
+}
+
 export function areDashboardWidgetPreferencesEqual(
   left: DashboardWidgetPreferences,
   right: DashboardWidgetPreferences,
 ) {
   return (
+    left.columns === right.columns &&
     left.order.length === right.order.length &&
     left.hidden.length === right.hidden.length &&
     left.order.every((widgetId, index) => widgetId === right.order[index]) &&
-    left.hidden.every((widgetId) => right.hidden.includes(widgetId))
+    left.hidden.every((widgetId) => right.hidden.includes(widgetId)) &&
+    dashboardWidgetIds.every((widgetId) => {
+      const leftLayout = left.layouts[widgetId];
+      const rightLayout = right.layouts[widgetId];
+      return (
+        leftLayout.width === rightLayout.width &&
+        leftLayout.height === rightLayout.height &&
+        leftLayout.autoHeight === rightLayout.autoHeight &&
+        leftLayout.scroll === rightLayout.scroll
+      );
+    })
   );
+}
+
+/** Da maior para a menor largura: a primeira que coincide define o limite de colunas. */
+export const dashboardColumnBreakpoints = [
+  { columns: 4, mediaQuery: "(min-width: 80rem)" },
+  { columns: 3, mediaQuery: "(min-width: 64rem)" },
+  { columns: 2, mediaQuery: "(min-width: 48rem)" },
+] as const;
+
+/** Medidas em rem; acompanham as classes de `DashboardWidget` e `DashboardWidgetRow`. */
+export const dashboardGridRowRem = 22;
+export const dashboardGridGapRem = 1;
+const dashboardWidgetChromeRem = 6.625;
+const dashboardWidgetItemRem = { details: 3, progress: 3.75, settlement: 7.25 } as const;
+
+export type DashboardWidgetItemStructure = keyof typeof dashboardWidgetItemRem;
+
+/** Quantos itens inteiros cabem no corpo de um widget com a altura informada. */
+export function getDashboardWidgetCapacity(
+  rows: number,
+  structure: DashboardWidgetItemStructure,
+  reservedRem = 0,
+) {
+  const bodyRem =
+    rows * dashboardGridRowRem +
+    (rows - 1) * dashboardGridGapRem -
+    dashboardWidgetChromeRem -
+    reservedRem;
+  return Math.max(1, Math.floor(bodyRem / dashboardWidgetItemRem[structure]));
+}
+
+/** Altura mínima, em espaços do mosaico, para exibir todos os itens. */
+export function getDashboardWidgetContentRows(
+  itemCount: number,
+  structure: DashboardWidgetItemStructure,
+  reservedRem = 0,
+) {
+  for (let rows: number = dashboardWidgetSpan.min; rows < dashboardWidgetSpan.max; rows += 1) {
+    if (getDashboardWidgetCapacity(rows, structure, reservedRem) >= itemCount) return rows;
+  }
+  return dashboardWidgetSpan.max;
 }

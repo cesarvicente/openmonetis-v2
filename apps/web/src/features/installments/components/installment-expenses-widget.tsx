@@ -10,6 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { DashboardWidget } from "@/features/dashboard/components/dashboard-widget";
 import { DashboardWidgetEmptyState } from "@/features/dashboard/components/dashboard-widget-empty-state";
 import { dashboardWidgetFooterNavigationLinkClassName } from "@/features/dashboard/components/dashboard-widget-footer-link";
+import { useDashboardWidgetItems } from "@/features/dashboard/components/dashboard-widget-layout";
 import { DashboardWidgetListSheet } from "@/features/dashboard/components/dashboard-widget-list-sheet";
 import { DashboardWidgetRow } from "@/features/dashboard/components/dashboard-widget-row";
 import { EstablishmentLogo } from "@/features/establishments/components/establishment-logo";
@@ -19,14 +20,13 @@ import { dashboardInstallmentExpensesQueryOptions } from "../installments.querie
 
 type InstallmentExpense = DashboardInstallmentExpensesOutput["items"][number];
 
-const maximumVisibleInstallments = 4;
-
 export function InstallmentExpensesWidget({ period }: { period: string }) {
   const [isListOpen, setIsListOpen] = useState(false);
   const query = useQuery(dashboardInstallmentExpensesQueryOptions(period));
   const items = query.data?.items ?? [];
-  const visibleItems = items.slice(0, maximumVisibleInstallments);
-  const hiddenCount = Math.max(0, items.length - visibleItems.length);
+  const { hiddenCount, visibleItems } = useDashboardWidgetItems(items, {
+    structure: "progress",
+  });
 
   return (
     <DashboardWidget
@@ -50,7 +50,7 @@ export function InstallmentExpensesWidget({ period }: { period: string }) {
               search={{ period, status: "open" }}
               to="/reports/installments"
             >
-              Ver parcelamentos <ArrowRight aria-hidden="true" className="size-4" />
+              Ver parcelamentos <ArrowRight aria-hidden="true" className="size-3.5" />
             </Link>
           </div>
         ) : undefined
@@ -99,17 +99,17 @@ function InstallmentExpenseList({ items }: { items: InstallmentExpense[] }) {
         <DashboardWidgetRow key={item.seriesId} structure="progress">
           <EstablishmentLogo
             categoryIcon={item.categoryIcon}
-            className="size-9"
+            className="size-8"
             name={item.name}
-            size={36}
+            size={32}
           />
-          <div className="grid min-w-0 flex-1 gap-2">
+          <div className="grid min-w-0 flex-1 grid-cols-1 gap-1">
             <div className="flex items-center gap-3">
               <div className="min-w-0 flex-1">
                 <div className="flex min-w-0 items-center gap-2">
                   <span className="truncate font-medium text-sm">{item.name}</span>
                 </div>
-                <p className="mt-0.5 truncate text-muted-foreground text-xs">
+                <p className="truncate text-muted-foreground text-xs">
                   Parcela {item.currentInstallment} de {item.totalInstallments}
                   {item.endPeriod ? ` · ${formatInstallmentEndPeriod(item.endPeriod)}` : null}
                 </p>
@@ -143,7 +143,7 @@ function InstallmentExpensesLoading() {
   return (
     <div aria-label="Carregando despesas parceladas" className="grid gap-3" role="status">
       {["first", "second", "third", "fourth"].map((key) => (
-        <Skeleton className="h-20 w-full" key={key} />
+        <Skeleton className="h-15 w-full" key={key} />
       ))}
     </div>
   );

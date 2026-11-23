@@ -5,7 +5,10 @@ import {
   createDefaultDashboardWidgetPreferences,
   dashboardWidgetIds,
   normalizeDashboardWidgetPreferences,
+  resolveDashboardWidgetHeight,
+  resolveDashboardWidgetWidth,
 } from "@openmonetis/domain/dashboard";
+import { DashboardWidgetPreferencesInputSchema } from "@openmonetis/validators/dashboard";
 import {
   createDashboardService,
   type DashboardRecurringRuleRecord,
@@ -437,6 +440,8 @@ test("dashboard upgrades only the old default order without hiding widgets", () 
   assert.deepEqual(
     normalizeDashboardWidgetPreferences({ order: custom, hidden: ["external-expenses"] }),
     {
+      columns: 3,
+      layouts: createDefaultDashboardWidgetPreferences().layouts,
       order: expectedCustom,
       hidden: ["person-settlements"],
     },
@@ -528,6 +533,8 @@ test("dashboard migrates the recent default order and retains hidden widgets", (
     ...dashboardWidgetIds.slice(4),
   ];
   assert.deepEqual(normalizeDashboardWidgetPreferences({ order: recent, hidden: ["notes"] }), {
+    columns: 3,
+    layouts: createDefaultDashboardWidgetPreferences().layouts,
     order: defaults.order,
     hidden: ["notes"],
   });
@@ -537,6 +544,8 @@ test("dashboard restores the initial accounts, invoices and bills order without 
   const first = ["payment-status", "inbox", "bills", "invoices"];
   const uxOrder = [...first, ...dashboardWidgetIds.filter((id) => !first.includes(id))];
   assert.deepEqual(normalizeDashboardWidgetPreferences({ order: uxOrder, hidden: ["notes"] }), {
+    columns: 3,
+    layouts: createDefaultDashboardWidgetPreferences().layouts,
     order: [...dashboardWidgetIds],
     hidden: ["notes"],
   });
@@ -564,4 +573,59 @@ test("dashboard places the new goals widget after budgets in existing custom lay
     createDefaultDashboardWidgetPreferences().order.indexOf("goals"),
     dashboardWidgetIds.indexOf("budgets") + 1,
   );
+});
+
+test("dashboard keeps the configured size of each widget and limits it only when displayed", async () => {
+  const layout = { autoHeight: true, height: 2, scroll: true, width: 4 };
+  const preferences = normalizeDashboardWidgetPreferences({
+    columns: 3,
+    hidden: [],
+    layouts: { accounts: layout, bills: { height: 9, width: 0 } },
+    order: [],
+  });
+
+  assert.equal(preferences.columns, 3);
+  assert.deepEqual(preferences.layouts.accounts, layout);
+  assert.deepEqual(preferences.layouts.bills, {
+    autoHeight: false,
+    height: 4,
+    scroll: false,
+    width: 1,
+  });
+  assert.equal(resolveDashboardWidgetWidth(layout.width, preferences.columns), 3);
+  assert.equal(resolveDashboardWidgetWidth(layout.width, 4), 4);
+  assert.deepEqual(Object.keys(preferences.layouts), [...dashboardWidgetIds]);
+});
+
+test("dashboard fixed heights ignore the content and automatic ones grow up to the limit", () => {
+  for (const contentHeight of [1, 2, 4])
+    assert.equal(resolveDashboardWidgetHeight({ autoHeight: false, height: 3 }, contentHeight), 3);
+  assert.equal(resolveDashboardWidgetHeight({ autoHeight: true, height: 3 }, 1), 1);
+  assert.equal(resolveDashboardWidgetHeight({ autoHeight: true, height: 3 }, 2), 2);
+  assert.equal(resolveDashboardWidgetHeight({ autoHeight: true, height: 3 }, 4), 3);
+});
+
+test("dashboard preferences contract accepts sizes within the grid and stays optional", () => {
+  const base = { order: [], hidden: [] };
+  const layout = { autoHeight: false, height: 1, scroll: false, width: 4 };
+  assert.equal(DashboardWidgetPreferencesInputSchema.safeParse(base).success, true);
+  assert.equal(
+    DashboardWidgetPreferencesInputSchema.safeParse({
+      ...base,
+      columns: 4,
+      layouts: { accounts: layout },
+    }).success,
+    true,
+  );
+  for (const invalid of [
+    { columns: 5 },
+    { columns: 0 },
+    { layouts: { accounts: { ...layout, width: 5 } } },
+    { layouts: { unknown: layout } },
+    { hidden: ["notes", "notes"] },
+  ])
+    assert.equal(
+      DashboardWidgetPreferencesInputSchema.safeParse({ ...base, ...invalid }).success,
+      false,
+    );
 });

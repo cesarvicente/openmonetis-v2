@@ -15,7 +15,7 @@ export const noteKeys = {
 export function notesDashboardQueryOptions() {
   return queryOptions({
     queryKey: noteKeys.dashboard(),
-    queryFn: ({ signal }) => getNotes({ status: "active", limit: 5, offset: 0 }, signal),
+    queryFn: ({ signal }) => getNotes({ status: "active", limit: 50, offset: 0 }, signal),
   });
 }
 

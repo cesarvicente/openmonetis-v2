@@ -9,13 +9,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { DashboardWidget } from "@/features/dashboard/components/dashboard-widget";
 import { DashboardWidgetEmptyState } from "@/features/dashboard/components/dashboard-widget-empty-state";
 import { dashboardWidgetFooterNavigationLinkClassName } from "@/features/dashboard/components/dashboard-widget-footer-link";
+import { useDashboardWidgetItems } from "@/features/dashboard/components/dashboard-widget-layout";
 import { DashboardWidgetRow } from "@/features/dashboard/components/dashboard-widget-row";
 import { cn } from "@/lib/utils";
 import { goalPaceLabels } from "../goals.presentation";
 import { goalsQueryOptions } from "../goals.queries";
 import { GoalAccountLogo } from "./goal-account-logo";
-
-const maximumVisibleGoals = 4;
 
 export function GoalsWidget() {
   const query = useQuery(goalsQueryOptions());
@@ -26,7 +25,9 @@ export function GoalsWidget() {
         (left.targetDate ?? "9999-12-31").localeCompare(right.targetDate ?? "9999-12-31") ||
         left.name.localeCompare(right.name, "pt-BR"),
     );
-  const hiddenCount = Math.max(0, activeGoals.length - maximumVisibleGoals);
+  const { hiddenCount, visibleItems } = useDashboardWidgetItems(activeGoals, {
+    structure: "progress",
+  });
 
   return (
     <DashboardWidget
@@ -42,7 +43,7 @@ export function GoalsWidget() {
           )}
           <Link className={dashboardWidgetFooterNavigationLinkClassName} to="/goals">
             {activeGoals.length ? "Ver metas" : "Criar meta"}
-            <ArrowRight aria-hidden="true" className="size-4" />
+            <ArrowRight aria-hidden="true" className="size-3.5" />
           </Link>
         </div>
       }
@@ -75,7 +76,7 @@ export function GoalsWidget() {
           />
         ) : (
           <ul className="divide-y">
-            {activeGoals.slice(0, maximumVisibleGoals).map((goal) => (
+            {visibleItems.map((goal) => (
               <GoalProgressRow goal={goal} key={goal.id} />
             ))}
           </ul>
@@ -91,10 +92,10 @@ function GoalProgressRow({ goal }: { goal: GoalOutput }) {
 
   return (
     <DashboardWidgetRow structure="progress">
-      <span className="grid size-9 shrink-0 place-items-center rounded-full bg-brand/10 text-brand-strong">
+      <span className="grid size-8 shrink-0 place-items-center rounded-full bg-brand/10 text-brand-strong">
         <Goal aria-hidden="true" className="size-4" />
       </span>
-      <div className="grid min-w-0 flex-1 gap-2">
+      <div className="grid min-w-0 flex-1 grid-cols-1 gap-1">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
             <p className="truncate font-medium text-sm">{goal.name}</p>
@@ -141,7 +142,7 @@ function GoalsWidgetLoading() {
       {["first", "second", "third", "fourth"].map((key) => (
         <div className="grid gap-2" key={key}>
           <div className="flex items-center gap-3">
-            <Skeleton className="size-9 rounded-full" />
+            <Skeleton className="size-8 rounded-full" />
             <Skeleton className="h-8 flex-1" />
           </div>
           <div className="ml-12">

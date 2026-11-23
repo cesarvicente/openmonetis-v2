@@ -25,10 +25,10 @@ export function ExpenseDistributionList({ items }: { items: ExpenseDistributionL
     <ol className="divide-y">
       {items.map((item) => (
         <DashboardWidgetRow key={item.key} structure="progress">
-          <span className="grid size-9 shrink-0 place-items-center rounded-full bg-muted text-muted-foreground [&>svg]:size-4">
+          <span className="grid size-8 shrink-0 place-items-center rounded-full bg-muted text-muted-foreground [&>svg]:size-4">
             {item.icon}
           </span>
-          <div className="grid min-w-0 flex-1 gap-2">
+          <div className="grid min-w-0 flex-1 grid-cols-1 gap-1">
             <div className="flex items-center gap-3">
               <div className="min-w-0 flex-1">
                 {item.search ? (
@@ -43,13 +43,13 @@ export function ExpenseDistributionList({ items }: { items: ExpenseDistributionL
                 ) : (
                   <span className="font-medium text-sm">{item.label}</span>
                 )}
-                <p className="mt-0.5 text-muted-foreground text-xs">
+                <p className="text-muted-foreground text-xs">
                   {formatDashboardTransactionCount(item.count)}
                 </p>
               </div>
               <div className="shrink-0 text-right">
                 <MoneyValue amount={item.amount} className="font-medium text-sm" />
-                <p className="mt-0.5 text-muted-foreground text-xs tabular-nums">
+                <p className="text-muted-foreground text-xs tabular-nums">
                   {formatExpenseDistributionPercentage(item.percentage)}%
                 </p>
               </div>

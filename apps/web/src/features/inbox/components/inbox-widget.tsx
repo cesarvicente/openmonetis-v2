@@ -10,17 +10,22 @@ import { cardsQueryOptions } from "@/features/cards/cards.queries";
 import { DashboardWidget } from "@/features/dashboard/components/dashboard-widget";
 import { DashboardWidgetEmptyState } from "@/features/dashboard/components/dashboard-widget-empty-state";
 import { dashboardWidgetFooterNavigationLinkClassName } from "@/features/dashboard/components/dashboard-widget-footer-link";
+import { useDashboardWidgetItems } from "@/features/dashboard/components/dashboard-widget-layout";
 import { DashboardWidgetRow } from "@/features/dashboard/components/dashboard-widget-row";
 import { formatInboxTimestamp, getInboxSourceMatch } from "../inbox.presentation";
 import { inboxSnapshotQueryOptions } from "../inbox.queries";
 import { InboxSourceLogo } from "./inbox-source-logo";
 
+const maximumCaptures = 50;
+
 export function InboxWidget() {
-  const query = useQuery(inboxSnapshotQueryOptions(4));
+  const query = useQuery(inboxSnapshotQueryOptions(maximumCaptures));
   const accountsQuery = useQuery(accountsQueryOptions());
   const cardsQuery = useQuery(cardsQueryOptions());
   const snapshot = query.data;
-  const visibleCompanionItems = snapshot?.recentItems.slice(0, 4) ?? [];
+  const { visibleItems: visibleCompanionItems } = useDashboardWidgetItems(
+    snapshot?.recentItems ?? [],
+  );
 
   return (
     <DashboardWidget
@@ -41,7 +46,7 @@ export function InboxWidget() {
             }}
             to="/inbox"
           >
-            Ver caixa de entrada <ArrowRight aria-hidden="true" className="size-4" />
+            Ver caixa de entrada <ArrowRight aria-hidden="true" className="size-3.5" />
           </Link>
         ) : undefined
       }
@@ -81,7 +86,7 @@ export function InboxWidget() {
               );
               return (
                 <DashboardWidgetRow key={item.id}>
-                  <InboxSourceLogo className="size-9" match={sourceMatch} size={36} />
+                  <InboxSourceLogo className="size-8" match={sourceMatch} size={32} />
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-medium text-sm">
                       {item.parsedName ?? "Notificação financeira"}
@@ -113,7 +118,7 @@ function InboxWidgetLoading() {
   return (
     <div className="grid gap-2 py-2" role="status" aria-label="Carregando Caixa de entrada">
       {["first", "second", "third", "fourth"].map((key) => (
-        <Skeleton className="h-16" key={key} />
+        <Skeleton className="h-12" key={key} />
       ))}
     </div>
   );

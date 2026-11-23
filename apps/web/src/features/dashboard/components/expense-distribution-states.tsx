@@ -7,7 +7,7 @@ export function DistributionLoading() {
   return (
     <div aria-label="Carregando distribuição de despesas" className="grid gap-3" role="status">
       {["first", "second", "third", "fourth"].map((key) => (
-        <Skeleton className="h-20 w-full" key={key} />
+        <Skeleton className="h-15 w-full" key={key} />
       ))}
     </div>
   );

@@ -83,7 +83,7 @@ export const ListInboxItemsQuerySchema = z
   .openapi("ListInboxItemsQuery");
 
 export const InboxSnapshotQuerySchema = z
-  .object({ limit: z.coerce.number().int().min(1).max(6).default(4) })
+  .object({ limit: z.coerce.number().int().min(1).max(50).default(4) })
   .openapi("InboxSnapshotQuery");
 
 export const InboxItemParamsSchema = z

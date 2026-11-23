@@ -13,8 +13,8 @@ export function DashboardWidgetRow({
   return (
     <li
       className={cn(
-        "flex items-center gap-3",
-        structure === "details" ? "h-16" : "h-20 py-2",
+        "flex items-center gap-2.5",
+        structure === "details" ? "h-12" : "h-15 py-1",
         className,
       )}
       {...props}

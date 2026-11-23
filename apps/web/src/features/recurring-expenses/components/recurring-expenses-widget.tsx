@@ -25,6 +25,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { DashboardWidget } from "@/features/dashboard/components/dashboard-widget";
 import { DashboardWidgetEmptyState } from "@/features/dashboard/components/dashboard-widget-empty-state";
 import { dashboardWidgetFooterNavigationLinkClassName } from "@/features/dashboard/components/dashboard-widget-footer-link";
+import { useDashboardWidgetItems } from "@/features/dashboard/components/dashboard-widget-layout";
 import { DashboardWidgetListSheet } from "@/features/dashboard/components/dashboard-widget-list-sheet";
 import { DashboardWidgetRow } from "@/features/dashboard/components/dashboard-widget-row";
 import { EstablishmentLogo } from "@/features/establishments/components/establishment-logo";
@@ -35,8 +36,6 @@ import { recurringFrequencyLabels } from "../recurring-expenses.presentation";
 import { recurringExpensesQueryOptions } from "../recurring-expenses.queries";
 import { RecurringExpenseEditDialog } from "./recurring-expense-edit-dialog";
 
-const maximumVisibleExpenses = 5;
-
 export function RecurringExpensesWidget({ period }: { period: string }) {
   const query = useQuery(recurringExpensesQueryOptions(period));
   const [listOpen, setListOpen] = useState(false);
@@ -44,7 +43,7 @@ export function RecurringExpensesWidget({ period }: { period: string }) {
   const [action, setAction] = useState<"pause" | "resume" | "skip" | "stop" | null>(null);
   const [actionExpense, setActionExpense] = useState<RecurringExpenseOutput | null>(null);
   const items = query.data?.items ?? [];
-  const hiddenCount = Math.max(0, items.length - maximumVisibleExpenses);
+  const { hiddenCount, visibleItems } = useDashboardWidgetItems(items);
 
   const rows = (expenses: RecurringExpenseOutput[]) => (
     <RecurringExpenseList
@@ -80,7 +79,7 @@ export function RecurringExpensesWidget({ period }: { period: string }) {
                 search={{ period, type: "expense", status: "active", paymentMethod: "all", q: "" }}
                 to="/reports/recurring-transactions"
               >
-                Ver relatório <ArrowRight aria-hidden="true" className="size-4" />
+                Ver relatório <ArrowRight aria-hidden="true" className="size-3.5" />
               </Link>
             </div>
           ) : undefined
@@ -107,7 +106,7 @@ export function RecurringExpensesWidget({ period }: { period: string }) {
         ) : null}
         {query.data && !query.isError ? (
           items.length ? (
-            rows(items.slice(0, maximumVisibleExpenses))
+            rows(visibleItems)
           ) : (
             <DashboardWidgetEmptyState
               description="As recorrências do mês aparecerão aqui."
@@ -159,9 +158,9 @@ function RecurringExpenseList({
         >
           <EstablishmentLogo
             categoryIcon={item.categoryIcon}
-            className="size-9"
+            className="size-8"
             name={item.name}
-            size={36}
+            size={32}
           />
           <div className="min-w-0 flex-1">
             <div className="flex min-w-0 items-center gap-2">
@@ -243,7 +242,7 @@ function RecurringExpensesLoading() {
   return (
     <div aria-label="Carregando despesas recorrentes" className="grid gap-3" role="status">
       {["first", "second", "third", "fourth"].map((key) => (
-        <Skeleton className="h-16 w-full" key={key} />
+        <Skeleton className="h-12 w-full" key={key} />
       ))}
     </div>
   );

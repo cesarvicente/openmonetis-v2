@@ -11,6 +11,7 @@ import { DashboardItemLinkArrow } from "@/features/dashboard/components/dashboar
 import { DashboardWidget } from "@/features/dashboard/components/dashboard-widget";
 import { DashboardWidgetEmptyState } from "@/features/dashboard/components/dashboard-widget-empty-state";
 import { dashboardWidgetFooterNavigationLinkClassName } from "@/features/dashboard/components/dashboard-widget-footer-link";
+import { useDashboardWidgetItems } from "@/features/dashboard/components/dashboard-widget-layout";
 import { DashboardWidgetListSheet } from "@/features/dashboard/components/dashboard-widget-list-sheet";
 import { DashboardWidgetRow } from "@/features/dashboard/components/dashboard-widget-row";
 import { cn } from "@/lib/utils";
@@ -20,8 +21,6 @@ import {
   getCategoryTrendWidgetItems,
 } from "../category-trends.presentation";
 import { categoryTrendsQueryOptions } from "../category-trends.queries";
-
-const maximumVisibleTrends = 5;
 
 type TrendItem = ReturnType<typeof getCategoryTrendWidgetItems>[number];
 
@@ -34,8 +33,7 @@ export function CategoryTrendsWidget({ period }: { period: string }) {
   });
   const [listOpen, setListOpen] = useState(false);
   const items = getCategoryTrendWidgetItems(query.data?.categories ?? [], period);
-  const visibleItems = items.slice(0, maximumVisibleTrends);
-  const hiddenCount = Math.max(0, items.length - maximumVisibleTrends);
+  const { hiddenCount, visibleItems } = useDashboardWidgetItems(items);
 
   return (
     <DashboardWidget
@@ -59,7 +57,7 @@ export function CategoryTrendsWidget({ period }: { period: string }) {
               search={reportPeriodRange}
               to="/reports/category-trends"
             >
-              Ver relatório <ArrowRight aria-hidden="true" className="size-4" />
+              Ver relatório <ArrowRight aria-hidden="true" className="size-3.5" />
             </Link>
           </div>
         ) : undefined
@@ -117,7 +115,7 @@ function CategoryTrendRow({ item, period }: { item: TrendItem; period: string })
 
   return (
     <DashboardWidgetRow>
-      <span className="grid size-9 shrink-0 place-items-center rounded-full bg-muted text-muted-foreground">
+      <span className="grid size-8 shrink-0 place-items-center rounded-full bg-muted text-muted-foreground">
         <CategoryIcon className="size-4" name={category.icon} />
       </span>
       <div className="min-w-0 flex-1">
@@ -145,7 +143,7 @@ function CategoryTrendRow({ item, period }: { item: TrendItem; period: string })
             </Tooltip>
           ) : null}
         </div>
-        <p className="mt-0.5 flex items-center gap-1 text-muted-foreground text-xs">
+        <p className="flex items-center gap-1 text-muted-foreground text-xs">
           <MoneyValue amount={value.previousAmount} className="text-xs" />
           <ArrowRight aria-hidden="true" className="size-3" />
           <MoneyValue amount={value.totalAmount} className="font-medium text-xs" />
@@ -178,7 +176,7 @@ function CategoryTrendsLoading() {
   return (
     <div aria-label="Carregando tendências de categorias" className="grid gap-3" role="status">
       {["first", "second", "third", "fourth"].map((key) => (
-        <div className="flex h-16 items-center gap-3" key={key}>
+        <div className="flex h-12 items-center gap-3" key={key}>
           <Skeleton className="size-8" />
           <Skeleton className="h-8 flex-1" />
           <Skeleton className="h-8 w-20" />

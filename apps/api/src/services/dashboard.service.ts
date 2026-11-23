@@ -15,6 +15,7 @@ import {
   type DashboardPersonExpenseEntry,
   type DashboardTransactionOrigin,
   normalizeDashboardWidgetPreferences,
+  type StoredDashboardWidgetPreferences,
 } from "@openmonetis/domain/dashboard";
 import { getRecurringDueDate } from "@openmonetis/domain/recurring-expenses";
 import { getOccurrenceAmount, type SettlementAwareRule } from "@openmonetis/domain/settlements";
@@ -112,7 +113,7 @@ export type DashboardRecurringRuleRecord = SettlementAwareRule & {
 
 export type DashboardRepository = {
   deleteWidgetPreferences(userId: string): Promise<void>;
-  findWidgetPreferences(userId: string): Promise<{ hidden: string[]; order: string[] } | null>;
+  findWidgetPreferences(userId: string): Promise<StoredDashboardWidgetPreferences | null>;
   listInvoiceStatuses(
     userId: string,
     period: string,

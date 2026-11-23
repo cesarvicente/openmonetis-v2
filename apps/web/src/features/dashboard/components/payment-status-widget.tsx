@@ -31,7 +31,7 @@ export function PaymentStatusWidget({ period }: { period: string }) {
             search={{ people: adminPersonSlug, period }}
             to="/transactions"
           >
-            Ver lançamentos <ArrowRight aria-hidden="true" className="size-4" />
+            Ver lançamentos <ArrowRight aria-hidden="true" className="size-3.5" />
           </Link>
         ) : undefined
       }
@@ -63,7 +63,7 @@ export function PaymentStatusWidget({ period }: { period: string }) {
             title="Nenhum valor a receber ou pagar"
           />
         ) : (
-          <div aria-busy={query.isFetching} className="grid flex-1 content-center gap-7">
+          <div aria-busy={query.isFetching} className="grid flex-1 content-center gap-4">
             <PaymentStatusSection
               adminPersonSlug={adminPersonSlug}
               category={query.data.income}
@@ -104,7 +104,7 @@ function PaymentStatusSection({
   const pendingLabel = isIncome ? "Falta receber" : "Falta pagar";
 
   return (
-    <section aria-label={title} className="grid gap-3">
+    <section aria-label={title} className="grid gap-2">
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-center gap-2">
           <span className="grid size-7 place-items-center rounded-md bg-muted text-muted-foreground">
@@ -133,7 +133,7 @@ function PaymentStatusSection({
             <ChartLegendMarker className="text-success" />
             {confirmedLabel}
           </span>
-          <MoneyValue amount={category.confirmed} className="mt-1 font-medium text-sm" />
+          <MoneyValue amount={category.confirmed} className="font-medium text-sm" />
         </div>
         <div className="min-w-0 text-right">
           <span className="flex items-center justify-end gap-1.5 text-muted-foreground">
@@ -152,10 +152,10 @@ function PaymentStatusSection({
               }}
               to="/transactions"
             >
-              <MoneyValue amount={category.pending} className="mt-1 font-medium text-sm" />
+              <MoneyValue amount={category.pending} className="font-medium text-sm" />
             </Link>
           ) : (
-            <MoneyValue amount={category.pending} className="mt-1 font-medium text-sm" />
+            <MoneyValue amount={category.pending} className="font-medium text-sm" />
           )}
         </div>
       </div>
@@ -167,11 +167,11 @@ function PaymentStatusLoading() {
   return (
     <div
       aria-label="Carregando status de pagamento"
-      className="grid flex-1 content-center gap-7"
+      className="grid flex-1 content-center gap-4"
       role="status"
     >
       {["income", "expenses"].map((key) => (
-        <div className="grid gap-3" key={key}>
+        <div className="grid gap-2" key={key}>
           <div className="flex items-center justify-between">
             <Skeleton className="h-9 w-28" />
             <Skeleton className="h-5 w-24" />

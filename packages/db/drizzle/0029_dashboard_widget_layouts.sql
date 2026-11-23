@@ -1,0 +1,2 @@
+ALTER TABLE "dashboard_preferences" ADD COLUMN "grid_columns" integer DEFAULT 3 NOT NULL;--> statement-breakpoint
+ALTER TABLE "dashboard_preferences" ADD COLUMN "widget_layouts" jsonb DEFAULT '{}'::jsonb NOT NULL;

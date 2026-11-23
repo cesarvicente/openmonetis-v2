@@ -14,6 +14,7 @@ import { DashboardItemLinkArrow } from "@/features/dashboard/components/dashboar
 import { DashboardWidget } from "@/features/dashboard/components/dashboard-widget";
 import { DashboardWidgetEmptyState } from "@/features/dashboard/components/dashboard-widget-empty-state";
 import { dashboardWidgetFooterNavigationLinkClassName } from "@/features/dashboard/components/dashboard-widget-footer-link";
+import { useDashboardWidgetItems } from "@/features/dashboard/components/dashboard-widget-layout";
 import { DashboardWidgetListSheet } from "@/features/dashboard/components/dashboard-widget-list-sheet";
 import { DashboardWidgetRow } from "@/features/dashboard/components/dashboard-widget-row";
 import { DueDateIndicator } from "@/features/due-date-rules/components/due-date-indicator";
@@ -22,14 +23,12 @@ import { invoiceDueLabel, invoicePaidLabel } from "../invoices.presentation";
 import { invoicesQueryOptions } from "../invoices.queries";
 import { InvoicePaymentDialog } from "./invoice-payment-dialog";
 
-const maximumVisibleInvoices = 5;
-
 export function InvoicesWidget({ period }: { period: string }) {
   const query = useQuery(invoicesQueryOptions(period));
   const [selected, setSelected] = useState<DashboardInvoice | null>(null);
   const [listOpen, setListOpen] = useState(false);
   const invoices = query.data?.items ?? [];
-  const hiddenCount = Math.max(0, invoices.length - maximumVisibleInvoices);
+  const { hiddenCount, visibleItems } = useDashboardWidgetItems(invoices);
   const selectInvoiceToPay = (invoice: DashboardInvoice) => {
     setListOpen(false);
     setSelected(invoice);
@@ -63,7 +62,7 @@ export function InvoicesWidget({ period }: { period: string }) {
                 </DashboardWidgetListSheet>
               ) : null}
               <Link className={dashboardWidgetFooterNavigationLinkClassName} to="/cards">
-                Ver cartões <ArrowRight className="size-4" />
+                Ver cartões <ArrowRight className="size-3.5" />
               </Link>
             </div>
           ) : undefined
@@ -72,7 +71,7 @@ export function InvoicesWidget({ period }: { period: string }) {
         {query.isLoading ? (
           <div className="grid gap-3">
             {[1, 2, 3].map((key) => (
-              <Skeleton key={key} className="h-16 w-full" />
+              <Skeleton key={key} className="h-12 w-full" />
             ))}
           </div>
         ) : null}
@@ -89,7 +88,7 @@ export function InvoicesWidget({ period }: { period: string }) {
               />
             ) : (
               <ul className="divide-y">
-                {invoices.slice(0, maximumVisibleInvoices).map((invoice) => (
+                {visibleItems.map((invoice) => (
                   <InvoiceRow
                     key={invoice.cardId}
                     invoice={invoice}
@@ -128,13 +127,13 @@ function InvoiceRow({ invoice, onPay }: { invoice: DashboardInvoice; onPay: () =
           <Image
             alt={`Logo de ${invoice.cardName}`}
             src={invoice.logo}
-            width={36}
-            height={36}
+            width={32}
+            height={32}
             layout="fixed"
-            className="size-9 rounded-full object-contain"
+            className="size-8 rounded-full object-contain"
           />
         ) : (
-          <span className="grid size-9 place-items-center rounded-full bg-muted">
+          <span className="grid size-8 place-items-center rounded-full bg-muted">
             <CreditCard className="size-4" />
           </span>
         )}
@@ -200,7 +199,7 @@ function InvoiceRow({ invoice, onPay }: { invoice: DashboardInvoice; onPay: () =
             type="button"
             variant="link"
           >
-            Registrar pagamento
+            Registrar<span className="@max-sm:sr-only"> pagamento</span>
           </Button>
         ) : (
           <span className="text-success text-xs">Paga</span>

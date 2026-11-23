@@ -12,6 +12,7 @@ import { DashboardItemLinkArrow } from "@/features/dashboard/components/dashboar
 import { DashboardWidget } from "@/features/dashboard/components/dashboard-widget";
 import { DashboardWidgetEmptyState } from "@/features/dashboard/components/dashboard-widget-empty-state";
 import { dashboardWidgetFooterNavigationLinkClassName } from "@/features/dashboard/components/dashboard-widget-footer-link";
+import { useDashboardWidgetItems } from "@/features/dashboard/components/dashboard-widget-layout";
 import { DashboardWidgetListSheet } from "@/features/dashboard/components/dashboard-widget-list-sheet";
 import { DashboardWidgetRow } from "@/features/dashboard/components/dashboard-widget-row";
 import { DueDateIndicator } from "@/features/due-date-rules/components/due-date-indicator";
@@ -25,14 +26,12 @@ import { billDueLabel, billPaidLabel } from "../bills.presentation";
 import { billsQueryOptions } from "../bills.queries";
 import { BillPaymentDialog } from "./bill-payment-dialog";
 
-const maximumVisibleBills = 5;
-
 export function BillsWidget({ period }: { period: string }) {
   const query = useQuery(billsQueryOptions(period));
   const [listOpen, setListOpen] = useState(false);
   const [selectedBill, setSelectedBill] = useState<DashboardBill | null>(null);
   const bills = query.data?.items ?? [];
-  const hiddenCount = Math.max(0, bills.length - maximumVisibleBills);
+  const { hiddenCount, visibleItems } = useDashboardWidgetItems(bills);
 
   const rows = (items: DashboardBill[]) => (
     <ul className="divide-y">
@@ -72,7 +71,7 @@ export function BillsWidget({ period }: { period: string }) {
                 search={{ payables: true, period, sort: "dueDate" }}
                 to="/transactions"
               >
-                Ver lançamentos <ArrowRight aria-hidden="true" className="size-4" />
+                Ver lançamentos <ArrowRight aria-hidden="true" className="size-3.5" />
               </Link>
             </div>
           ) : undefined
@@ -106,7 +105,7 @@ export function BillsWidget({ period }: { period: string }) {
                 title="Nenhuma conta com vencimento neste mês"
               />
             ) : (
-              rows(bills.slice(0, maximumVisibleBills))
+              rows(visibleItems)
             )}
           </div>
         ) : null}
@@ -141,9 +140,9 @@ function BillRow({ bill, onSettle }: { bill: DashboardBill; onSettle: () => void
         <EstablishmentLogo
           categoryIcon={bill.categoryIcon}
           editable={false}
-          className="size-9"
+          className="size-8"
           name={bill.name}
-          size={36}
+          size={32}
         />
       </Link>
       <div className="min-w-0 flex-1">
@@ -152,14 +151,14 @@ function BillRow({ bill, onSettle }: { bill: DashboardBill; onSettle: () => void
         </div>
         <p
           className={cn(
-            "text-muted-foreground text-xs",
+            "truncate text-muted-foreground text-xs",
             bill.status === "overdue" && "font-medium text-destructive",
             bill.status === "paid" && "text-success",
           )}
         >
           <span className="inline-flex items-center gap-1">
             <PaymentIcon aria-hidden="true" className="size-3" />
-            {paymentMethodLabels[bill.paymentMethod]}
+            <span className="@max-sm:sr-only">{paymentMethodLabels[bill.paymentMethod]}</span>
           </span>
           {" · "}
           {bill.status === "paid" ? (
@@ -233,7 +232,7 @@ function BillRow({ bill, onSettle }: { bill: DashboardBill; onSettle: () => void
             type="button"
             variant="link"
           >
-            Registrar pagamento
+            Registrar<span className="@max-sm:sr-only"> pagamento</span>
           </Button>
         )}
       </div>
@@ -289,7 +288,7 @@ function BillsLoading() {
     <div aria-label="Carregando contas a pagar" className="grid gap-3" role="status">
       <Skeleton className="h-8 w-36" />
       {["first", "second", "third"].map((key) => (
-        <Skeleton className="h-16 w-full" key={key} />
+        <Skeleton className="h-12 w-full" key={key} />
       ))}
     </div>
   );

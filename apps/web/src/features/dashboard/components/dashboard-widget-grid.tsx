@@ -5,7 +5,10 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { dashboardGridGapRem, dashboardGridRowRem } from "../dashboard.presentation";
 import { dashboardWidgetPreferencesQueryOptions } from "../dashboard.queries";
+import { useDashboardColumnLimit } from "../useDashboardColumnLimit";
+import { DashboardWidgetFrame } from "./dashboard-widget-layout";
 import { dashboardWidgetById } from "./dashboard-widget-registry";
 
 export function DashboardWidgetGrid({
@@ -20,6 +23,7 @@ export function DashboardWidgetGrid({
   const defaults = createDefaultDashboardWidgetPreferences();
   const preferencesQuery = useQuery(dashboardWidgetPreferencesQueryOptions());
   const preferences = preferencesQuery.data ?? defaults;
+  const columns = Math.min(preferences.columns, useDashboardColumnLimit());
   const excludedWidgets = new Set(excludedWidgetIds);
   const visibleWidgets = preferences.order.flatMap((widgetId) => {
     const widget = dashboardWidgetById.get(widgetId);
@@ -58,12 +62,24 @@ export function DashboardWidgetGrid({
       {visibleWidgets.length > 0 ? (
         <section
           aria-label="Widgets do dashboard"
-          className="grid gap-4 md:grid-cols-2 xl:grid-cols-3"
+          className="grid"
+          data-dashboard-grid
+          // O fluxo denso ocupa os vãos deixados por cards maiores.
+          style={{
+            gap: `${dashboardGridGapRem}rem`,
+            gridAutoFlow: "row dense",
+            gridAutoRows: `${dashboardGridRowRem}rem`,
+            gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
+          }}
         >
           {visibleWidgets.map((widget) => (
-            <div className="min-w-0" key={widget.id}>
+            <DashboardWidgetFrame
+              columns={columns}
+              key={widget.id}
+              layout={preferences.layouts[widget.id]}
+            >
               {widget.render(period)}
-            </div>
+            </DashboardWidgetFrame>
           ))}
         </section>
       ) : (

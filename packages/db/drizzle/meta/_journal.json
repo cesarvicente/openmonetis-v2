@@ -204,6 +204,13 @@
       "when": 1795413212449,
       "tag": "0028_rename_invoice_payment_category",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1795458840321,
+      "tag": "0029_dashboard_widget_layouts",
+      "breakpoints": true
     }
   ]
 }

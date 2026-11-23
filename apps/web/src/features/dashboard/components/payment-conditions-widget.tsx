@@ -12,6 +12,7 @@ import { useAdminPersonSlug } from "../useAdminPersonSlug";
 import { DashboardDistributionChart } from "./dashboard-distribution-chart";
 import { DashboardWidget } from "./dashboard-widget";
 import { dashboardWidgetFooterNavigationLinkClassName } from "./dashboard-widget-footer-link";
+import { useDashboardWidgetItems } from "./dashboard-widget-layout";
 import { DashboardWidgetViewToggle } from "./dashboard-widget-view-toggle";
 import {
   ExpenseDistributionList,
@@ -28,6 +29,10 @@ export function PaymentConditionsWidget({ period }: { period: string }) {
   const query = useQuery(dashboardExpenseDistributionQueryOptions(period));
   const adminPersonSlug = useAdminPersonSlug();
   const items = query.data ? buildItems(query.data.conditions, period, adminPersonSlug) : [];
+  const { visibleItems } = useDashboardWidgetItems(items, {
+    active: activeView === "list",
+    structure: "progress",
+  });
 
   return (
     <DashboardWidget
@@ -47,7 +52,7 @@ export function PaymentConditionsWidget({ period }: { period: string }) {
             search={{ people: adminPersonSlug, period, type: "expense" }}
             to="/transactions"
           >
-            Ver despesas <ArrowRight aria-hidden="true" className="size-4" />
+            Ver despesas <ArrowRight aria-hidden="true" className="size-3.5" />
           </Link>
         ) : undefined
       }
@@ -60,7 +65,7 @@ export function PaymentConditionsWidget({ period }: { period: string }) {
         items.length === 0 ? (
           <DistributionEmpty />
         ) : activeView === "chart" ? (
-          <div aria-busy={query.isFetching} className="flex flex-1 items-center">
+          <div aria-busy={query.isFetching} className="flex min-h-0 flex-1">
             <DashboardDistributionChart
               items={items}
               label="Distribuição por condição de pagamento"
@@ -68,7 +73,7 @@ export function PaymentConditionsWidget({ period }: { period: string }) {
           </div>
         ) : (
           <div aria-busy={query.isFetching} className="flex flex-1 flex-col">
-            <ExpenseDistributionList items={items} />
+            <ExpenseDistributionList items={visibleItems} />
           </div>
         )
       ) : null}

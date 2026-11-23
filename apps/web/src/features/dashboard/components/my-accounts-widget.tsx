@@ -17,9 +17,11 @@ import { DashboardItemLinkArrow } from "./dashboard-item-link-arrow";
 import { DashboardWidget } from "./dashboard-widget";
 import { DashboardWidgetEmptyState } from "./dashboard-widget-empty-state";
 import { dashboardWidgetFooterNavigationLinkClassName } from "./dashboard-widget-footer-link";
+import { useDashboardWidgetItems } from "./dashboard-widget-layout";
 import { DashboardWidgetRow } from "./dashboard-widget-row";
 
-const maximumVisibleAccounts = 4;
+/** Altura do bloco de saldo total, `h-13`. */
+const totalBalanceRem = 3.25;
 
 export function MyAccountsWidget({ period }: { period: string }) {
   const accountsQuery = useQuery(dashboardAccountsQueryOptions(period));
@@ -30,9 +32,10 @@ export function MyAccountsWidget({ period }: { period: string }) {
     (total, account) => (account.excludeFromBalance ? total : total + Math.abs(account.balance)),
     0,
   );
-  const visibleAccounts = (
-    showExcluded ? accounts : accounts.filter((account) => !account.excludeFromBalance)
-  ).slice(0, maximumVisibleAccounts);
+  const { visibleItems: visibleAccounts } = useDashboardWidgetItems(
+    showExcluded ? accounts : accounts.filter((account) => !account.excludeFromBalance),
+    { reservedRem: totalBalanceRem },
+  );
   return (
     <DashboardWidget
       action={
@@ -66,7 +69,7 @@ export function MyAccountsWidget({ period }: { period: string }) {
         accounts.length > 0 ? (
           <Link className={dashboardWidgetFooterNavigationLinkClassName} to="/accounts">
             Ver contas
-            <ArrowRight aria-hidden="true" className="size-4" />
+            <ArrowRight aria-hidden="true" className="size-3.5" />
           </Link>
         ) : undefined
       }
@@ -80,13 +83,13 @@ export function MyAccountsWidget({ period }: { period: string }) {
       {accountsQuery.data && !accountsQuery.isError ? (
         <div className="flex flex-1 flex-col">
           {accounts.length > 0 ? (
-            <div className="flex items-end justify-between gap-4 pb-4 pt-2">
+            <div className="flex h-13 shrink-0 items-center justify-between gap-4">
               <div>
                 <p className="text-muted-foreground text-xs">Saldo das contas incluídas</p>
                 <MoneyValue
                   amount={accountsQuery.data.totalBalance}
                   className={cn(
-                    "mt-1 font-medium text-2xl",
+                    "font-medium text-xl leading-tight",
                     accountsQuery.data.totalBalance < 0 && "text-destructive",
                   )}
                 />
@@ -146,14 +149,14 @@ function AccountRow({
       {account.logo ? (
         <Image
           alt={`Logo de ${account.name}`}
-          className="size-9 shrink-0 rounded-full object-contain"
-          height={36}
+          className="size-8 shrink-0 rounded-full object-contain"
+          height={32}
           layout="fixed"
           src={account.logo}
-          width={36}
+          width={32}
         />
       ) : (
-        <span className="grid size-9 shrink-0 place-items-center rounded-full bg-muted font-medium text-muted-foreground text-xs">
+        <span className="grid size-8 shrink-0 place-items-center rounded-full bg-muted font-medium text-muted-foreground text-xs">
           {account.name.slice(0, 2).toLocaleUpperCase("pt-BR")}
         </span>
       )}
@@ -167,7 +170,7 @@ function AccountRow({
           <span className="truncate">{account.name}</span>
           <DashboardItemLinkArrow />
         </Link>
-        <div className="mt-0.5 flex min-w-0 items-center gap-2">
+        <div className="flex min-w-0 items-center gap-2">
           <span className="truncate text-muted-foreground text-xs">
             {accountTypeLabels[account.type]}
           </span>
@@ -184,8 +187,8 @@ function AccountRow({
           className={cn("font-medium text-sm", account.balance < 0 && "text-destructive")}
         />
         {!account.excludeFromBalance ? (
-          <p className="mt-0.5 text-muted-foreground text-xs tabular-nums">
-            {formattedBalanceShare}% entre as contas
+          <p className="text-muted-foreground text-xs tabular-nums">
+            {formattedBalanceShare}%<span className="hidden @xs:inline"> entre as contas</span>
           </p>
         ) : null}
       </div>
@@ -199,7 +202,7 @@ function AccountsLoading() {
       <Skeleton className="h-8 w-40" />
       {["first", "second", "third"].map((key) => (
         <div className="flex items-center gap-3" key={key}>
-          <Skeleton className="size-9 rounded-full" />
+          <Skeleton className="size-8 rounded-full" />
           <div className="grid flex-1 gap-2">
             <Skeleton className="h-3 w-28" />
             <Skeleton className="h-3 w-20" />
