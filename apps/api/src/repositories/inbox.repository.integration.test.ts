@@ -35,9 +35,13 @@ test("identical captures are discarded as duplicates and different ones stay pen
     });
     const schema = await import("@openmonetis/db/schema");
     const { inboxRepository } = await import("./inbox.repository");
+    const { inboxRulesRepository } = await import("./inbox-rules.repository");
     const { createInboxService } = await import("../services/inbox.service");
     const now = new Date("2026-11-12T15:00:00.000Z");
-    const service = createInboxService(inboxRepository, { now: () => now });
+    const service = createInboxService(inboxRepository, {
+      now: () => now,
+      rulesRepository: inboxRulesRepository,
+    });
 
     const [owner, stranger] = await db
       .insert(schema.user)
@@ -135,6 +139,38 @@ test("identical captures are discarded as duplicates and different ones stay pen
     const restored = await service.restore(copy.id, owner.id);
     assert.equal(restored.status, "pending");
     assert.equal(restored.discardReason, null);
+
+    // A discard rule discards new matching captures of its owner only.
+    const [discardRule] = await db
+      .insert(schema.inboxRules)
+      .values({
+        userId: owner.id,
+        name: "Descartar ofertas",
+        conditions: [{ field: "originalText", operator: "contains", value: "promoção" }],
+        action: "discard",
+      })
+      .returning();
+    const offer = { ...capture, originalText: "Aproveite a PROMOCAO de hoje" };
+    const discarded = await service.ingest({ ...offer, clientId: "offer-1" }, ownerContext);
+    const discardedItem = await statusOf(discarded.id);
+    assert.equal(discardedItem.status, "discarded");
+    assert.equal(discardedItem.discardReason, "rule");
+    const strangerOffer = await service.ingest(
+      { ...offer, clientId: "offer-1" },
+      { userId: stranger.id, deviceTokenId: strangerToken.id },
+    );
+    assert.equal((await service.get(strangerOffer.id, stranger.id)).status, "pending");
+
+    // The discarded tab can be filtered by the rule, and a restored capture stays pending.
+    const filtered = await service.list(
+      { status: "discarded", page: 1, pageSize: 20, ruleId: discardRule.id },
+      owner.id,
+    );
+    assert.deepEqual(
+      filtered.items.map((item) => item.id),
+      [discarded.id],
+    );
+    assert.equal((await service.restore(discarded.id, owner.id)).status, "pending");
   } finally {
     await applicationPool?.end();
     if (originalExternalUrl === undefined) delete process.env.EXTERNAL_DATABASE_URL;

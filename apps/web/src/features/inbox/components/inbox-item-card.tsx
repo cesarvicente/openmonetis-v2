@@ -49,10 +49,19 @@ export function InboxItemCard({
     ? `${sourceMatch.kind === "card" ? "Cartão" : "Conta"} · ${sourceMatch.name}`
     : (item.sourceAppName ?? "App financeiro");
 
-  const duplicateBadge =
+  const discardReasonBadge =
     item.discardReason === "duplicate" ? (
       <Badge title="Descartada automaticamente: igual a outra captura" variant="destructive">
         Duplicada
+      </Badge>
+    ) : item.discardReason === "rule" ? (
+      <Badge
+        className="gap-1"
+        title="Descartada automaticamente por uma regra da caixa de entrada"
+        variant="outline"
+      >
+        <Workflow aria-hidden="true" className="size-3 shrink-0" />
+        Descartada por regra
       </Badge>
     ) : null;
 
@@ -85,7 +94,7 @@ export function InboxItemCard({
               <p className="mt-1 truncate text-muted-foreground text-xs">
                 {formatInboxTime(item.notificationTimestamp)} · {sourceLabel}
               </p>
-              {duplicateBadge ? <div className="mt-1.5">{duplicateBadge}</div> : null}
+              {discardReasonBadge ? <div className="mt-1.5">{discardReasonBadge}</div> : null}
             </div>
           </div>
           {item.status === "pending" && suggestionQuery.data?.appliedRules.length ? (
@@ -133,7 +142,7 @@ export function InboxItemCard({
               </span>
             </p>
             <Badge variant="secondary">{sourceLabel}</Badge>
-            {duplicateBadge}
+            {discardReasonBadge}
             {item.status === "pending"
               ? suggestionQuery.data?.appliedRules.map((rule) => (
                   <Badge

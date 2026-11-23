@@ -1,4 +1,6 @@
 import {
+  defaultInboxRuleAction,
+  type InboxRuleAction,
   type InboxRuleConditionField,
   type InboxRuleTransactionType,
   inboxRuleConditionFields,
@@ -20,7 +22,7 @@ import {
 } from "@openmonetis/validators/inbox-rules";
 import type { PersonOutput } from "@openmonetis/validators/people";
 import { useForm } from "@tanstack/react-form";
-import { CircleOff, Info, Plus, Trash2 } from "lucide-react";
+import { CheckCircle2, Circle, CircleOff, Info, Plus, Trash2 } from "lucide-react";
 import { useId, useState } from "react";
 import { toast } from "sonner";
 import { MobileFormState } from "@/components/forms/mobile-form-state";
@@ -38,8 +40,10 @@ import { CategoryIcon } from "@/features/categories/category-icons";
 import { EntityOption } from "@/features/transactions/components/transaction-entity-option";
 import { PaymentMethodOption } from "@/features/transactions/components/transaction-payment-method-option";
 import { showInvalidFormToast } from "@/lib/form-feedback";
+import { cn } from "@/lib/utils";
 import {
   getInboxRuleFormErrorMessage,
+  inboxRuleActionOptions,
   inboxRuleAmountOperatorLabels,
   inboxRuleFieldLabels,
   inboxRuleTextOperatorLabels,
@@ -84,6 +88,7 @@ export function InboxRuleForm({
         operator: condition.operator,
         value: String(condition.value),
       })) ?? [createEmptyCondition()]) as EditableCondition[],
+      action: (rule?.action ?? defaultInboxRuleAction) as InboxRuleAction,
       transactionType: (rule?.transactionType ?? "none") as InboxRuleTransactionType | "none",
       categoryId: rule?.category?.id ?? "none",
       personId: rule?.person?.id ?? "none",
@@ -94,6 +99,7 @@ export function InboxRuleForm({
     onSubmitInvalid: showInvalidFormToast,
     onSubmit: async ({ value }) => {
       setError(null);
+      const fills = value.action === "fill";
       const candidate = {
         name: value.name,
         priority: Number(value.priority),
@@ -112,13 +118,14 @@ export function InboxRuleForm({
                 value: condition.value,
               },
         ),
-        transactionType: value.transactionType === "none" ? null : value.transactionType,
-        categoryId: value.categoryId === "none" ? null : value.categoryId,
-        personId: value.personId === "none" ? null : value.personId,
-        paymentMethod: value.paymentMethod === "none" ? null : value.paymentMethod,
-        cardId: value.paymentMethod === "credit_card" ? value.cardId || null : null,
+        action: value.action,
+        transactionType: !fills || value.transactionType === "none" ? null : value.transactionType,
+        categoryId: !fills || value.categoryId === "none" ? null : value.categoryId,
+        personId: !fills || value.personId === "none" ? null : value.personId,
+        paymentMethod: !fills || value.paymentMethod === "none" ? null : value.paymentMethod,
+        cardId: fills && value.paymentMethod === "credit_card" ? value.cardId || null : null,
         accountId:
-          value.paymentMethod !== "none" && value.paymentMethod !== "credit_card"
+          fills && value.paymentMethod !== "none" && value.paymentMethod !== "credit_card"
             ? value.accountId || null
             : null,
         ...(rule ? { expectedVersion: rule.version } : {}),
@@ -344,242 +351,303 @@ export function InboxRuleForm({
         )}
       </form.Field>
 
-      <fieldset className="grid gap-3">
-        <legend className="font-medium text-sm tracking-tight">Preencher</legend>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <form.Field name="transactionType">
-            {(field) => (
-              <div className="grid gap-1.5">
-                <Label htmlFor={`${id}-transaction-type`}>Tipo de transação</Label>
-                <Select
-                  onValueChange={(value) => {
-                    if (!value) return;
-                    field.handleChange(value);
-                    const nextType = value === "none" ? "expense" : value;
-                    const category = categories.find(
-                      (item) => item.id === form.getFieldValue("categoryId"),
-                    );
-                    if (category && category.type !== nextType) {
-                      form.setFieldValue("categoryId", "none");
-                    }
-                  }}
-                  value={field.state.value}
-                >
-                  <SelectTrigger className="w-full" id={`${id}-transaction-type`}>
-                    <SelectValue>{inboxRuleTransactionTypeLabels[field.state.value]}</SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(["none", ...inboxRuleTransactionTypes] as const).map((type) => (
-                      <SelectItem key={type} value={type}>
-                        {inboxRuleTransactionTypeLabels[type]}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-          </form.Field>
-          <form.Subscribe
-            selector={(state) =>
-              state.values.transactionType === "none" ? "expense" : state.values.transactionType
-            }
-          >
-            {(categoryType) => (
-              <form.Field name="categoryId">
-                {(field) => (
-                  <div className="grid gap-1.5">
-                    <Label htmlFor={`${id}-category`}>Categoria</Label>
-                    <Select
-                      onValueChange={(value) => value && field.handleChange(value)}
-                      value={field.state.value}
-                    >
-                      <SelectTrigger className="w-full" id={`${id}-category`}>
-                        <SelectValue>
-                          <CategoryOption
-                            category={categories.find(
-                              (category) => category.id === field.state.value,
-                            )}
-                          />
-                        </SelectValue>
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">
-                          <CategoryOption />
-                        </SelectItem>
-                        {categories
-                          .filter((category) => category.type === categoryType)
-                          .map((category) => (
-                            <SelectItem key={category.id} value={category.id}>
-                              <CategoryOption category={category} />
+      <form.Field name="action">
+        {(field) => (
+          <fieldset className="grid gap-3">
+            <legend className="mb-3 font-medium text-sm tracking-tight">Ação</legend>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {inboxRuleActionOptions.map((option) => {
+                const selected = field.state.value === option.value;
+                const Icon = selected ? CheckCircle2 : Circle;
+                return (
+                  <label
+                    className={cn(
+                      "flex cursor-pointer items-start gap-3 rounded-lg border p-3 text-left transition-colors hover:border-brand-strong/40 hover:bg-accent/50 has-focus-visible:ring-2 has-focus-visible:ring-ring",
+                      selected && "border-brand-strong bg-brand/5",
+                    )}
+                    key={option.value}
+                  >
+                    <input
+                      checked={selected}
+                      className="sr-only"
+                      name={`${id}-action`}
+                      onBlur={field.handleBlur}
+                      onChange={() => field.handleChange(option.value)}
+                      type="radio"
+                      value={option.value}
+                    />
+                    <Icon
+                      aria-hidden="true"
+                      className={cn(
+                        "mt-0.5 size-4 shrink-0",
+                        selected ? "text-brand-strong" : "text-muted-foreground",
+                      )}
+                    />
+                    <span className="grid gap-0.5">
+                      <span className="font-medium text-sm">{option.label}</span>
+                      <span className="text-muted-foreground text-xs">{option.description}</span>
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+          </fieldset>
+        )}
+      </form.Field>
+
+      <form.Subscribe selector={(state) => state.values.action}>
+        {(action) =>
+          action === "discard" ? (
+            <p className="text-muted-foreground text-xs">
+              O descarte vale para as capturas que chegarem depois de salvar a regra, mesmo que
+              outra regra também coincida. Você pode restaurá-las em Descartados.
+            </p>
+          ) : (
+            <fieldset className="grid gap-3">
+              <legend className="font-medium text-sm tracking-tight">Preencher</legend>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <form.Field name="transactionType">
+                  {(field) => (
+                    <div className="grid gap-1.5">
+                      <Label htmlFor={`${id}-transaction-type`}>Tipo de transação</Label>
+                      <Select
+                        onValueChange={(value) => {
+                          if (!value) return;
+                          field.handleChange(value);
+                          const nextType = value === "none" ? "expense" : value;
+                          const category = categories.find(
+                            (item) => item.id === form.getFieldValue("categoryId"),
+                          );
+                          if (category && category.type !== nextType) {
+                            form.setFieldValue("categoryId", "none");
+                          }
+                        }}
+                        value={field.state.value}
+                      >
+                        <SelectTrigger className="w-full" id={`${id}-transaction-type`}>
+                          <SelectValue>
+                            {inboxRuleTransactionTypeLabels[field.state.value]}
+                          </SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                          {(["none", ...inboxRuleTransactionTypes] as const).map((type) => (
+                            <SelectItem key={type} value={type}>
+                              {inboxRuleTransactionTypeLabels[type]}
                             </SelectItem>
                           ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
-              </form.Field>
-            )}
-          </form.Subscribe>
-          <form.Field name="personId">
-            {(field) => (
-              <div className="grid gap-1.5">
-                <Label htmlFor={`${id}-person`}>Pessoa</Label>
-                <Select
-                  onValueChange={(value) => value && field.handleChange(value)}
-                  value={field.state.value}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                </form.Field>
+                <form.Subscribe
+                  selector={(state) =>
+                    state.values.transactionType === "none"
+                      ? "expense"
+                      : state.values.transactionType
+                  }
                 >
-                  <SelectTrigger className="w-full" id={`${id}-person`}>
-                    <SelectValue>
-                      <PersonOption
-                        person={people.find((person) => person.id === field.state.value)}
-                      />
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">
-                      <PersonOption />
-                    </SelectItem>
-                    {people
-                      .filter((person) => person.status === "active")
-                      .map((person) => (
-                        <SelectItem key={person.id} value={person.id}>
-                          <PersonOption person={person} />
-                        </SelectItem>
-                      ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-          </form.Field>
-          <form.Field name="paymentMethod">
-            {(field) => (
-              <div className="grid gap-1.5">
-                <Label htmlFor={`${id}-payment-method`}>Forma de pagamento</Label>
-                <Select
-                  onValueChange={(value) => {
-                    if (!value) return;
-                    field.handleChange(value);
-                    form.setFieldValue("cardId", "");
-                    form.setFieldValue("accountId", "");
-                  }}
-                  value={field.state.value}
-                >
-                  <SelectTrigger className="w-full" id={`${id}-payment-method`}>
-                    <SelectValue>
-                      {field.state.value === "none" ? (
-                        <NotFilledOption />
-                      ) : (
-                        <PaymentMethodOption method={field.state.value as PaymentMethod} />
+                  {(categoryType) => (
+                    <form.Field name="categoryId">
+                      {(field) => (
+                        <div className="grid gap-1.5">
+                          <Label htmlFor={`${id}-category`}>Categoria</Label>
+                          <Select
+                            onValueChange={(value) => value && field.handleChange(value)}
+                            value={field.state.value}
+                          >
+                            <SelectTrigger className="w-full" id={`${id}-category`}>
+                              <SelectValue>
+                                <CategoryOption
+                                  category={categories.find(
+                                    (category) => category.id === field.state.value,
+                                  )}
+                                />
+                              </SelectValue>
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">
+                                <CategoryOption />
+                              </SelectItem>
+                              {categories
+                                .filter((category) => category.type === categoryType)
+                                .map((category) => (
+                                  <SelectItem key={category.id} value={category.id}>
+                                    <CategoryOption category={category} />
+                                  </SelectItem>
+                                ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
                       )}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">
-                      <NotFilledOption />
-                    </SelectItem>
-                    {paymentMethods.map((method) => (
-                      <SelectItem key={method} value={method}>
-                        <PaymentMethodOption method={method} />
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                    </form.Field>
+                  )}
+                </form.Subscribe>
+                <form.Field name="personId">
+                  {(field) => (
+                    <div className="grid gap-1.5">
+                      <Label htmlFor={`${id}-person`}>Pessoa</Label>
+                      <Select
+                        onValueChange={(value) => value && field.handleChange(value)}
+                        value={field.state.value}
+                      >
+                        <SelectTrigger className="w-full" id={`${id}-person`}>
+                          <SelectValue>
+                            <PersonOption
+                              person={people.find((person) => person.id === field.state.value)}
+                            />
+                          </SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">
+                            <PersonOption />
+                          </SelectItem>
+                          {people
+                            .filter((person) => person.status === "active")
+                            .map((person) => (
+                              <SelectItem key={person.id} value={person.id}>
+                                <PersonOption person={person} />
+                              </SelectItem>
+                            ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                </form.Field>
+                <form.Field name="paymentMethod">
+                  {(field) => (
+                    <div className="grid gap-1.5">
+                      <Label htmlFor={`${id}-payment-method`}>Forma de pagamento</Label>
+                      <Select
+                        onValueChange={(value) => {
+                          if (!value) return;
+                          field.handleChange(value);
+                          form.setFieldValue("cardId", "");
+                          form.setFieldValue("accountId", "");
+                        }}
+                        value={field.state.value}
+                      >
+                        <SelectTrigger className="w-full" id={`${id}-payment-method`}>
+                          <SelectValue>
+                            {field.state.value === "none" ? (
+                              <NotFilledOption />
+                            ) : (
+                              <PaymentMethodOption method={field.state.value as PaymentMethod} />
+                            )}
+                          </SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">
+                            <NotFilledOption />
+                          </SelectItem>
+                          {paymentMethods.map((method) => (
+                            <SelectItem key={method} value={method}>
+                              <PaymentMethodOption method={method} />
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                </form.Field>
+                <form.Subscribe selector={(state) => state.values.paymentMethod}>
+                  {(paymentMethod) =>
+                    paymentMethod === "none" ? null : paymentMethod === "credit_card" ? (
+                      <form.Field name="cardId">
+                        {(field) => (
+                          <div className="grid gap-1.5">
+                            <Label htmlFor={`${id}-card`}>Cartão</Label>
+                            <Select
+                              onValueChange={(value) =>
+                                field.handleChange(!value || value === "none" ? "" : value)
+                              }
+                              value={field.state.value || "none"}
+                            >
+                              <SelectTrigger className="w-full" id={`${id}-card`}>
+                                <SelectValue>
+                                  {field.state.value ? (
+                                    <EntityOption
+                                      entity={cards.find((card) => card.id === field.state.value)}
+                                    />
+                                  ) : (
+                                    <NotFilledOption />
+                                  )}
+                                </SelectValue>
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="none">
+                                  <NotFilledOption />
+                                </SelectItem>
+                                {cards
+                                  .filter(
+                                    (card) =>
+                                      card.status === "active" || card.id === field.state.value,
+                                  )
+                                  .map((card) => (
+                                    <SelectItem key={card.id} value={card.id}>
+                                      <EntityOption entity={card} />
+                                    </SelectItem>
+                                  ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        )}
+                      </form.Field>
+                    ) : (
+                      <form.Field name="accountId">
+                        {(field) => (
+                          <div className="grid gap-1.5">
+                            <Label htmlFor={`${id}-account`}>Conta</Label>
+                            <Select
+                              onValueChange={(value) =>
+                                field.handleChange(!value || value === "none" ? "" : value)
+                              }
+                              value={field.state.value || "none"}
+                            >
+                              <SelectTrigger className="w-full" id={`${id}-account`}>
+                                <SelectValue>
+                                  {field.state.value ? (
+                                    <EntityOption
+                                      entity={accounts.find(
+                                        (account) => account.id === field.state.value,
+                                      )}
+                                    />
+                                  ) : (
+                                    <NotFilledOption />
+                                  )}
+                                </SelectValue>
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="none">
+                                  <NotFilledOption />
+                                </SelectItem>
+                                {accounts
+                                  .filter(
+                                    (account) =>
+                                      !account.isArchived || account.id === field.state.value,
+                                  )
+                                  .map((account) => (
+                                    <SelectItem key={account.id} value={account.id}>
+                                      <EntityOption entity={account} />
+                                    </SelectItem>
+                                  ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        )}
+                      </form.Field>
+                    )
+                  }
+                </form.Subscribe>
               </div>
-            )}
-          </form.Field>
-          <form.Subscribe selector={(state) => state.values.paymentMethod}>
-            {(paymentMethod) =>
-              paymentMethod === "none" ? null : paymentMethod === "credit_card" ? (
-                <form.Field name="cardId">
-                  {(field) => (
-                    <div className="grid gap-1.5">
-                      <Label htmlFor={`${id}-card`}>Cartão</Label>
-                      <Select
-                        onValueChange={(value) =>
-                          field.handleChange(!value || value === "none" ? "" : value)
-                        }
-                        value={field.state.value || "none"}
-                      >
-                        <SelectTrigger className="w-full" id={`${id}-card`}>
-                          <SelectValue>
-                            {field.state.value ? (
-                              <EntityOption
-                                entity={cards.find((card) => card.id === field.state.value)}
-                              />
-                            ) : (
-                              <NotFilledOption />
-                            )}
-                          </SelectValue>
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">
-                            <NotFilledOption />
-                          </SelectItem>
-                          {cards
-                            .filter(
-                              (card) => card.status === "active" || card.id === field.state.value,
-                            )
-                            .map((card) => (
-                              <SelectItem key={card.id} value={card.id}>
-                                <EntityOption entity={card} />
-                              </SelectItem>
-                            ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  )}
-                </form.Field>
-              ) : (
-                <form.Field name="accountId">
-                  {(field) => (
-                    <div className="grid gap-1.5">
-                      <Label htmlFor={`${id}-account`}>Conta</Label>
-                      <Select
-                        onValueChange={(value) =>
-                          field.handleChange(!value || value === "none" ? "" : value)
-                        }
-                        value={field.state.value || "none"}
-                      >
-                        <SelectTrigger className="w-full" id={`${id}-account`}>
-                          <SelectValue>
-                            {field.state.value ? (
-                              <EntityOption
-                                entity={accounts.find(
-                                  (account) => account.id === field.state.value,
-                                )}
-                              />
-                            ) : (
-                              <NotFilledOption />
-                            )}
-                          </SelectValue>
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">
-                            <NotFilledOption />
-                          </SelectItem>
-                          {accounts
-                            .filter(
-                              (account) => !account.isArchived || account.id === field.state.value,
-                            )
-                            .map((account) => (
-                              <SelectItem key={account.id} value={account.id}>
-                                <EntityOption entity={account} />
-                              </SelectItem>
-                            ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  )}
-                </form.Field>
-              )
-            }
-          </form.Subscribe>
-        </div>
-        <p className="text-muted-foreground text-xs">
-          Escolha ao menos um campo. Se mais de uma regra coincidir, o menor número de prioridade
-          preenche primeiro cada campo.
-        </p>
-      </fieldset>
+              <p className="text-muted-foreground text-xs">
+                Escolha ao menos um campo. Se mais de uma regra coincidir, o menor número de
+                prioridade preenche primeiro cada campo.
+              </p>
+            </fieldset>
+          )
+        }
+      </form.Subscribe>
 
       <form.Field name="isActive">
         {(field) => (
@@ -587,7 +655,7 @@ export function InboxRuleForm({
             <div>
               <Label htmlFor={`${id}-active`}>Regra ativa</Label>
               <p className="mt-1 text-muted-foreground text-xs">
-                Regras inativas ficam salvas, mas não sugerem valores.
+                Regras inativas ficam salvas, mas não são aplicadas.
               </p>
             </div>
             <Switch

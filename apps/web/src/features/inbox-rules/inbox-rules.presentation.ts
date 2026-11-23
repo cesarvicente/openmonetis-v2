@@ -1,4 +1,4 @@
-import type { InboxRuleConditionField } from "@openmonetis/domain/inbox-rules";
+import type { InboxRuleAction, InboxRuleConditionField } from "@openmonetis/domain/inbox-rules";
 import type {
   InboxRuleCondition,
   InboxRuleOutput,
@@ -48,8 +48,26 @@ export const inboxRuleTransactionTypeLabels = {
   income: "Receita",
 } as const;
 
+export const inboxRuleActionOptions: Array<{
+  value: InboxRuleAction;
+  label: string;
+  description: string;
+}> = [
+  {
+    value: "fill",
+    label: "Preencher Lançamento",
+    description: "Sugere os campos na revisão da captura.",
+  },
+  {
+    value: "discard",
+    label: "Descartar Lançamento",
+    description: "Novas capturas que coincidirem vão direto para Descartados.",
+  },
+];
+
 export function describeInboxRuleActions(rule: InboxRuleOutput) {
-  return [
+  if (rule.action === "discard") return "Descartar lançamento automaticamente";
+  const fields = [
     rule.transactionType ? `tipo ${inboxRuleTransactionTypeLabels[rule.transactionType]}` : null,
     rule.category ? `categoria ${rule.category.name}` : null,
     rule.person ? `pessoa ${rule.person.name}` : null,
@@ -61,6 +79,7 @@ export function describeInboxRuleActions(rule: InboxRuleOutput) {
   ]
     .filter(Boolean)
     .join(" e ");
+  return `Preencher ${fields}`;
 }
 
 export function describeInboxRuleSuggestion(suggestion: InboxRuleSuggestionOutput | null) {

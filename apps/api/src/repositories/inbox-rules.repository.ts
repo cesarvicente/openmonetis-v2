@@ -7,7 +7,11 @@ import {
   inboxRules,
   people,
 } from "@openmonetis/db";
-import type { InboxRuleCondition, InboxRuleTransactionType } from "@openmonetis/domain/inbox-rules";
+import type {
+  InboxRuleAction,
+  InboxRuleCondition,
+  InboxRuleTransactionType,
+} from "@openmonetis/domain/inbox-rules";
 import type { PaymentMethod } from "@openmonetis/domain/transactions";
 import { and, asc, eq, sql } from "drizzle-orm";
 import type { InboxRuleRecord, InboxRulesRepository } from "../services/inbox-rules.service";
@@ -21,6 +25,7 @@ const ruleSelection = {
   isActive: inboxRules.isActive,
   matchMode: inboxRules.matchMode,
   conditions: inboxRules.conditions,
+  action: inboxRules.action,
   transactionType: inboxRules.transactionType,
   categoryId: inboxRules.categoryId,
   categoryName: categoryLabelSql(categories),
@@ -48,6 +53,7 @@ type RuleSelectionRow = {
   isActive: boolean;
   matchMode: "all" | "any";
   conditions: unknown;
+  action: InboxRuleAction;
   transactionType: "income" | "expense" | "transfer" | null;
   categoryId: string | null;
   categoryName: string | null;

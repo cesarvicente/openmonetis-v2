@@ -1,7 +1,10 @@
 import { z } from "@hono/zod-openapi";
 import {
+  defaultInboxRuleAction,
+  inboxRuleActions,
   inboxRuleAppliedFields,
   inboxRuleConditionValueMaximumLength,
+  inboxRuleFillsAnyField,
   inboxRuleMatchModes,
   inboxRuleMaximumConditions,
   inboxRuleNameMaximumLength,
@@ -11,6 +14,7 @@ import {
   inboxRuleTextConditionFields,
   inboxRuleTextConditionOperators,
   inboxRuleTransactionTypes,
+  isValidInboxRuleDiscard,
   isValidInboxRulePaymentTarget,
 } from "@openmonetis/domain/inbox-rules";
 import { paymentMethods } from "@openmonetis/domain/transactions";
@@ -49,6 +53,10 @@ const InboxRuleEditableFieldsSchema = z
     isActive: z.boolean(),
     matchMode: z.enum(inboxRuleMatchModes),
     conditions: z.array(InboxRuleConditionSchema).min(1).max(inboxRuleMaximumConditions),
+    action: z.enum(inboxRuleActions).default(defaultInboxRuleAction).openapi({
+      description:
+        "fill suggests fields in the review; discard discards matching captures as they arrive.",
+    }),
     transactionType: z.enum(inboxRuleTransactionTypes).nullable().default(null).openapi({
       description: "Suggested transaction type; null keeps the default (expense).",
     }),
@@ -59,14 +67,13 @@ const InboxRuleEditableFieldsSchema = z
     accountId: z.uuid().nullable().default(null),
   })
   .strict()
-  .refine(
-    (input) =>
-      input.transactionType !== null ||
-      input.categoryId !== null ||
-      input.personId !== null ||
-      input.paymentMethod !== null,
-    { message: "At least one action is required" },
-  )
+  .refine((input) => input.action === "discard" || inboxRuleFillsAnyField(input), {
+    message: "At least one action is required",
+  })
+  .refine(isValidInboxRuleDiscard, {
+    message: "Discard rules cannot fill transaction fields",
+    path: ["action"],
+  })
   .refine(isValidInboxRulePaymentTarget, {
     message: "Only credit card rules can fill a card and only other payment methods an account",
     path: ["paymentMethod"],
@@ -111,6 +118,7 @@ export const InboxRuleOutputSchema = z
     isActive: z.boolean(),
     matchMode: z.enum(inboxRuleMatchModes),
     conditions: z.array(InboxRuleConditionSchema),
+    action: z.enum(inboxRuleActions),
     transactionType: z.enum(inboxRuleTransactionTypes).nullable(),
     category: InboxRuleTargetOutputSchema.nullable(),
     person: InboxRuleTargetOutputSchema.nullable(),

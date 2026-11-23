@@ -4,6 +4,8 @@ import {
   createInboxRuleDraft,
   type InboxRuleCandidate,
   InboxRuleError,
+  isInboxRuleApplied,
+  matchesInboxDiscardRule,
   resolveInboxRules,
 } from "@openmonetis/domain/inbox-rules";
 
@@ -24,6 +26,7 @@ function rule(overrides: Partial<InboxRuleCandidate>): InboxRuleCandidate {
     isActive: true,
     matchMode: "all",
     conditions: [{ field: "originalText", operator: "contains", value: "ifood" }],
+    action: "fill",
     transactionType: null,
     categoryId: null,
     personId: null,
@@ -146,6 +149,7 @@ const draftBase = {
   isActive: true,
   matchMode: "all" as const,
   conditions: [{ field: "originalText" as const, operator: "contains" as const, value: "samsung" }],
+  action: "fill" as const,
   transactionType: null,
   categoryId: null,
   personId: null,
@@ -242,4 +246,49 @@ test("a rule can fill only the transaction type", () => {
     accountId: null,
   });
   assert.equal(draft.transactionType, "income");
+});
+
+test("any active matching discard rule discards the capture and fills nothing", () => {
+  const discard = rule({ id: "discard", name: "Descartar", priority: 500, action: "discard" });
+  const fill = rule({ id: "fill", name: "iFood", priority: 1, categoryId: "restaurants" });
+
+  assert.equal(matchesInboxDiscardRule(item, [fill, discard]), true);
+  assert.equal(matchesInboxDiscardRule(item, [fill]), false);
+  assert.equal(matchesInboxDiscardRule(item, [{ ...discard, isActive: false }]), false);
+  assert.equal(
+    matchesInboxDiscardRule(item, [
+      rule({
+        action: "discard",
+        conditions: [{ field: "originalText", operator: "contains", value: "uber" }],
+      }),
+    ]),
+    false,
+  );
+
+  const result = resolveInboxRules(item, [discard, fill]);
+  assert.deepEqual(
+    result.appliedRules.map((applied) => applied.id),
+    ["fill"],
+  );
+  assert.equal(isInboxRuleApplied(item, [discard, fill], "discard"), true);
+  assert.equal(isInboxRuleApplied(item, [discard, fill], "fill"), true);
+});
+
+test("a discard rule needs conditions but cannot fill fields", () => {
+  const discard = {
+    ...draftBase,
+    action: "discard" as const,
+    paymentMethod: null,
+    cardId: null,
+    accountId: null,
+  };
+  assert.equal(createInboxRuleDraft(discard).action, "discard");
+  assert.throws(
+    () => createInboxRuleDraft({ ...discard, categoryId: "restaurants" }),
+    (error) => error instanceof InboxRuleError && error.code === "inbox_rule_discard_with_fields",
+  );
+  assert.throws(
+    () => createInboxRuleDraft({ ...discard, conditions: [] }),
+    (error) => error instanceof InboxRuleError && error.code === "inbox_rule_conditions_required",
+  );
 });

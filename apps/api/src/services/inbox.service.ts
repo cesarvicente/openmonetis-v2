@@ -10,7 +10,12 @@ import {
   normalizeInboxSingleLine,
   summarizePendingInboxBySource,
 } from "@openmonetis/domain/inbox";
-import { resolveInboxRules } from "@openmonetis/domain/inbox-rules";
+import {
+  type InboxRuleCandidate,
+  type InboxRuleMatchItem,
+  isInboxRuleApplied,
+  matchesInboxDiscardRule,
+} from "@openmonetis/domain/inbox-rules";
 import type {
   CompanionInboxItemInput,
   InboxItemOutput,
@@ -138,12 +143,22 @@ export function createInboxService(
   } = {},
 ) {
   const now = options.now ?? (() => new Date());
-  const initialState = (hasIdenticalCapture: boolean) =>
-    getInboxCaptureInitialState({ hasIdenticalCapture, now: now() });
+
+  async function listRules(userId: string) {
+    if (!options.rulesRepository) return [];
+    return availableInboxRuleCandidates(await options.rulesRepository.listActiveByUser(userId));
+  }
+
+  function insertCapture(draft: InboxItemDraft, rules: InboxRuleCandidate[]) {
+    const matchesDiscardRule = matchesInboxDiscardRule(toRuleMatchItem(draft), rules);
+    return repository.insertOrFind(draft, (hasIdenticalCapture) =>
+      getInboxCaptureInitialState({ hasIdenticalCapture, matchesDiscardRule, now: now() }),
+    );
+  }
 
   async function ingest(input: CompanionInboxItemInput, context: InboxIngestionContext) {
     const draft = buildDraft(input, context, now());
-    const result = await repository.insertOrFind(draft, initialState);
+    const result = await insertCapture(draft, await listRules(context.userId));
 
     if (result.record.payloadFingerprint !== draft.payloadFingerprint) {
       throw conflict(
@@ -165,6 +180,7 @@ export function createInboxService(
     async ingestBatch(inputs: CompanionInboxItemInput[], context: InboxIngestionContext) {
       const seen = new Map<string, string>();
       const results: InboxBatchResult[] = [];
+      const rules = await listRules(context.userId);
 
       for (const input of inputs) {
         try {
@@ -178,7 +194,7 @@ export function createInboxService(
           }
           seen.set(draft.clientId, draft.payloadFingerprint);
 
-          const result = await repository.insertOrFind(draft, initialState);
+          const result = await insertCapture(draft, rules);
           if (result.record.payloadFingerprint !== draft.payloadFingerprint) {
             throw conflict(
               "The notification identifier was already used with different content",
@@ -211,25 +227,12 @@ export function createInboxService(
       let matchingItemIds: string[] | undefined;
       if (query.ruleId) {
         if (!options.rulesRepository) throw new Error("Inbox rules repository is not configured");
-        const rules = availableInboxRuleCandidates(
-          await options.rulesRepository.listActiveByUser(userId),
-        );
-        if (rules.some((rule) => rule.id === query.ruleId)) {
+        const { ruleId } = query;
+        const rules = await listRules(userId);
+        if (rules.some((rule) => rule.id === ruleId)) {
           const candidates = await repository.listRuleCandidatesForUser(userId, query);
           matchingItemIds = candidates
-            .filter((item) =>
-              resolveInboxRules(
-                {
-                  sourceApp: item.sourceApp,
-                  sourceAppName: item.sourceAppName,
-                  originalTitle: item.originalTitle,
-                  originalText: item.originalText,
-                  parsedName: item.parsedName,
-                  parsedAmount: item.parsedAmount === null ? null : Number(item.parsedAmount),
-                },
-                rules,
-              ).appliedRules.some((rule) => rule.id === query.ruleId),
-            )
+            .filter((item) => isInboxRuleApplied(toRuleMatchItem(item), rules, ruleId))
             .map((item) => item.id);
         } else {
           matchingItemIds = [];
@@ -398,6 +401,22 @@ function parseCompanionNotificationTimestamp(input: CompanionInboxItemInput) {
   // Companion <= 1.5.2 formatted the device's local wall clock and appended a literal `Z`,
   // incorrectly labelling Brazil time as UTC. Preserve compatibility until legacy clients retire.
   return new Date(input.notificationTimestamp.replace(/Z$/i, "-03:00"));
+}
+
+function toRuleMatchItem(
+  item: Pick<
+    InboxItemRecord,
+    "sourceApp" | "sourceAppName" | "originalTitle" | "originalText" | "parsedName" | "parsedAmount"
+  >,
+): InboxRuleMatchItem {
+  return {
+    sourceApp: item.sourceApp,
+    sourceAppName: item.sourceAppName,
+    originalTitle: item.originalTitle,
+    originalText: item.originalText,
+    parsedName: item.parsedName,
+    parsedAmount: item.parsedAmount === null ? null : Number(item.parsedAmount),
+  };
 }
 
 async function findItem(id: string, userId: string, repository: InboxRepository) {

@@ -135,8 +135,8 @@ export function InboxRulesDialog({
               </DialogTitle>
               <DialogDescription>
                 {view.kind === "list"
-                  ? "Sugira categoria, pessoa e forma de pagamento conforme os dados capturados. Você sempre revisa antes de confirmar."
-                  : "Defina as condições e os campos que serão sugeridos no lançamento."}
+                  ? "Sugira categoria, pessoa e forma de pagamento conforme os dados capturados, ou descarte capturas automaticamente. Você sempre revisa antes de confirmar um lançamento."
+                  : "Defina as condições e o que fazer com as capturas que coincidirem."}
               </DialogDescription>
             </div>
           </div>
@@ -189,7 +189,8 @@ export function InboxRulesDialog({
                     </span>
                     <p className="mt-3 font-medium">Nenhuma regra criada</p>
                     <p className="mt-1 max-w-sm text-muted-foreground text-sm">
-                      Crie uma regra para sugerir dados ao confirmar uma captura pendente.
+                      Crie uma regra para sugerir dados ao confirmar uma captura ou descartá-la
+                      automaticamente.
                     </p>
                   </CardContent>
                 </Card>
@@ -291,7 +292,7 @@ export function InboxRulesDialog({
                               Então
                             </span>
                             <p className="min-w-0 wrap-break-word">
-                              Preencher {describeInboxRuleActions(rule)}
+                              {describeInboxRuleActions(rule)}
                             </p>
                           </div>
                         </div>

@@ -1116,8 +1116,8 @@ export const inboxItems = pgTable(
     }),
     processedAt: timestamp("processed_at", { withTimezone: true }),
     discardedAt: timestamp("discarded_at", { withTimezone: true }),
-    // Only "duplicate" for now (see inboxDiscardReasons in the domain and the check below).
-    discardReason: varchar("discard_reason", { length: 20 }).$type<"duplicate">(),
+    // See inboxDiscardReasons in the domain and the check below.
+    discardReason: varchar("discard_reason", { length: 20 }).$type<"duplicate" | "rule">(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .notNull()
@@ -1129,7 +1129,7 @@ export const inboxItems = pgTable(
     index("inbox_items_user_id_payload_fingerprint_idx").on(table.userId, table.payloadFingerprint),
     check(
       "inbox_items_discard_reason_check",
-      sql`${table.discardReason} IS NULL OR (${table.status} = 'discarded' AND ${table.discardReason} = 'duplicate')`,
+      sql`${table.discardReason} IS NULL OR (${table.status} = 'discarded' AND ${table.discardReason} in ('duplicate', 'rule'))`,
     ),
     index("inbox_items_user_id_status_notification_idx").on(
       table.userId,
@@ -1188,6 +1188,8 @@ export const inboxRules = pgTable(
     isActive: boolean("is_active").notNull().default(true),
     matchMode: inboxRuleMatchMode("match_mode").notNull().default("all"),
     conditions: jsonb("conditions").notNull(),
+    // See inboxRuleActions in the domain and the checks below.
+    action: varchar("action", { length: 20 }).$type<"fill" | "discard">().notNull().default("fill"),
     transactionType: transactionType("transaction_type"),
     categoryId: uuid("category_id"),
     personId: uuid("person_id"),
@@ -1234,7 +1236,16 @@ export const inboxRules = pgTable(
     check("inbox_rules_version_positive_check", sql`${table.version} > 0`),
     check(
       "inbox_rules_actions_required_check",
-      sql`${table.transactionType} is not null or ${table.categoryId} is not null or ${table.personId} is not null or ${table.paymentMethod} is not null`,
+      sql`(
+        ${table.action} = 'fill'
+        AND (${table.transactionType} is not null or ${table.categoryId} is not null or ${table.personId} is not null or ${table.paymentMethod} is not null)
+      ) OR (
+        ${table.action} = 'discard'
+        AND ${table.transactionType} is null
+        AND ${table.categoryId} is null
+        AND ${table.personId} is null
+        AND ${table.paymentMethod} is null
+      )`,
     ),
     check(
       "inbox_rules_transaction_type_check",

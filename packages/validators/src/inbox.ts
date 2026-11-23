@@ -119,7 +119,7 @@ export const InboxItemSummaryOutputSchema = z
     processedAt: z.iso.datetime().nullable(),
     discardedAt: z.iso.datetime().nullable(),
     discardReason: z.enum(inboxDiscardReasons).nullable().openapi({
-      description: "Set when the capture was discarded automatically, e.g. as a duplicate.",
+      description: "Set when the capture was discarded automatically: duplicate or discard rule.",
     }),
     createdAt: z.iso.datetime(),
     updatedAt: z.iso.datetime(),

@@ -87,6 +87,7 @@ test("inbox rules suggest a card or an account from the capture text", {
       priority: 10,
       isActive: true,
       matchMode: "all" as const,
+      action: "fill" as const,
       transactionType: null,
       categoryId: null,
       personId: null,
@@ -174,6 +175,26 @@ test("inbox rules suggest a card or an account from the capture text", {
       ),
       (error: { code?: string }) => error.code === "inbox_rule_account_unavailable",
     );
+    const discardRule = await service.create(
+      {
+        ...base,
+        name: "Descartar propaganda",
+        conditions: [{ field: "originalText", operator: "contains", value: "oferta" }],
+        action: "discard",
+      },
+      owner.id,
+    );
+    assert.equal(discardRule.action, "discard");
+    await assert.rejects(
+      db.insert(schema.inboxRules).values({
+        userId: owner.id,
+        name: "Descarte com categoria",
+        conditions: [{ field: "originalText", operator: "contains", value: "oferta" }],
+        action: "discard",
+        categoryId: transport.id,
+      }),
+    );
+
     await assert.rejects(
       db.insert(schema.inboxRules).values({
         userId: owner.id,

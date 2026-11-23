@@ -8,6 +8,10 @@ export const inboxRulePriorityMinimum = 0;
 export const inboxRulePriorityMaximum = 9_999;
 
 export const inboxRuleMatchModes = ["all", "any"] as const;
+/** A rule either fills fields of the review or discards the capture as it arrives. */
+export const inboxRuleActions = ["fill", "discard"] as const;
+export type InboxRuleAction = (typeof inboxRuleActions)[number];
+export const defaultInboxRuleAction: InboxRuleAction = "fill";
 /** Transaction types a rule can suggest; without one, captures are reviewed as expenses. */
 export const inboxRuleTransactionTypes = ["expense", "income"] as const;
 export type InboxRuleTransactionType = (typeof inboxRuleTransactionTypes)[number];
@@ -58,6 +62,8 @@ export type InboxRuleDraftInput = {
   isActive: boolean;
   matchMode: InboxRuleMatchMode;
   conditions: InboxRuleCondition[];
+  /** Discard rules fill nothing. */
+  action: InboxRuleAction;
   /** Null keeps the default (expense); the category must belong to the effective type. */
   transactionType: InboxRuleTransactionType | null;
   categoryId: string | null;
@@ -111,6 +117,7 @@ export type InboxRuleCode =
   | "inbox_rule_conditions_required"
   | "inbox_rule_too_many_conditions"
   | "inbox_rule_actions_required"
+  | "inbox_rule_discard_with_fields"
   | "inbox_rule_invalid_priority"
   | "inbox_rule_invalid_condition"
   | "inbox_rule_invalid_payment_target";
@@ -148,7 +155,13 @@ export function createInboxRuleDraft(input: InboxRuleDraftInput): InboxRuleDraft
       "Only credit card rules can fill a card and only other payment methods can fill an account",
     );
   }
-  if (!input.transactionType && !input.categoryId && !input.personId && !input.paymentMethod) {
+  if (!isValidInboxRuleDiscard(input)) {
+    throw new InboxRuleError(
+      "inbox_rule_discard_with_fields",
+      "Discard rules cannot fill transaction fields",
+    );
+  }
+  if (input.action === "fill" && !inboxRuleFillsAnyField(input)) {
     throw new InboxRuleError(
       "inbox_rule_actions_required",
       "Inbox rule must fill at least one field",
@@ -169,6 +182,23 @@ export function createInboxRuleDraft(input: InboxRuleDraftInput): InboxRuleDraft
   };
 }
 
+type InboxRuleFilledFields = Pick<
+  InboxRuleDraftInput,
+  "transactionType" | "categoryId" | "personId" | "paymentMethod"
+>;
+
+export function inboxRuleFillsAnyField(input: InboxRuleFilledFields) {
+  return Boolean(
+    input.transactionType || input.categoryId || input.personId || input.paymentMethod,
+  );
+}
+
+export function isValidInboxRuleDiscard(
+  input: InboxRuleFilledFields & Pick<InboxRuleDraftInput, "action">,
+) {
+  return input.action !== "discard" || !inboxRuleFillsAnyField(input);
+}
+
 export function isValidInboxRulePaymentTarget(
   input: Pick<InboxRuleDraftInput, "paymentMethod" | "cardId" | "accountId">,
 ) {
@@ -180,6 +210,27 @@ export function isValidInboxRulePaymentTarget(
 /** Type whose categories a rule may fill: its own type, or the default expense. */
 export function getInboxRuleEffectiveType(rule: Pick<InboxRuleDraftInput, "transactionType">) {
   return rule.transactionType ?? defaultInboxTransactionType;
+}
+
+/** Whether a capture must be discarded: any active discard rule wins, whatever its priority. */
+export function matchesInboxDiscardRule(item: InboxRuleMatchItem, rules: InboxRuleCandidate[]) {
+  return rules.some((rule) => isMatchingDiscardRule(item, rule));
+}
+
+/** Whether a rule acts on a capture, either discarding it or filling at least one field. */
+export function isInboxRuleApplied(
+  item: InboxRuleMatchItem,
+  rules: InboxRuleCandidate[],
+  ruleId: string,
+) {
+  return (
+    rules.some((rule) => rule.id === ruleId && isMatchingDiscardRule(item, rule)) ||
+    resolveInboxRules(item, rules).appliedRules.some((rule) => rule.id === ruleId)
+  );
+}
+
+function isMatchingDiscardRule(item: InboxRuleMatchItem, rule: InboxRuleCandidate) {
+  return rule.action === "discard" && rule.isActive && matchesRule(item, rule);
 }
 
 export function resolveInboxRules(
@@ -202,7 +253,9 @@ export function resolveInboxRules(
       left.id.localeCompare(right.id),
   );
 
-  const matchingRules = orderedRules.filter((rule) => rule.isActive && matchesRule(item, rule));
+  const matchingRules = orderedRules.filter(
+    (rule) => rule.action === "fill" && rule.isActive && matchesRule(item, rule),
+  );
   // The type is decided first so categories from rules of the other type are never mixed in.
   const typeRule = matchingRules.find((rule) => rule.transactionType !== null);
   resolution.transactionType = typeRule?.transactionType ?? null;

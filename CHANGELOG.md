@@ -9,6 +9,9 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 
 ### Adicionado
 
+- Regras da Caixa de entrada têm a ação **Descartar Lançamento**: novas capturas que coincidirem vão
+  direto para Descartados com a tag "Descartada por regra" e podem ser restauradas. O descarte vale
+  mesmo que outra regra coincida e não altera capturas que já estavam pendentes.
 - Regras da Caixa de entrada podem definir o **Tipo de transação** (Despesa ou Receita). Sem regra
   ou sem tipo definido, a revisão continua abrindo como Despesa; com uma regra de Receita, abre como
   Receita e só aceita categorias de receita.
@@ -46,6 +49,8 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 
 ### Notas de atualização
 
+- Migration `0027_inbox_rule_discard` adiciona `inbox_rules.action` (padrão `fill`) e aceita `rule` em
+  `inbox_items.discard_reason`.
 - Migrations `0025_inbox_rule_transaction_type` (coluna `inbox_rules.transaction_type`) e
   `0026_inbox_duplicate_captures` (coluna `inbox_items.discard_reason` e índice por
   `payload_fingerprint`). Capturas já existentes não são reclassificadas.

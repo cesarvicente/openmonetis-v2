@@ -2,12 +2,14 @@ import type { InboxItemStatus } from "@openmonetis/domain/inbox";
 import {
   createInboxRuleDraft,
   getInboxRuleEffectiveType,
+  type InboxRuleAction,
   type InboxRuleCandidate,
   type InboxRuleCondition,
   InboxRuleError,
   type InboxRuleMatchItem,
   type InboxRuleMatchMode,
   type InboxRuleTransactionType,
+  inboxRuleFillsAnyField,
   resolveInboxRules,
 } from "@openmonetis/domain/inbox-rules";
 import type { PaymentMethod } from "@openmonetis/domain/transactions";
@@ -27,6 +29,7 @@ export type InboxRuleRecord = {
   isActive: boolean;
   matchMode: InboxRuleMatchMode;
   conditions: InboxRuleCondition[];
+  action: InboxRuleAction;
   transactionType: InboxRuleTransactionType | null;
   categoryId: string | null;
   categoryName: string | null;
@@ -183,8 +186,13 @@ export function availableInboxRuleCandidates(rules: InboxRuleRecord[]): InboxRul
     const paymentMethod = paymentTargetAvailable ? rule.paymentMethod : null;
     const cardId = paymentTargetAvailable ? rule.cardId : null;
     const accountId = paymentTargetAvailable ? rule.accountId : null;
-    if (!rule.isActive || (!rule.transactionType && !categoryId && !personId && !paymentMethod))
-      return [];
+    const fillsAnyField = inboxRuleFillsAnyField({
+      transactionType: rule.transactionType,
+      categoryId,
+      personId,
+      paymentMethod,
+    });
+    if (!rule.isActive || (rule.action === "fill" && !fillsAnyField)) return [];
     return [
       {
         id: rule.id,
@@ -193,6 +201,7 @@ export function availableInboxRuleCandidates(rules: InboxRuleRecord[]): InboxRul
         isActive: rule.isActive,
         matchMode: rule.matchMode,
         conditions: rule.conditions,
+        action: rule.action,
         transactionType: rule.transactionType,
         categoryId,
         personId,
@@ -216,6 +225,7 @@ function buildDraft(
       isActive: input.isActive,
       matchMode: input.matchMode,
       conditions: input.conditions,
+      action: input.action,
       transactionType: input.transactionType,
       categoryId: input.categoryId,
       personId: input.personId,
@@ -309,6 +319,7 @@ function toOutput(record: InboxRuleRecord): InboxRuleOutput {
     isActive: record.isActive,
     matchMode: record.matchMode,
     conditions: record.conditions,
+    action: record.action,
     transactionType: record.transactionType,
     category:
       record.categoryId && record.categoryName

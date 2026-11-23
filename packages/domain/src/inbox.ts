@@ -4,21 +4,27 @@ export const inboxClearableStatuses = ["processed", "discarded"] as const;
 export type InboxItemStatus = (typeof inboxItemStatuses)[number];
 
 /** Why a capture was discarded without the user acting on it. */
-export const inboxDiscardReasons = ["duplicate"] as const;
+export const inboxDiscardReasons = ["duplicate", "rule"] as const;
 export type InboxDiscardReason = (typeof inboxDiscardReasons)[number];
 
 /**
  * Initial state of a new capture. A capture whose whole content (app, app name, title, text,
  * notification time, identified name and amount) equals an existing capture of the same user is a
- * duplicate and enters discarded; any different field makes it a new pending capture.
+ * duplicate and enters discarded; any different field makes it a new capture, which enters
+ * discarded when a discard rule matches it and pending otherwise.
  */
-export function getInboxCaptureInitialState(input: { hasIdenticalCapture: boolean; now: Date }) {
-  return input.hasIdenticalCapture
-    ? {
-        status: "discarded" as const,
-        discardedAt: input.now,
-        discardReason: "duplicate" as const,
-      }
+export function getInboxCaptureInitialState(input: {
+  hasIdenticalCapture: boolean;
+  matchesDiscardRule: boolean;
+  now: Date;
+}) {
+  const discardReason: InboxDiscardReason | null = input.hasIdenticalCapture
+    ? "duplicate"
+    : input.matchesDiscardRule
+      ? "rule"
+      : null;
+  return discardReason
+    ? { status: "discarded" as const, discardedAt: input.now, discardReason }
     : { status: "pending" as const, discardedAt: null, discardReason: null };
 }
 export type InboxClearableStatus = (typeof inboxClearableStatuses)[number];
