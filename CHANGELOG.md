@@ -79,6 +79,9 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 
 ### Alterado
 
+- O seletor de categoria é o mesmo nos lançamentos e nas regras da Caixa de entrada, que passam a ter
+  busca. As subcategorias mostram só o próprio nome, a categoria principal fica fixa no topo durante a
+  rolagem, e a busca não diferencia acentos.
 - A categoria de sistema que guarda os pagamentos de fatura passa a se chamar **Pagamentos de fatura**,
   deixando o nome "Pagamentos" livre para uma categoria comum, com subcategorias e relatórios.
 - No formulário de nova despesa ou receita, "Pagamento realizado"/"Recebimento realizado" já vem

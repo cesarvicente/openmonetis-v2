@@ -6,20 +6,57 @@ export function getCategoryLabel(category: Pick<CategoryOutput, "name" | "parent
 }
 
 export function getCategoryGroups(categories: readonly CategoryOutput[], search = "") {
-  const query = search.trim().toLocaleLowerCase("pt-BR");
-  const matches = (name: string) => name.toLocaleLowerCase("pt-BR").includes(query);
+  const matches = createCategoryMatcher(search);
   return categories
     .filter((category) => !category.parentId)
     .sort(compareCategories)
     .map((parent) => ({
       parent,
       children: categories
-        .filter(
-          (child) => child.parentId === parent.id && (matches(parent.name) || matches(child.name)),
-        )
+        .filter((child) => child.parentId === parent.id && matches(`${parent.name} ${child.name}`))
         .sort(compareCategories),
     }))
     .filter((group) => matches(group.parent.name) || group.children.length > 0);
+}
+
+/**
+ * Grupos do seletor de categoria. Buscar pela principal traz as subcategorias; buscar só pela
+ * subcategoria mantém a principal como contexto (`parentMatches` falso). Na busca, vêm antes os grupos
+ * com um nome que começa pelo termo.
+ */
+export function getCategoryPickerGroups(categories: readonly CategoryOutput[], search = "") {
+  const matches = createCategoryMatcher(search);
+  const query = normalizeCategorySearch(search);
+  const startsWithQuery = (category: CategoryOutput) =>
+    normalizeCategorySearch(category.name).startsWith(query);
+  const groups = getCategoryGroups(categories, search).map(({ parent, children }) => ({
+    parent,
+    children,
+    parentMatches: matches(parent.name),
+  }));
+  if (!query) return groups;
+  return groups.sort(
+    (left, right) =>
+      Number(startsWithQuery(right.parent)) - Number(startsWithQuery(left.parent)) ||
+      Number(right.children.some(startsWithQuery)) - Number(left.children.some(startsWithQuery)),
+  );
+}
+
+function normalizeCategorySearch(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toLocaleLowerCase("pt-BR")
+    .trim();
+}
+
+/** Compara sem diferenciar acentos e maiúsculas; todas as palavras buscadas precisam aparecer. */
+function createCategoryMatcher(search: string) {
+  const words = normalizeCategorySearch(search).split(/\s+/).filter(Boolean);
+  return (text: string) => {
+    const normalized = normalizeCategorySearch(text);
+    return words.every((word) => normalized.includes(word));
+  };
 }
 
 export function sortCategoryOptions<

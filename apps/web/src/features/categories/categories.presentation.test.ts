@@ -4,6 +4,7 @@ import type { CategoryOutput } from "@openmonetis/validators/categories";
 import {
   getCategoryGroups,
   getCategoryLabel,
+  getCategoryPickerGroups,
   sortCategoryOptions,
 } from "./categories.presentation";
 
@@ -51,4 +52,29 @@ test("category options keep the parent before children and names include the ful
   );
   assert.equal(getCategoryLabel(light), "Casa › Luz");
   assert.equal(getCategoryLabel(root), "Casa");
+});
+
+test("category picker search ignores accents, keeps parent context and ranks name prefixes first", () => {
+  const ids = (search: string) =>
+    getCategoryPickerGroups(categories, search).map(({ parent, children, parentMatches }) => ({
+      parent: parent.id,
+      parentMatches,
+      children: children.map((child) => child.id),
+    }));
+  assert.deepEqual(ids("agua"), [{ parent: "home", parentMatches: false, children: ["water"] }]);
+  assert.deepEqual(ids("CASA"), [
+    { parent: "home", parentMatches: true, children: ["water", "light"] },
+  ]);
+  assert.deepEqual(ids("casa luz"), [
+    { parent: "home", parentMatches: false, children: ["light"] },
+  ]);
+  assert.deepEqual(
+    ids("").map((group) => group.parent),
+    ["home", "travel"],
+  );
+  const flat: CategoryOutput = { ...root, id: "flat", name: "Apê com água" };
+  assert.deepEqual(
+    getCategoryPickerGroups([...categories, flat], "agua").map((group) => group.parent.id),
+    ["home", "flat"],
+  );
 });

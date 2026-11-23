@@ -245,6 +245,11 @@
     max-height: none;
   }
 
+  /* A lista rola sozinha para manter a busca e a categoria principal visíveis. */
+  .mobile-picker-body [data-slot="command-list"][data-category-picker-list] {
+    max-height: calc(var(--form-height, 100dvh) * 0.5);
+  }
+
   .mobile-form-content[data-mobile-details] {
     overflow: hidden;
     overscroll-behavior: contain;

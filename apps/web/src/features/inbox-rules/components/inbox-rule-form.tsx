@@ -35,8 +35,7 @@ import { Label } from "@/components/ui/label";
 import { SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { getCategoryLabel } from "@/features/categories/categories.presentation";
-import { CategoryIcon } from "@/features/categories/category-icons";
+import { CategoryPicker } from "@/features/categories/components/category-picker";
 import { EntityOption } from "@/features/transactions/components/transaction-entity-option";
 import { PaymentMethodOption } from "@/features/transactions/components/transaction-payment-method-option";
 import { showInvalidFormToast } from "@/lib/form-feedback";
@@ -452,32 +451,22 @@ export function InboxRuleForm({
                       {(field) => (
                         <div className="grid gap-1.5">
                           <Label htmlFor={`${id}-category`}>Categoria</Label>
-                          <Select
-                            onValueChange={(value) => value && field.handleChange(value)}
-                            value={field.state.value}
-                          >
-                            <SelectTrigger className="w-full" id={`${id}-category`}>
-                              <SelectValue>
-                                <CategoryOption
-                                  category={categories.find(
-                                    (category) => category.id === field.state.value,
-                                  )}
-                                />
-                              </SelectValue>
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="none">
-                                <CategoryOption />
-                              </SelectItem>
-                              {categories
-                                .filter((category) => category.type === categoryType)
-                                .map((category) => (
-                                  <SelectItem key={category.id} value={category.id}>
-                                    <CategoryOption category={category} />
-                                  </SelectItem>
-                                ))}
-                            </SelectContent>
-                          </Select>
+                          <CategoryPicker
+                            categories={categories.filter(
+                              (category) => category.type === categoryType,
+                            )}
+                            emptyIcon={
+                              <CircleOff
+                                aria-hidden="true"
+                                className="size-4 shrink-0 text-muted-foreground"
+                              />
+                            }
+                            emptyLabel="Não preencher"
+                            id={`${id}-category`}
+                            onChange={(categoryId) => field.handleChange(categoryId || "none")}
+                            placeholder="Não preencher"
+                            value={field.state.value === "none" ? "" : field.state.value}
+                          />
                         </div>
                       )}
                     </form.Field>
@@ -708,21 +697,6 @@ function getOperatorLabel(operator: string) {
   return (
     inboxRuleAmountOperatorLabels[operator as keyof typeof inboxRuleAmountOperatorLabels] ??
     inboxRuleTextOperatorLabels[operator as keyof typeof inboxRuleTextOperatorLabels]
-  );
-}
-
-function CategoryOption({ category }: { category?: CategoryOutput }) {
-  return (
-    <span className="flex min-w-0 items-center gap-2">
-      <span className="grid size-6 shrink-0 place-items-center rounded-full bg-muted text-muted-foreground">
-        {category ? (
-          <CategoryIcon className="size-3.5" name={category.icon} />
-        ) : (
-          <CircleOff aria-hidden="true" className="size-3.5" />
-        )}
-      </span>
-      <span className="truncate">{category ? getCategoryLabel(category) : "Não preencher"}</span>
-    </span>
   );
 }
 
