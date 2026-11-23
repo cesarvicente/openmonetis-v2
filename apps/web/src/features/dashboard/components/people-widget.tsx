@@ -29,6 +29,7 @@ export function PeopleWidget({ period }: { period: string }) {
   const query = useQuery(dashboardPeopleExpensesQueryOptions(period));
   const people = query.data?.items ?? [];
   const { hiddenCount, visibleItems: visiblePeople } = useDashboardWidgetItems(people, {
+    loading: query.isPending,
     structure: "progress",
   });
 

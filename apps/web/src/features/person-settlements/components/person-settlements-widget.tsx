@@ -28,7 +28,10 @@ export function PersonSettlementsWidget({ period }: { period: string }) {
   const query = useQuery(personSettlementsSummaryQueryOptions(period));
   const summary = query.data;
   const items = summary?.items ?? [];
-  const { visibleItems } = useDashboardWidgetItems(items, { structure: "settlement" });
+  const { visibleItems } = useDashboardWidgetItems(items, {
+    loading: query.isPending,
+    structure: "settlement",
+  });
 
   return (
     <DashboardWidget

@@ -47,6 +47,7 @@ function DashboardRoute() {
       onPeriodChange={(nextPeriod) =>
         navigate({
           replace: true,
+          resetScroll: false,
           search: (previous) => ({
             ...previous,
             period: nextPeriod,

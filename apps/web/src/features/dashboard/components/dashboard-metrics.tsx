@@ -314,14 +314,15 @@ export function DashboardMetricsSkeleton() {
       </Card>
       <div className="hidden gap-3 md:grid md:grid-cols-2 xl:grid-cols-4">
         {cards.map((card) => (
-          <Card className="gap-5 border py-5" key={card.key}>
-            <CardHeader className="px-5">
-              <Skeleton className="h-4 w-24" />
-              <Skeleton className="h-3 w-36" />
+          // Mesmas alturas de `DashboardMetrics`, para não deslocar a página ao carregar.
+          <Card className="gap-4 border py-5" key={card.key}>
+            <CardHeader className="gap-1 px-5">
+              <Skeleton className="h-6 w-24" />
+              <Skeleton className="h-4 w-36" />
             </CardHeader>
             <CardContent className="grid gap-3 px-5">
-              <Skeleton className="h-7 w-36" />
-              <Skeleton className="h-4 w-44" />
+              <Skeleton className="h-6 w-36" />
+              <Skeleton className="h-5 w-44" />
             </CardContent>
           </Card>
         ))}

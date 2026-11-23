@@ -98,20 +98,69 @@ export function formatDashboardTransactionCount(count: number) {
   return `${count} ${count === 1 ? "lançamento" : "lançamentos"}`;
 }
 
-export function moveDashboardWidget(
+export function reorderDashboardWidget(
   preferences: DashboardWidgetPreferences,
   widgetId: DashboardWidgetId,
-  direction: -1 | 1,
+  targetIndex: number,
 ): DashboardWidgetPreferences {
   const currentIndex = preferences.order.indexOf(widgetId);
-  const nextIndex = currentIndex + direction;
-  if (currentIndex < 0 || nextIndex < 0 || nextIndex >= preferences.order.length) {
+  if (
+    currentIndex < 0 ||
+    targetIndex === currentIndex ||
+    targetIndex < 0 ||
+    targetIndex >= preferences.order.length
+  ) {
     return preferences;
   }
 
-  const order = [...preferences.order];
-  [order[currentIndex], order[nextIndex]] = [order[nextIndex], order[currentIndex]];
+  const order = preferences.order.filter((id) => id !== widgetId);
+  order.splice(targetIndex, 0, widgetId);
   return { ...preferences, order };
+}
+
+/**
+ * Posição de um widget ao ser levado para o final. Um widget visível fica abaixo do último visível,
+ * ignorando os ocultos que vierem depois; um oculto vai para o fim da lista.
+ */
+export function getDashboardWidgetEndIndex(
+  { hidden, order }: DashboardWidgetPreferences,
+  widgetId: DashboardWidgetId,
+) {
+  if (hidden.includes(widgetId)) return order.length - 1;
+
+  const others = order.filter((id) => id !== widgetId);
+  return others.reduce((end, id, index) => (hidden.includes(id) ? end : index + 1), 0);
+}
+
+export type DashboardDragItem = { height: number; top: number };
+
+/** Posição em que o item arrastado cairia, dadas as posições originais e o deslocamento vertical. */
+export function getDashboardDragTargetIndex(
+  items: readonly DashboardDragItem[],
+  fromIndex: number,
+  offset: number,
+) {
+  const top = items[fromIndex].top + offset;
+  const bottom = top + items[fromIndex].height;
+  return items.filter((item, index) => {
+    const middle = item.top + item.height / 2;
+    if (index < fromIndex) return middle <= top;
+    return index > fromIndex && middle < bottom;
+  }).length;
+}
+
+/** Quanto um item se desloca para abrir espaço ao item arrastado. */
+export function getDashboardDragShift(
+  items: readonly DashboardDragItem[],
+  index: number,
+  fromIndex: number,
+  targetIndex: number,
+) {
+  const gap = items.length > 1 ? items[1].top - items[0].top - items[0].height : 0;
+  const distance = items[fromIndex].height + gap;
+  if (index > fromIndex && index <= targetIndex) return -distance;
+  if (index < fromIndex && index >= targetIndex) return distance;
+  return 0;
 }
 
 export function toggleDashboardWidget(

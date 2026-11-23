@@ -32,7 +32,10 @@ export function BudgetsWidget({ period }: { period: string }) {
   const [listOpen, setListOpen] = useState(false);
   const [editingBudget, setEditingBudget] = useState<BudgetOutput | null>(null);
   const items = getBudgetWidgetItems(query.data?.items ?? []);
-  const { hiddenCount, visibleItems } = useDashboardWidgetItems(items, { structure: "progress" });
+  const { hiddenCount, visibleItems } = useDashboardWidgetItems(items, {
+    loading: query.isPending,
+    structure: "progress",
+  });
 
   const editBudget = (budget: BudgetOutput) => {
     setListOpen(false);

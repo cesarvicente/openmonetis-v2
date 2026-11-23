@@ -43,7 +43,9 @@ export function RecurringExpensesWidget({ period }: { period: string }) {
   const [action, setAction] = useState<"pause" | "resume" | "skip" | "stop" | null>(null);
   const [actionExpense, setActionExpense] = useState<RecurringExpenseOutput | null>(null);
   const items = query.data?.items ?? [];
-  const { hiddenCount, visibleItems } = useDashboardWidgetItems(items);
+  const { hiddenCount, visibleItems } = useDashboardWidgetItems(items, {
+    loading: query.isPending,
+  });
 
   const rows = (expenses: RecurringExpenseOutput[]) => (
     <RecurringExpenseList

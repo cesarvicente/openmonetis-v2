@@ -31,6 +31,7 @@ export function PaymentConditionsWidget({ period }: { period: string }) {
   const items = query.data ? buildItems(query.data.conditions, period, adminPersonSlug) : [];
   const { visibleItems } = useDashboardWidgetItems(items, {
     active: activeView === "list",
+    loading: query.isPending,
     structure: "progress",
   });
 

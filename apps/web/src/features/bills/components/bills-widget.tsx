@@ -31,7 +31,9 @@ export function BillsWidget({ period }: { period: string }) {
   const [listOpen, setListOpen] = useState(false);
   const [selectedBill, setSelectedBill] = useState<DashboardBill | null>(null);
   const bills = query.data?.items ?? [];
-  const { hiddenCount, visibleItems } = useDashboardWidgetItems(bills);
+  const { hiddenCount, visibleItems } = useDashboardWidgetItems(bills, {
+    loading: query.isPending,
+  });
 
   const rows = (items: DashboardBill[]) => (
     <ul className="divide-y">

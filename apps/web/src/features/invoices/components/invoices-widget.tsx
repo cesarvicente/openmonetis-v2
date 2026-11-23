@@ -28,7 +28,9 @@ export function InvoicesWidget({ period }: { period: string }) {
   const [selected, setSelected] = useState<DashboardInvoice | null>(null);
   const [listOpen, setListOpen] = useState(false);
   const invoices = query.data?.items ?? [];
-  const { hiddenCount, visibleItems } = useDashboardWidgetItems(invoices);
+  const { hiddenCount, visibleItems } = useDashboardWidgetItems(invoices, {
+    loading: query.isPending,
+  });
   const selectInvoiceToPay = (invoice: DashboardInvoice) => {
     setListOpen(false);
     setSelected(invoice);

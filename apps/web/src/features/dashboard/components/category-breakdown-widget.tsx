@@ -58,6 +58,7 @@ export function CategoryBreakdownWidget({
   const items = query.data?.[variant === "expense" ? "expenses" : "income"] ?? [];
   const { hiddenCount, visibleItems } = useDashboardWidgetItems(items, {
     active: activeView === "list",
+    loading: query.isPending,
     structure: "progress",
   });
 

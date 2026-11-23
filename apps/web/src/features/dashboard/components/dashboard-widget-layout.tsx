@@ -64,15 +64,18 @@ export function useIsInDashboardWidgetFrame() {
 /**
  * Itens que cabem no espaço do widget. Com barra de rolagem, todos são exibidos. `reservedRem` é a
  * altura ocupada por outros elementos do corpo, e `active` falso indica que a lista não está em uso.
+ * Durante o carregamento (`loading`), o widget mantém a altura anterior para não deslocar a página.
  */
 export function useDashboardWidgetItems<Item>(
   items: readonly Item[],
   {
     active = true,
+    loading = false,
     reservedRem = 0,
     structure = "details",
   }: {
     active?: boolean;
+    loading?: boolean;
     reservedRem?: number;
     structure?: DashboardWidgetItemStructure;
   } = {},
@@ -86,8 +89,8 @@ export function useDashboardWidgetItems<Item>(
   const onContentRowsChange = layout?.onContentRowsChange;
 
   useLayoutEffect(() => {
-    onContentRowsChange?.(contentRows);
-  }, [contentRows, onContentRowsChange]);
+    if (!loading) onContentRowsChange?.(contentRows);
+  }, [contentRows, loading, onContentRowsChange]);
 
   if (layout?.scroll) return { hiddenCount: 0, visibleItems: [...items] };
 

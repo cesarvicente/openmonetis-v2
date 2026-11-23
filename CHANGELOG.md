@@ -84,6 +84,9 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 
 ### Alterado
 
+- Em "Personalizar dashboard", os cards são reordenados arrastando pela alça (ou com as setas do teclado
+  sobre ela). Os botões de seta levam o card para o topo ou para o final; um card visível vai para baixo
+  do último visível, sem contar os ocultos.
 - Os cards do dashboard ficaram mais compactos, com a mesma quantidade de itens, e o painel de
   personalização ficou mais largo.
 - Em Ajustes > Aparência, o modo claro, escuro ou do sistema também é aplicado na hora como prévia; sem
@@ -120,6 +123,8 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 
 ### Corrigido
 
+- Trocar o mês na tela inicial mantém a posição da rolagem. Cards com altura responsiva conservam a altura
+  enquanto o novo mês carrega.
 - Em "Minhas faturas" e "Contas a pagar", itens pagos com vencimento ajustado não invadem mais o item
   seguinte: o aviso do vencimento fica na mesma linha do pagamento. As linhas dos cards crescem se o
   conteúdo precisar, e as barras de progresso ficam mais finas para caber na altura prevista.

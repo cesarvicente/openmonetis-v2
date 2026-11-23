@@ -34,7 +34,7 @@ export function MyAccountsWidget({ period }: { period: string }) {
   );
   const { visibleItems: visibleAccounts } = useDashboardWidgetItems(
     showExcluded ? accounts : accounts.filter((account) => !account.excludeFromBalance),
-    { reservedRem: totalBalanceRem },
+    { loading: accountsQuery.isPending, reservedRem: totalBalanceRem },
   );
   return (
     <DashboardWidget

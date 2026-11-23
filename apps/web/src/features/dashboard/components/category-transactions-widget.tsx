@@ -62,6 +62,7 @@ export function CategoryTransactionsWidget({ period }: { period: string }) {
     enabled: Boolean(selectedCategory && adminPerson),
   });
   const { visibleItems } = useDashboardWidgetItems(transactionsQuery.data?.items ?? [], {
+    loading: transactionsQuery.isPending,
     reservedRem: categorySelectRem,
   });
   const initialLoading = categoriesQuery.isLoading || peopleQuery.isLoading;

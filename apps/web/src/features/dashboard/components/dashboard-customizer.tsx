@@ -8,8 +8,24 @@ import {
   resolveDashboardWidgetWidth,
 } from "@openmonetis/domain/dashboard";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowDown, ArrowUp, Check, LoaderCircle, PanelsTopLeft, RotateCcw } from "lucide-react";
-import { useEffect, useId, useRef, useState } from "react";
+import {
+  ArrowDownToLine,
+  ArrowUpToLine,
+  Check,
+  GripVertical,
+  LoaderCircle,
+  PanelsTopLeft,
+  RotateCcw,
+} from "lucide-react";
+import {
+  type CSSProperties,
+  type KeyboardEvent,
+  type PointerEvent,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+} from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -27,10 +43,12 @@ import { useSaveDashboardWidgetPreferencesMutation } from "../dashboard.mutation
 import {
   areDashboardWidgetPreferencesEqual,
   changeDashboardWidgetLayout,
-  moveDashboardWidget,
+  getDashboardWidgetEndIndex,
+  reorderDashboardWidget,
   toggleDashboardWidget,
 } from "../dashboard.presentation";
 import { dashboardWidgetPreferencesQueryOptions } from "../dashboard.queries";
+import { useDashboardWidgetDrag } from "../useDashboardWidgetDrag";
 import { DashboardSpanPicker } from "./dashboard-span-picker";
 import {
   type DashboardWidgetDefinition,
@@ -119,8 +137,14 @@ function DashboardCustomizationEditor({
   const isDirty = !areDashboardWidgetPreferencesEqual(draft, savedPreferences);
   const visibleCount = dashboardWidgetRegistry.length - draft.hidden.length;
 
-  function handleMove(widgetId: DashboardWidgetId, direction: -1 | 1) {
-    onChange(moveDashboardWidget(draft, widgetId, direction));
+  const drag = useDashboardWidgetDrag((fromIndex, targetIndex) =>
+    handleMove(draft.order[fromIndex], targetIndex),
+  );
+
+  function handleMove(widgetId: DashboardWidgetId, targetIndex: number) {
+    const reordered = reorderDashboardWidget(draft, widgetId, targetIndex);
+    if (reordered === draft) return;
+    onChange(reordered);
     setLastMove((current) => ({
       revision: (current?.revision ?? 0) + 1,
       widgetId,
@@ -139,8 +163,11 @@ function DashboardCustomizationEditor({
 
   return (
     <>
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">
-        <div className="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-2 border-b bg-popover/95 px-4 py-3 backdrop-blur">
+      <div
+        className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto [overflow-anchor:none]"
+        ref={drag.scrollerRef}
+      >
+        <div className="sticky top-0 z-30 flex flex-wrap items-center justify-between gap-2 border-b bg-popover/95 px-4 py-3 backdrop-blur">
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
             <DashboardSpanPicker
               disabled={saveMutation.isPending}
@@ -166,13 +193,15 @@ function DashboardCustomizationEditor({
           </Button>
         </div>
 
-        <ol className="grid min-w-0 grid-cols-1 gap-2 p-4">
+        <ol className="relative grid min-w-0 grid-cols-1 gap-2 p-4" ref={drag.listRef}>
           {draft.order.map((widgetId, index) => {
             const widget = dashboardWidgetById.get(widgetId);
             return widget ? (
               <DashboardWidgetEditorItem
                 columns={draft.columns}
+                endIndex={getDashboardWidgetEndIndex(draft, widgetId)}
                 index={index}
+                isDragging={drag.draggedIndex === index}
                 isVisible={!draft.hidden.includes(widgetId)}
                 key={widgetId}
                 layout={draft.layouts[widgetId]}
@@ -180,9 +209,10 @@ function DashboardCustomizationEditor({
                 onLayoutChange={(changes) =>
                   onChange(changeDashboardWidgetLayout(draft, widgetId, changes))
                 }
-                onMove={(direction) => handleMove(widgetId, direction)}
+                onDragStart={(event) => drag.startDrag(event, index)}
+                onMove={(targetIndex) => handleMove(widgetId, targetIndex)}
                 onToggle={() => onChange(toggleDashboardWidget(draft, widgetId))}
-                total={draft.order.length}
+                style={drag.getItemStyle(index)}
                 widget={widget}
               />
             ) : null;
@@ -209,30 +239,53 @@ function DashboardCustomizationEditor({
 
 function DashboardWidgetEditorItem({
   columns,
+  endIndex,
   index,
+  isDragging,
   isVisible,
   layout,
   moveRevision,
+  onDragStart,
   onLayoutChange,
   onMove,
   onToggle,
-  total,
+  style,
   widget,
 }: {
   columns: number;
+  endIndex: number;
   index: number;
+  isDragging: boolean;
   isVisible: boolean;
   layout: DashboardWidgetLayout;
   moveRevision: number;
+  onDragStart: (event: PointerEvent) => void;
   onLayoutChange: (changes: Partial<DashboardWidgetLayout>) => void;
-  onMove: (direction: -1 | 1) => void;
+  onMove: (targetIndex: number) => void;
   onToggle: () => void;
-  total: number;
+  style: CSSProperties | undefined;
   widget: DashboardWidgetDefinition;
 }) {
   const checkboxId = useId();
+  const gripRef = useRef<HTMLButtonElement>(null);
   const itemRef = useRef<HTMLLIElement>(null);
+  const movedByKeyboardRef = useRef(false);
   const Icon = widget.icon;
+
+  function handleGripKeyDown(event: KeyboardEvent) {
+    if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
+    event.preventDefault();
+    movedByKeyboardRef.current = true;
+    onMove(index + (event.key === "ArrowUp" ? -1 : 1));
+  }
+
+  // Reordenar a lista pode tirar o foco do item movido pelo teclado.
+  useEffect(() => {
+    if (moveRevision === 0 || !movedByKeyboardRef.current) return;
+    movedByKeyboardRef.current = false;
+    gripRef.current?.focus({ preventScroll: true });
+    itemRef.current?.scrollIntoView({ block: "nearest" });
+  }, [moveRevision]);
 
   useEffect(() => {
     const item = itemRef.current;
@@ -270,12 +323,31 @@ function DashboardWidgetEditorItem({
       className={cn(
         "grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2 rounded-lg border bg-card p-3 transition-colors sm:grid-cols-[auto_minmax(0,1fr)_auto_auto]",
         !isVisible && "bg-muted/35 text-muted-foreground",
+        isDragging && "relative z-20 bg-card shadow-lg ring-2 ring-primary/40",
       )}
       ref={itemRef}
+      style={style}
     >
-      <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-brand/10 text-brand-strong">
-        <Icon aria-hidden="true" className="size-4" />
-      </span>
+      <div className="flex items-center gap-1">
+        <Button
+          aria-label={`Arrastar ${widget.title}`}
+          className={cn(
+            "-ml-1.5 touch-none select-none text-muted-foreground max-sm:size-11",
+            isDragging ? "cursor-grabbing" : "cursor-grab",
+          )}
+          onKeyDown={handleGripKeyDown}
+          onPointerDown={onDragStart}
+          ref={gripRef}
+          size="icon-sm"
+          title="Arraste para reordenar ou use as setas do teclado"
+          variant="ghost"
+        >
+          <GripVertical aria-hidden="true" />
+        </Button>
+        <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-brand/10 text-brand-strong max-sm:hidden">
+          <Icon aria-hidden="true" className="size-4" />
+        </span>
+      </div>
       <label className="min-w-0 flex-1 cursor-pointer" htmlFor={checkboxId}>
         <span className="block break-words font-medium text-sm">{widget.title}</span>
         <span className="mt-0.5 block break-words text-muted-foreground text-xs">
@@ -284,26 +356,26 @@ function DashboardWidgetEditorItem({
       </label>
       <div className="col-start-2 row-start-2 flex items-center gap-1 sm:col-start-3 sm:row-start-1">
         <Button
-          aria-label={`Mover ${widget.title} para cima`}
+          aria-label={`Mover ${widget.title} para o topo`}
           disabled={index === 0}
-          onClick={() => onMove(-1)}
+          onClick={() => onMove(0)}
           className="max-sm:size-11"
           size="icon-sm"
-          title="Mover para cima"
+          title="Mover para o topo"
           variant="ghost"
         >
-          <ArrowUp aria-hidden="true" />
+          <ArrowUpToLine aria-hidden="true" />
         </Button>
         <Button
-          aria-label={`Mover ${widget.title} para baixo`}
-          disabled={index === total - 1}
-          onClick={() => onMove(1)}
+          aria-label={`Mover ${widget.title} para o final`}
+          disabled={index === endIndex}
+          onClick={() => onMove(endIndex)}
           className="max-sm:size-11"
           size="icon-sm"
-          title="Mover para baixo"
+          title="Mover para o final"
           variant="ghost"
         >
-          <ArrowDown aria-hidden="true" />
+          <ArrowDownToLine aria-hidden="true" />
         </Button>
       </div>
       <Checkbox

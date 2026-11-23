@@ -25,6 +25,7 @@ export function InstallmentExpensesWidget({ period }: { period: string }) {
   const query = useQuery(dashboardInstallmentExpensesQueryOptions(period));
   const items = query.data?.items ?? [];
   const { hiddenCount, visibleItems } = useDashboardWidgetItems(items, {
+    loading: query.isPending,
     structure: "progress",
   });
 

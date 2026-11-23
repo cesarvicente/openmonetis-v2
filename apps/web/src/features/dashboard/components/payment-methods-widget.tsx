@@ -52,6 +52,7 @@ export function PaymentMethodsWidget({ period }: { period: string }) {
   const items = query.data ? buildItems(query.data.paymentMethods, period, adminPersonSlug) : [];
   const { hiddenCount, visibleItems } = useDashboardWidgetItems(items, {
     active: activeView === "list",
+    loading: query.isPending,
     structure: "progress",
   });
 

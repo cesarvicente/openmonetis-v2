@@ -62,7 +62,8 @@ export function DashboardWidgetGrid({
       {visibleWidgets.length > 0 ? (
         <section
           aria-label="Widgets do dashboard"
-          className="grid"
+          // Sem ancoragem, a rolagem não se move quando os cards mudam de altura ao trocar o mês.
+          className="grid [overflow-anchor:none]"
           data-dashboard-grid
           // O fluxo denso ocupa os vãos deixados por cards maiores.
           style={{

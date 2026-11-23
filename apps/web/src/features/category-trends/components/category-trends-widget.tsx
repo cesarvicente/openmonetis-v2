@@ -33,7 +33,9 @@ export function CategoryTrendsWidget({ period }: { period: string }) {
   });
   const [listOpen, setListOpen] = useState(false);
   const items = getCategoryTrendWidgetItems(query.data?.categories ?? [], period);
-  const { hiddenCount, visibleItems } = useDashboardWidgetItems(items);
+  const { hiddenCount, visibleItems } = useDashboardWidgetItems(items, {
+    loading: query.isPending,
+  });
 
   return (
     <DashboardWidget
