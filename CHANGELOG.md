@@ -11,6 +11,8 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 
 - Novos usuários (e quem redefine os dados) recebem categorias padrão com subcategorias. Quem já tem
   conta não é afetado.
+- Ícones de roupas e calçados no grupo "Geral" (calça, short, camisa, vestido, casaco, roupa íntima,
+  meia, tênis, boné e sapato), e subcategorias padrão em Vestuário.
 - Ícones de categoria: Vinho, Carne, Hortifrúti, Padaria, Móveis, Panela, Pintura, Nota, Banho, Osso e
   Brinquedo entram no grupo "Geral".
 - Ícones de categoria: os 2.078 ícones do Bootstrap Icons se somam aos atuais, que ficam em "Geral".

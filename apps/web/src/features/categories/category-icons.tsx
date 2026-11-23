@@ -31,6 +31,7 @@ import {
   FileText,
   Film,
   Flame,
+  Footprints,
   Fuel,
   Gamepad2,
   Gift,
@@ -107,6 +108,17 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { bootstrapIconPrefix } from "./category-icons.constants";
+import {
+  Cap,
+  Dress,
+  DressShirt,
+  Jacket,
+  Shorts,
+  Sneaker,
+  Sock,
+  Trousers,
+  Underwear,
+} from "./clothing-icons";
 
 const option = (value: string, label: string, icon: LucideIcon) => ({ value, label, icon });
 
@@ -181,6 +193,16 @@ export const categoryIconOptions = [
   option("bone", "Osso", Bone),
   option("toy-brick", "Brinquedo", ToyBrick),
   option("shirt", "Vestuário", Shirt),
+  option("trousers", "Calça", Trousers),
+  option("shorts", "Short", Shorts),
+  option("dress-shirt", "Camisa", DressShirt),
+  option("dress", "Vestido", Dress),
+  option("jacket", "Casaco", Jacket),
+  option("underwear", "Roupa íntima", Underwear),
+  option("sock", "Meia", Sock),
+  option("sneaker", "Tênis", Sneaker),
+  option("cap", "Boné", Cap),
+  option("footprints", "Sapato", Footprints),
   option("file-text", "Documento", FileText),
   option("receipt", "Conta", Receipt),
   option("receipt-text", "Nota", ReceiptText),
