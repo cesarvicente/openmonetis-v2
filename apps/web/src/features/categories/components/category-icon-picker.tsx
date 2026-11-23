@@ -193,7 +193,7 @@ function IconSections({
       {visible.map((section) => (
         <section className="grid gap-2" key={section.value}>
           <h3 className="sticky top-0 z-10 bg-popover py-1 font-medium text-muted-foreground text-xs">
-            {section.label} · {section.total}
+            {section.label}
           </h3>
           <div className="grid grid-cols-[repeat(auto-fill,minmax(2.75rem,1fr))] gap-2">
             {section.options.map((option) => (
@@ -225,6 +225,6 @@ function limitSections(sections: CategoryIconSection[], limit: number) {
     if (remaining <= 0) return [];
     const options = section.options.slice(0, remaining);
     remaining -= options.length;
-    return [{ ...section, options, total: section.options.length }];
+    return [{ ...section, options }];
   });
 }
