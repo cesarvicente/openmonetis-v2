@@ -44,7 +44,7 @@ export function PreferencesActions({
     <>
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-muted-foreground text-sm">
-          As preferências são aplicadas somente ao salvar.
+          A aparência muda na hora como prévia; as preferências só são mantidas ao salvar.
         </p>
         <Button
           disabled={isBusy}

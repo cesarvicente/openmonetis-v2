@@ -81,6 +81,8 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 
 ### Alterado
 
+- Em Ajustes > Aparência, o modo claro, escuro ou do sistema também é aplicado na hora como prévia; sem
+  salvar, o anterior volta ao sair dos ajustes.
 - O seletor de categoria é o mesmo nos lançamentos e nas regras da Caixa de entrada, que passam a ter
   busca. As subcategorias mostram só o próprio nome, a categoria principal fica fixa no topo durante a
   rolagem, e a busca não diferencia acentos.
@@ -113,6 +115,8 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 
 ### Corrigido
 
+- Em Ajustes, voltar uma preferência ao valor que ela tinha ao abrir a tela não era salvo depois de outra
+  gravação ou do uso do botão de tema.
 - Na página de categorias, cada subcategoria mostra o próprio ícone em vez do ícone da principal.
 - `drizzle.config.ts` e os testes de integração carregam `.env` e migrations também no Windows.
 - Adicionar ou alterar o vencimento de uma recorrência com "Todas as ocorrências" ou "Esta e as

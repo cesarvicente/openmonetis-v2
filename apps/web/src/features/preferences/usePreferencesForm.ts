@@ -14,9 +14,11 @@ import { defaultUserPreferencesQueryOptions } from "./preferences.queries";
 export function usePreferencesForm(preferences: UserPreferencesOutput) {
   const queryClient = useQueryClient();
   const updatePreferences = useUpdateUserPreferencesMutation();
-  const { setColorTheme, setTheme } = useTheme();
+  const { setColorTheme, setTheme, theme } = useTheme();
   const [isRestoring, setIsRestoring] = useState(false);
-  const savedColorTheme = useRef(preferences.colorTheme);
+  // `form.options` keeps the values from the first render, so changes are compared with this one.
+  const savedPreferences = useRef(preferences);
+  const appliedTheme = useRef(theme);
   const form = useForm({
     defaultValues: preferences,
     validators: {
@@ -31,14 +33,14 @@ export function usePreferencesForm(preferences: UserPreferencesOutput) {
         const changes = Object.fromEntries(
           Object.entries(value).filter(
             ([key, entry]) =>
-              entry !== form.options.defaultValues?.[key as keyof UserPreferencesOutput],
+              entry !== savedPreferences.current[key as keyof UserPreferencesOutput],
           ),
         );
         if (Object.keys(changes).length === 0) return;
         const saved = await updatePreferences.mutateAsync(
           UpdateUserPreferencesInputSchema.parse(changes),
         );
-        savedColorTheme.current = saved.colorTheme;
+        savedPreferences.current = saved;
         form.reset(saved);
         setTheme(saved.theme);
         setColorTheme(saved.colorTheme);
@@ -49,13 +51,32 @@ export function usePreferencesForm(preferences: UserPreferencesOutput) {
     },
   });
 
-  // Live preview: the chosen palette is applied while editing and the saved one comes back
-  // when leaving the settings without saving.
+  // Live preview: the chosen theme and palette are applied while editing and the saved ones come
+  // back when leaving the settings without saving.
+  const previewTheme = useStore(form.store, (state) => state.values.theme);
   const previewColorTheme = useStore(form.store, (state) => state.values.colorTheme);
+  useEffect(() => {
+    savedPreferences.current = preferences;
+  }, [preferences]);
+  useEffect(() => {
+    setTheme(previewTheme);
+  }, [previewTheme, setTheme]);
   useEffect(() => {
     setColorTheme(previewColorTheme);
   }, [previewColorTheme, setColorTheme]);
-  useEffect(() => () => setColorTheme(savedColorTheme.current), [setColorTheme]);
+  // The header toggle saves the theme on its own, so the form follows it.
+  useEffect(() => {
+    if (appliedTheme.current === theme) return;
+    appliedTheme.current = theme;
+    if (form.getFieldValue("theme") !== theme) form.setFieldValue("theme", theme);
+  }, [form, theme]);
+  useEffect(
+    () => () => {
+      setTheme(savedPreferences.current.theme);
+      setColorTheme(savedPreferences.current.colorTheme);
+    },
+    [setColorTheme, setTheme],
+  );
 
   async function restoreDefaults() {
     setIsRestoring(true);

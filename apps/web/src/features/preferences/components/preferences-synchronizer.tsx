@@ -13,11 +13,15 @@ export function PreferencesSynchronizer() {
   const { setColorTheme, setTheme } = useTheme();
   const privacyInitializedForUser = useRef<string | null>(null);
 
+  // Independent effects: saving one of them must not undo a preview of the other.
+  const savedTheme = preferencesQuery.data?.theme;
+  const savedColorTheme = preferencesQuery.data?.colorTheme;
   useEffect(() => {
-    if (!preferencesQuery.data) return;
-    setTheme(preferencesQuery.data.theme);
-    setColorTheme(preferencesQuery.data.colorTheme);
-  }, [preferencesQuery.data, setColorTheme, setTheme]);
+    if (savedTheme) setTheme(savedTheme);
+  }, [savedTheme, setTheme]);
+  useEffect(() => {
+    if (savedColorTheme) setColorTheme(savedColorTheme);
+  }, [savedColorTheme, setColorTheme]);
 
   useEffect(() => {
     if (!userId) {
