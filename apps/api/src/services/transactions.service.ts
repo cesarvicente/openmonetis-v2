@@ -1787,8 +1787,11 @@ export function createTransactionsService(
         data.amount !== undefined &&
         cents(data.amount) === cents(current.plannedAmount ?? current.amount),
       purchaseDate: data.purchaseDate === date(current.purchaseDate),
+      // Outside credit cards there is no invoice, so the form always sends null.
       invoicePeriod:
-        current.paymentMethod === "credit_card" && data.invoicePeriod === current.period,
+        current.paymentMethod === "credit_card"
+          ? data.invoicePeriod === current.period
+          : data.invoicePeriod === null,
       personId: data.personId === current.personId,
       accountId: data.accountId === current.accountId,
       cardId: data.cardId === current.cardId,
@@ -1799,7 +1802,10 @@ export function createTransactionsService(
       autoSettle: data.autoSettle === Boolean(current.autoSettleFrom),
       dueDate: data.dueDate === date(current.dueDate),
       settledDate: data.settledDate === date(current.settledDate),
-      boletoPaymentDate: data.boletoPaymentDate === date(current.boletoPaymentDate),
+      // The form fills the payment date of a settled item with its settlement date.
+      boletoPaymentDate:
+        data.boletoPaymentDate === date(current.boletoPaymentDate) ||
+        (data.boletoPaymentDate != null && data.boletoPaymentDate === date(current.settledDate)),
       installmentCount: data.installmentCount === current.installmentCount,
       isSettled: data.isSettled === current.isSettled,
       note: (data.note?.trim() || null) === current.note,
@@ -2172,6 +2178,10 @@ export function createTransactionsService(
       );
     }
 
+    // Settled boletos need a payment date; older records may only have the settlement date.
+    const currentBoletoPaymentDate =
+      current.boletoPaymentDate ??
+      (current.paymentMethod === "boleto" && current.isSettled ? current.settledDate : null);
     const merged: TransactionInput = {
       type: data.type ?? current.type,
       condition: data.condition ?? current.condition,
@@ -2210,8 +2220,8 @@ export function createTransactionsService(
           : data.settledDate,
       boletoPaymentDate:
         data.boletoPaymentDate === undefined
-          ? current.boletoPaymentDate
-            ? toDateString(current.boletoPaymentDate)
+          ? currentBoletoPaymentDate
+            ? toDateString(currentBoletoPaymentDate)
             : null
           : data.boletoPaymentDate,
       installmentCount: data.installmentCount ?? current.installmentCount,
@@ -2762,6 +2772,29 @@ export function createTransactionsService(
     return { id, ...input };
   }
 
+  /**
+   * A settled occurrence shows the account it was paid with; sending it back unchanged keeps the
+   * account of the recurrence.
+   */
+  async function resolveRecurringRuleAccountId(
+    rule: { accountId: string | null; seriesId: string },
+    userId: string,
+    input: Pick<TransactionInput, "accountId">,
+    occurrenceDate: string | undefined,
+  ) {
+    if (!occurrenceDate || !input.accountId || input.accountId === rule.accountId)
+      return input.accountId;
+    const [occurrence] = await listRecurringOccurrencesForUser(
+      [rule.seriesId],
+      toDate(occurrenceDate),
+      toDate(occurrenceDate),
+      userId,
+    );
+    return occurrence?.isSettled && occurrence.accountId === input.accountId
+      ? rule.accountId
+      : input.accountId;
+  }
+
   async function updateRecurringRule(
     id: string,
     userId: string,
@@ -2772,6 +2805,7 @@ export function createTransactionsService(
     if (!current) throw notFound("Recurring rule not found", "RECURRING_RULE_NOT_FOUND");
     const validated = TransactionInputSchema.parse({
       ...input,
+      accountId: await resolveRecurringRuleAccountId(current, userId, input, query.occurrenceDate),
       recurrenceEndDate:
         input.recurrenceEndDate === undefined
           ? current.recurrenceEndDate

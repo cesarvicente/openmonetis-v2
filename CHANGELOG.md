@@ -115,6 +115,9 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 
 ### Corrigido
 
+- A descrição, a categoria e outros dados não financeiros de um lançamento com baixa voltam a ser
+  editáveis. A edição era recusada como se fosse financeira; valor, datas e conta continuam exigindo
+  desfazer a baixa.
 - Em Ajustes, voltar uma preferência ao valor que ela tinha ao abrir a tela não era salvo depois de outra
   gravação ou do uso do botão de tema.
 - Na página de categorias, cada subcategoria mostra o próprio ícone em vez do ícone da principal.

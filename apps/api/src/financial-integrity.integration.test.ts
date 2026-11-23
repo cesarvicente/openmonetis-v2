@@ -381,6 +381,125 @@ test("financial mutations preserve cents, occurrence history and ownership", {
       },
     );
 
+    await t.test("settled items accept a new description and keep their settlement", async () => {
+      const otherAccount = await api.account(owner);
+      // The full body the web form sends, with the values it opened with.
+      const formBody = (item: TransactionOutput, overrides: Record<string, unknown>) => ({
+        type: item.type,
+        condition: item.condition,
+        paymentMethod: item.paymentMethod,
+        name: item.name,
+        amount: item.plannedAmount ?? item.displayAmount,
+        purchaseDate: item.purchaseDate,
+        invoicePeriod: null,
+        personId: item.personId,
+        categoryId: item.categoryId,
+        accountId: item.accountId,
+        cardId: null,
+        sourceAccountId: null,
+        destinationAccountId: null,
+        dueDate: item.originalDueDate ?? item.dueDate,
+        dueDateRuleExcluded: item.dueDateRuleExcluded,
+        autoSettle: false,
+        boletoPaymentDate: item.paymentMethod === "boleto" ? item.settledDate : null,
+        recurrenceFrequency: item.recurrenceFrequency,
+        settledDate: item.condition === "recurring" ? null : item.settledDate,
+        isSettled: item.condition === "recurring" ? false : true,
+        tagIds: [],
+        note: null,
+        splitShares: null,
+        ...overrides,
+      });
+      for (const overrides of [
+        { paymentMethod: "pix" },
+        { paymentMethod: "boleto", dueDate: "2020-01-15" },
+        { paymentMethod: "cash", dueDate: "2020-01-20" },
+      ]) {
+        const created = await api.expense(owner, { ...overrides, isSettled: false });
+        const id = created.recordId as string;
+        await api.data(
+          await api.request("/transactions/settlement", owner, "PATCH", {
+            ids: [id],
+            isSettled: true,
+            settledDate: "2020-01-18",
+            settledAmount: 12.34,
+            accountId: otherAccount.id,
+          }),
+        );
+        const before = await get(id);
+        const renamed = await api.data<TransactionOutput>(
+          await api.request(
+            `/transactions/${id}`,
+            owner,
+            "PATCH",
+            formBody(before, { name: "Renamed after settlement" }),
+          ),
+        );
+        assert.equal(renamed.name, "Renamed after settlement");
+        for (const key of [
+          "settledDate",
+          "settledAmount",
+          "plannedAmount",
+          "accountId",
+          "isSettled",
+          "period",
+          "dueDate",
+          "postingDate",
+        ] as const)
+          assert.deepEqual(renamed[key], before[key], key);
+        await api.error(
+          await api.request(
+            `/transactions/${id}`,
+            owner,
+            "PATCH",
+            formBody(before, { amount: 99 }),
+          ),
+          400,
+          "SETTLEMENT_REQUIRES_UNDO",
+        );
+      }
+
+      const recurring = await api.expense(owner, {
+        condition: "recurring",
+        recurrenceFrequency: "monthly",
+        recurrenceEndDate: "2020-03-10",
+        isSettled: false,
+      });
+      await api.data(
+        await api.request("/transactions/recurring-occurrences/settlement", owner, "PATCH", {
+          recurringRuleId: recurring.recurringRuleId,
+          purchaseDate: "2020-02-10",
+          isSettled: true,
+          settledDate: "2020-02-11",
+          accountId: otherAccount.id,
+        }),
+      );
+      const february = async () =>
+        (await listing("2020-02")).items.find(
+          (item) => item.isRecurring && item.accountId === otherAccount.id,
+        ) as TransactionOutput;
+      const occurrence = await february();
+      assert.equal(occurrence.isSettled, true);
+      for (const scope of ["single", "series"]) {
+        const current = await february();
+        await api.data(
+          await api.request(
+            `/transactions/recurring-rules/${current.recurringRuleId}?scope=${scope}&occurrenceDate=2020-02-10`,
+            owner,
+            "PUT",
+            formBody(current, { name: `Renamed ${scope}` }),
+          ),
+        );
+        const renamed = await february();
+        assert.equal(renamed.name, `Renamed ${scope}`);
+        assert.equal(renamed.settledDate, "2020-02-11");
+      }
+      const january = (await listing("2020-01")).items.find(
+        (item) => item.isRecurring && item.name === "Renamed series",
+      );
+      assert.equal(january?.accountId, recurring.accountId);
+    });
+
     await t.test("marked items are settled automatically on their due date, once", async () => {
       const { getCurrentDateInBrazil } = await import("@openmonetis/shared/date-time");
       const { createDefaultTransactionsService } = await import("./transactions-service");

@@ -29,7 +29,7 @@ monetária; a distribuição do rateio em centavos é um detalhe do cálculo no 
 No banco, os campos usam snake_case, como `settled_amount` e `settled_date`. Confirmações e
 desfazimentos geram eventos em `settlement_events`. Desfazer remove os dados efetivos ativos e
 restaura a conta anterior, mantendo os eventos. Mudanças financeiras em registros confirmados
-exigem desfazer a baixa.
+exigem desfazer a baixa; descrição, categoria, etiquetas e anotações continuam editáveis.
 
 A migration `0014_glossy_prowler.sql` adiciona campos opcionais e a tabela de eventos. Não há backfill
 que invente datas efetivas para baixas anteriores. Registros legados preservam campos efetivos

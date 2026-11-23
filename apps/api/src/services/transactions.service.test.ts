@@ -966,6 +966,58 @@ for (const [patch, update, code] of [
   });
 }
 
+test("a settled transaction accepts a new description with the full body the form sends", async () => {
+  for (const patch of [
+    {},
+    { paymentMethod: "boleto" as const, boletoPaymentDate: null },
+    { paymentMethod: "boleto" as const, boletoPaymentDate: new Date("2026-09-01") },
+  ]) {
+    const f = copyFixture({ ...patch, settledDate: new Date("2026-09-01"), isSettled: true });
+    const { source } = f;
+    const renamed: string[] = [];
+    const persisted = new Error("reached persistence");
+    Object.assign(f.dependencies, {
+      updateTransactionWithSplitsForUser: async (
+        _id: string,
+        _userId: string,
+        data: { name: string },
+      ) => {
+        renamed.push(data.name);
+        throw persisted;
+      },
+    });
+    const isBoleto = source.paymentMethod === "boleto";
+    const body = {
+      type: source.type,
+      condition: source.condition,
+      paymentMethod: source.paymentMethod as NonNullable<typeof source.paymentMethod>,
+      name: "New description",
+      amount: Math.abs(Number(source.amount)),
+      purchaseDate: source.purchaseDate.toISOString().slice(0, 10),
+      invoicePeriod: null,
+      personId: source.personId,
+      accountId: source.accountId,
+      cardId: null,
+      categoryId: source.categoryId,
+      sourceAccountId: null,
+      destinationAccountId: null,
+      dueDate: source.dueDate?.toISOString().slice(0, 10) ?? null,
+      boletoPaymentDate: isBoleto ? "2026-09-01" : null,
+      settledDate: "2026-09-01",
+      isSettled: true,
+    };
+    await assert.rejects(
+      f.service.updateTransaction(transactionId, userId, { ...body, amount: 999 }),
+      { code: "SETTLEMENT_REQUIRES_UNDO" },
+    );
+    await assert.rejects(
+      f.service.updateTransaction(transactionId, userId, body),
+      (error: unknown) => error === persisted,
+    );
+    assert.deepEqual(renamed, ["New description"]);
+  }
+});
+
 test("an installment series cannot change payment structure or already-settled financial fields", async () => {
   const f = copyFixture({
     condition: "installment",
