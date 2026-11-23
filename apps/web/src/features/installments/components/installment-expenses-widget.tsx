@@ -117,10 +117,7 @@ function InstallmentExpenseList({ items }: { items: InstallmentExpense[] }) {
               <div className="shrink-0 text-right">
                 <MoneyValue amount={item.amount} className="font-medium text-sm" />
                 <p
-                  className={cn(
-                    "text-xs",
-                    item.isPaid ? "text-success" : "text-muted-foreground",
-                  )}
+                  className={cn("text-xs", item.isPaid ? "text-success" : "text-muted-foreground")}
                 >
                   {item.isPaid ? "Paga" : `${item.pendingInstallmentCount} em aberto`}
                 </p>
