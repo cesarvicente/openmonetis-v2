@@ -1,3 +1,4 @@
+import bootstrapIconsUrl from "bootstrap-icons/bootstrap-icons.svg?url";
 import {
   ArrowLeftRight,
   Baby,
@@ -94,9 +95,11 @@ import {
   Zap,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { bootstrapIconPrefix } from "./category-icons.constants";
 
 const option = (value: string, label: string, icon: LucideIcon) => ({ value, label, icon });
 
+/** Ícones do grupo "Geral"; os do Bootstrap Icons ficam em `category-icon-library.ts`. */
 export const categoryIconOptions = [
   option("circle-dollar-sign", "Dinheiro", CircleDollarSign),
   option("wallet", "Carteira", Wallet),
@@ -193,6 +196,18 @@ export const categoryIconOptions = [
 ] as const;
 
 export function CategoryIcon({ className, name }: { className?: string; name?: string | null }) {
+  if (name?.startsWith(bootstrapIconPrefix)) {
+    return (
+      <svg
+        aria-hidden="true"
+        className={cn("size-5 shrink-0", className)}
+        fill="currentColor"
+        focusable="false"
+      >
+        <use href={`${bootstrapIconsUrl}#${name.slice(bootstrapIconPrefix.length)}`} />
+      </svg>
+    );
+  }
   const Icon = categoryIconOptions.find((item) => item.value === name)?.icon ?? Tag;
   return <Icon aria-hidden="true" className={cn("size-5", className)} />;
 }

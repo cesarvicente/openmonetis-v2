@@ -9,6 +9,9 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 
 ### Adicionado
 
+- Ícones de categoria: os 2.078 ícones do Bootstrap Icons se somam aos atuais, que ficam em "Geral".
+  O seletor separa os ícones por categoria e a pesquisa funciona em português e em inglês, sem
+  diferenciar acentos e maiúsculas. Os ícones já escolhidos não mudam.
 - Regras da Caixa de entrada têm a ação **Descartar Lançamento**: novas capturas que coincidirem vão
   direto para Descartados com a tag "Descartada por regra" e podem ser restauradas. O descarte vale
   mesmo que outra regra coincida e não altera capturas que já estavam pendentes.
