@@ -183,7 +183,7 @@ function CategoryBreakdownList({
             <Progress
               aria-label={`${item.categoryName}: ${formatPercentage(item.percentage)}% das ${itemLabel}`}
               indicatorClassName={indicatorClassName}
-              trackClassName="h-1"
+              trackClassName="h-2 min-h-2"
               value={Math.max(0, Math.min(100, item.percentage))}
             />
           </div>

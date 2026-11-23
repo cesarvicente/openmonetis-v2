@@ -2,7 +2,7 @@ import type { DashboardBill } from "@openmonetis/validators/bills";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { ArrowRight, CheckCircle2, ReceiptText, RefreshCw } from "lucide-react";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import { MoneyValue } from "@/components/money-value";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -149,73 +149,40 @@ function BillRow({ bill, onSettle }: { bill: DashboardBill; onSettle: () => void
         <div className="flex min-w-0 items-center gap-2">
           <BillName bill={bill} />
         </div>
-        <p
-          className={cn(
-            "truncate text-muted-foreground text-xs",
-            bill.status === "overdue" && "font-medium text-destructive",
-            bill.status === "paid" && "text-success",
-          )}
-        >
-          <span className="inline-flex items-center gap-1">
-            <PaymentIcon aria-hidden="true" className="size-3" />
-            <span className="@max-sm:sr-only">{paymentMethodLabels[bill.paymentMethod]}</span>
-          </span>
-          {" · "}
-          {bill.status === "paid" ? (
+        <div className="flex min-w-0 items-center gap-1">
+          <p
+            className={cn(
+              "min-w-0 truncate text-muted-foreground text-xs",
+              bill.status === "overdue" && "font-medium text-destructive",
+              bill.status === "paid" && "text-success",
+            )}
+          >
             <span className="inline-flex items-center gap-1">
-              <CheckCircle2 aria-hidden="true" className="size-3" />
-              {bill.settledDate ? billPaidLabel(bill.settledDate) : "Pago"}
+              <PaymentIcon aria-hidden="true" className="size-3" />
+              <span className="@max-sm:sr-only">{paymentMethodLabels[bill.paymentMethod]}</span>
             </span>
-          ) : (
-            <DueDateIndicator
-              dueDate={bill.dueDate}
-              originalDueDate={bill.originalDueDate}
-              adjustment={bill.dueDateAdjustment}
-              excluded={bill.dueDateRuleExcluded}
-              editable={bill.dueDateExceptionEditable}
-              target={
-                bill.recordId
-                  ? { target: "transaction", transactionId: bill.recordId }
-                  : bill.recurringRuleId
-                    ? {
-                        target: "recurring",
-                        recurringRuleId: bill.recurringRuleId,
-                        occurrenceDate: bill.purchaseDate,
-                      }
-                    : undefined
-              }
-            >
-              {billDueLabel(bill.dueDate)}
-            </DueDateIndicator>
-          )}
-          {bill.currentInstallment && bill.installmentCount
-            ? ` · ${bill.currentInstallment}/${bill.installmentCount}`
-            : null}
-        </p>
-        {bill.isSettled && (bill.dueDateAdjustment || bill.dueDateRuleExcluded) ? (
-          <div className="text-xs">
-            <DueDateIndicator
-              dueDate={bill.dueDate}
-              originalDueDate={bill.originalDueDate}
-              adjustment={bill.dueDateAdjustment}
-              excluded={bill.dueDateRuleExcluded}
-              editable={bill.dueDateExceptionEditable}
-              target={
-                bill.recordId
-                  ? { target: "transaction", transactionId: bill.recordId }
-                  : bill.recurringRuleId
-                    ? {
-                        target: "recurring",
-                        recurringRuleId: bill.recurringRuleId,
-                        occurrenceDate: bill.purchaseDate,
-                      }
-                    : undefined
-              }
-            >
-              {billDueLabel(bill.dueDate)}
-            </DueDateIndicator>
-          </div>
-        ) : null}
+            <span className="@max-sm:hidden"> ·</span>{" "}
+            {bill.status === "paid" ? (
+              <>
+                <CheckCircle2
+                  aria-hidden="true"
+                  className="mr-1 inline size-3 align-[-0.125em] @max-sm:hidden"
+                />
+                {bill.settledDate ? billPaidLabel(bill.settledDate) : "Pago"}
+              </>
+            ) : (
+              <BillDueDate bill={bill}>{billDueLabel(bill.dueDate)}</BillDueDate>
+            )}
+            {bill.currentInstallment && bill.installmentCount
+              ? ` · ${bill.currentInstallment}/${bill.installmentCount}`
+              : null}
+          </p>
+          {bill.isSettled && (bill.dueDateAdjustment || bill.dueDateRuleExcluded) ? (
+            <BillDueDate bill={bill} className="whitespace-nowrap px-0.5 text-xs">
+              <span className="hidden @lg:inline">{billDueLabel(bill.dueDate)}</span>
+            </BillDueDate>
+          ) : null}
+        </div>
       </div>
       <div className="flex shrink-0 flex-col items-end">
         <MoneyValue
@@ -237,6 +204,40 @@ function BillRow({ bill, onSettle }: { bill: DashboardBill; onSettle: () => void
         )}
       </div>
     </DashboardWidgetRow>
+  );
+}
+
+function BillDueDate({
+  bill,
+  children,
+  className,
+}: {
+  bill: DashboardBill;
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <DueDateIndicator
+      className={className}
+      dueDate={bill.dueDate}
+      originalDueDate={bill.originalDueDate}
+      adjustment={bill.dueDateAdjustment}
+      excluded={bill.dueDateRuleExcluded}
+      editable={bill.dueDateExceptionEditable}
+      target={
+        bill.recordId
+          ? { target: "transaction", transactionId: bill.recordId }
+          : bill.recurringRuleId
+            ? {
+                target: "recurring",
+                recurringRuleId: bill.recurringRuleId,
+                occurrenceDate: bill.purchaseDate,
+              }
+            : undefined
+      }
+    >
+      {children}
+    </DueDateIndicator>
   );
 }
 

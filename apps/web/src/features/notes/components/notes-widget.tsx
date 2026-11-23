@@ -218,7 +218,7 @@ function NotesWidgetList({
                   <Progress
                     aria-label={`Progresso: ${getChecklistProgressLabel(note)}`}
                     indicatorClassName="bg-brand/70"
-                    trackClassName="h-1"
+                    trackClassName="h-2 min-h-2"
                     value={note.completionPercentage}
                   />
                 </div>

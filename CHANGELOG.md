@@ -120,6 +120,9 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 
 ### Corrigido
 
+- Em "Minhas faturas" e "Contas a pagar", itens pagos com vencimento ajustado não invadem mais o item
+  seguinte: o aviso do vencimento fica na mesma linha do pagamento. As linhas dos cards crescem se o
+  conteúdo precisar, e as barras de progresso ficam mais finas para caber na altura prevista.
 - A descrição, a categoria e outros dados não financeiros de um lançamento com baixa voltam a ser
   editáveis. A edição era recusada como se fosse financeira; valor, datas e conta continuam exigindo
   desfazer a baixa.

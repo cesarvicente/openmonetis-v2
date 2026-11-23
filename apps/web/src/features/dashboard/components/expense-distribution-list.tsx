@@ -57,7 +57,7 @@ export function ExpenseDistributionList({ items }: { items: ExpenseDistributionL
             <Progress
               aria-label={`${item.label}: ${formatExpenseDistributionPercentage(item.percentage)}% das despesas`}
               indicatorClassName="bg-brand/70"
-              trackClassName="h-1"
+              trackClassName="h-2 min-h-2"
               value={Math.max(0, Math.min(100, item.percentage))}
             />
           </div>

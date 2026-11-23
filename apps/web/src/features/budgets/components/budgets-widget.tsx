@@ -190,7 +190,7 @@ function BudgetProgressRow({
               </span>
               <Button
                 aria-label={`Editar orçamento de ${budget.categoryName}`}
-                className="size-6 text-muted-foreground"
+                className="-my-1 size-6 text-muted-foreground"
                 onClick={() => onEdit(budget)}
                 size="icon-sm"
                 type="button"
@@ -221,7 +221,7 @@ function BudgetProgressRow({
           aria-label={`${percentage}% do orçamento de ${budget.categoryName} comprometido`}
           indicatorClassName={budgetProgressStyles[budget.status]}
           trackClassName={cn(
-            "h-1",
+            "h-2 min-h-2",
             budget.status === "warning" && "bg-warning/20",
             budget.status === "reached" && "bg-warning/20",
             exceeded && "bg-destructive/20",

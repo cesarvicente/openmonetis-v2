@@ -128,7 +128,7 @@ function GoalProgressRow({ goal }: { goal: GoalOutput }) {
         <Progress
           aria-label={`${percentage}% da meta ${goal.name} alcançada`}
           indicatorClassName={warning ? "bg-warning" : "bg-brand"}
-          trackClassName={cn("h-1", warning && "bg-warning/20")}
+          trackClassName={cn("h-2 min-h-2", warning && "bg-warning/20")}
           value={Math.min(goal.progressPercentage, 100)}
         />
       </div>

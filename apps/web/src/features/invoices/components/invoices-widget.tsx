@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { Image } from "@unpic/react";
 import { ArrowRight, CheckCircle2, CreditCard, ReceiptText } from "lucide-react";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import { MoneyValue } from "@/components/money-value";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -142,49 +142,32 @@ function InvoiceRow({ invoice, onPay }: { invoice: DashboardInvoice; onPay: () =
         <div className="flex min-w-0 items-center gap-2">
           <InvoiceCardName invoice={invoice} />
         </div>
-        {invoice.remainingAmount === 0 && invoice.latestPayment ? (
-          <p className="flex items-center gap-1 text-success text-xs">
-            <CheckCircle2 aria-hidden="true" className="size-3 shrink-0" />
-            <span>{invoicePaidLabel(invoice.latestPayment.paidAt)}</span>
-          </p>
+        {invoice.remainingAmount === 0 ? (
+          <div className="flex min-w-0 items-center gap-1 text-muted-foreground text-xs">
+            {invoice.latestPayment ? (
+              <p className="flex min-w-0 items-center gap-1 text-success">
+                <CheckCircle2 aria-hidden="true" className="size-3 shrink-0" />
+                <span className="truncate">{invoicePaidLabel(invoice.latestPayment.paidAt)}</span>
+              </p>
+            ) : (
+              <p className="truncate">{cardInvoiceStatusLabels[invoice.status]}</p>
+            )}
+            {invoice.dueDateAdjustment || invoice.dueDateRuleExcluded ? (
+              <InvoiceDueDate className="whitespace-nowrap px-0.5" invoice={invoice}>
+                <span className="hidden @lg:inline">{invoiceDueLabel(invoice.dueDate)}</span>
+              </InvoiceDueDate>
+            ) : null}
+          </div>
         ) : (
           <p
             className={cn(
-              "text-muted-foreground text-xs",
+              "truncate text-muted-foreground text-xs",
               invoice.status === "overdue" && "font-medium text-destructive",
             )}
           >
-            {invoice.remainingAmount === 0 ? (
-              cardInvoiceStatusLabels[invoice.status]
-            ) : (
-              <DueDateIndicator
-                dueDate={invoice.dueDate}
-                originalDueDate={invoice.originalDueDate}
-                adjustment={invoice.dueDateAdjustment}
-                excluded={invoice.dueDateRuleExcluded}
-                editable={invoice.dueDateExceptionEditable}
-                target={{ target: "invoice", cardId: invoice.cardId, period: invoice.period }}
-              >
-                {invoiceDueLabel(invoice.dueDate)}
-              </DueDateIndicator>
-            )}
+            <InvoiceDueDate invoice={invoice}>{invoiceDueLabel(invoice.dueDate)}</InvoiceDueDate>
           </p>
         )}
-        {invoice.remainingAmount === 0 &&
-        (invoice.dueDateAdjustment || invoice.dueDateRuleExcluded) ? (
-          <div className="text-xs">
-            <DueDateIndicator
-              dueDate={invoice.dueDate}
-              originalDueDate={invoice.originalDueDate}
-              adjustment={invoice.dueDateAdjustment}
-              excluded={invoice.dueDateRuleExcluded}
-              editable={invoice.dueDateExceptionEditable}
-              target={{ target: "invoice", cardId: invoice.cardId, period: invoice.period }}
-            >
-              {invoiceDueLabel(invoice.dueDate)}
-            </DueDateIndicator>
-          </div>
-        ) : null}
       </div>
       <div className="flex shrink-0 flex-col items-end">
         <MoneyValue
@@ -206,6 +189,30 @@ function InvoiceRow({ invoice, onPay }: { invoice: DashboardInvoice; onPay: () =
         )}
       </div>
     </DashboardWidgetRow>
+  );
+}
+
+function InvoiceDueDate({
+  children,
+  className,
+  invoice,
+}: {
+  children: ReactNode;
+  className?: string;
+  invoice: DashboardInvoice;
+}) {
+  return (
+    <DueDateIndicator
+      className={className}
+      dueDate={invoice.dueDate}
+      originalDueDate={invoice.originalDueDate}
+      adjustment={invoice.dueDateAdjustment}
+      excluded={invoice.dueDateRuleExcluded}
+      editable={invoice.dueDateExceptionEditable}
+      target={{ target: "invoice", cardId: invoice.cardId, period: invoice.period }}
+    >
+      {children}
+    </DueDateIndicator>
   );
 }
 

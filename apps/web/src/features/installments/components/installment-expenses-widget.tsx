@@ -118,7 +118,7 @@ function InstallmentExpenseList({ items }: { items: InstallmentExpense[] }) {
                 <MoneyValue amount={item.amount} className="font-medium text-sm" />
                 <p
                   className={cn(
-                    "mt-0.5 text-xs",
+                    "text-xs",
                     item.isPaid ? "text-success" : "text-muted-foreground",
                   )}
                 >
@@ -129,7 +129,7 @@ function InstallmentExpenseList({ items }: { items: InstallmentExpense[] }) {
             <Progress
               aria-label={`Progresso do parcelamento: ${Math.round(item.progressPercentage)}%`}
               indicatorClassName="bg-brand/70"
-              trackClassName="h-1"
+              trackClassName="h-2 min-h-2"
               value={item.progressPercentage}
             />
           </div>

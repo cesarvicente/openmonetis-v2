@@ -121,7 +121,7 @@ function PeopleList({ people }: { people: PersonExpense[] }) {
             <Progress
               aria-label={`${person.personName}: ${formatPercentage(person.percentage)}% das despesas`}
               indicatorClassName="bg-brand/70"
-              trackClassName="h-1"
+              trackClassName="h-2 min-h-2"
               value={person.percentage}
             />
           </div>
