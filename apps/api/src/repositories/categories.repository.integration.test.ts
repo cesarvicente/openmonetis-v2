@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
+import { invoicePaymentCategoryName } from "@openmonetis/domain/categories";
 import { ListCategoryTrendsQuerySchema } from "@openmonetis/validators/category-trends";
 import {
   ListTransactionsQuerySchema,
@@ -313,11 +314,14 @@ test("subcategory hierarchy, ownership, filters and totals persist together", {
     for (const row of rows.filter((row) => row.parentId))
       assert.equal(rows.find((parent) => parent.id === row.parentId)?.parentId, null);
     assert.deepEqual(await categories.list(other.id), []);
-    await db
-      .insert(schema.categories)
-      .values({ userId: owner.id, name: "Pagamentos", type: "expense", isSystem: true });
+    await db.insert(schema.categories).values({
+      userId: owner.id,
+      name: invoicePaymentCategoryName,
+      type: "expense",
+      isSystem: true,
+    });
     const customPayment = await categories.create(
-      { name: "Pagamentos", type: "expense", parentId: home.id },
+      { name: invoicePaymentCategoryName, type: "expense", parentId: home.id },
       owner.id,
     );
     await createExpense(customPayment.id, 2);

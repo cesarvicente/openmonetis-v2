@@ -123,7 +123,7 @@ export function CategoriesTable({
                       aria-label={getCategoryLabel(child)}
                     >
                       <span className="grid size-7 shrink-0 place-items-center rounded-full bg-muted-foreground text-muted">
-                        <CategoryIcon className="size-4" name={parent.icon} />
+                        <CategoryIcon className="size-4" name={child.icon} />
                       </span>
                       <span className="min-w-0 break-words">{child.name}</span>
                     </Link>

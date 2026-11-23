@@ -1,7 +1,7 @@
 export const categoryTypes = ["income", "expense"] as const;
 export type CategoryType = (typeof categoryTypes)[number];
 export const internalTransferCategoryName = "Transferência interna";
-export const invoicePaymentCategoryName = "Pagamentos";
+export const invoicePaymentCategoryName = "Pagamentos de fatura";
 export const balanceAdjustmentCategoryName = "Ajuste de saldo";
 export const invoiceAdjustmentCategoryName = "Ajustes de fatura";
 export const yieldCategoryName = "Rendimentos";

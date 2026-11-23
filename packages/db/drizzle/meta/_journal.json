@@ -197,6 +197,13 @@
       "when": 1795405283854,
       "tag": "0027_inbox_rule_discard",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1795413212449,
+      "tag": "0028_rename_invoice_payment_category",
+      "breakpoints": true
     }
   ]
 }

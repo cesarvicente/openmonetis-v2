@@ -9,6 +9,7 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 
 ### Adicionado
 
+- Ícones de categoria: Vinho, Carne, Hortifrúti, Banho, Osso e Brinquedo entram no grupo "Geral".
 - Ícones de categoria: os 2.078 ícones do Bootstrap Icons se somam aos atuais, que ficam em "Geral".
   O seletor separa os ícones por categoria e a pesquisa funciona em português e em inglês, sem
   diferenciar acentos e maiúsculas. Os ícones já escolhidos não mudam.
@@ -75,6 +76,8 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 
 ### Alterado
 
+- A categoria de sistema que guarda os pagamentos de fatura passa a se chamar **Pagamentos de fatura**,
+  deixando o nome "Pagamentos" livre para uma categoria comum, com subcategorias e relatórios.
 - No formulário de nova despesa ou receita, "Pagamento realizado"/"Recebimento realizado" já vem
   marcado, com a data de hoje, para formas de pagamento fora do cartão de crédito. Transferências e a
   edição de lançamentos não mudam.
@@ -102,6 +105,7 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 
 ### Corrigido
 
+- Na página de categorias, cada subcategoria mostra o próprio ícone em vez do ícone da principal.
 - `drizzle.config.ts` e os testes de integração carregam `.env` e migrations também no Windows.
 - Adicionar ou alterar o vencimento de uma recorrência com "Todas as ocorrências" ou "Esta e as
   próximas" era recusado quando havia uma ocorrência já paga no escopo. O vencimento não altera
