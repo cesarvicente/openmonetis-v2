@@ -107,7 +107,6 @@ export function MobileNavigationMenu({
               <NavigationSectionItems
                 items={section.items}
                 onNavigate={() => setMobileNavigationOpen(false)}
-                pathname={location.pathname}
               />
             </section>
           ))}

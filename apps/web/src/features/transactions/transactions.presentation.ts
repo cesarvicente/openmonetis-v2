@@ -457,6 +457,17 @@ export function getTransactionSettlementLabel(
       : "Pago";
 }
 
+export function getTransactionUnsettleConfirmation(type: TransactionOutput["type"], name: string) {
+  const action = getTransactionSettlementAction({ type, isSettled: true });
+  const description =
+    type === "income"
+      ? `“${name}” volta a ficar em aberto e o valor recebido sai do saldo da conta.`
+      : type === "transfer"
+        ? `“${name}” volta a ficar em aberto e os valores saem dos saldos das contas.`
+        : `“${name}” volta a ficar em aberto e o valor pago é devolvido ao saldo da conta.`;
+  return { action, description, title: `${action}?` };
+}
+
 export function getTransactionSettlementAction(
   transaction: Pick<TransactionOutput, "type" | "isSettled">,
 ) {

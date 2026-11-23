@@ -97,7 +97,6 @@ export function DesktopNavigation({
                     <NavigationSectionItems
                       className="w-92 max-w-[calc(100vw-2rem)]"
                       items={section.items}
-                      pathname={location.pathname}
                     />
                   )}
                 </NavigationMenuContent>

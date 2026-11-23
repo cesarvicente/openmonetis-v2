@@ -35,6 +35,7 @@ import {
   type SettlementTarget,
   TransactionSettlementDialog,
 } from "./transaction-settlement-dialog";
+import { TransactionUnsettleDialog, type UnsettleTarget } from "./transaction-unsettle-dialog";
 import {
   type TransactionCreateType,
   type TransactionsFilterKey,
@@ -122,6 +123,7 @@ export function TransactionsContainer({
   const settleRecurringOccurrence = useSettleRecurringOccurrenceMutation();
   const recurringStatus = useRecurringRuleActionMutation();
   const [settlementTarget, setSettlementTarget] = useState<SettlementTarget | null>(null);
+  const [unsettleTarget, setUnsettleTarget] = useState<UnsettleTarget | null>(null);
 
   async function handleDeleteTransaction(
     transaction: TransactionOutput,
@@ -216,22 +218,37 @@ export function TransactionsContainer({
             });
             return;
           }
+          if (!isSettled) {
+            setUnsettleTarget({
+              name: item?.name ?? "Este lançamento",
+              type: item?.type ?? "expense",
+              onConfirm: async () => {
+                try {
+                  await settleTransactions.mutateAsync({ ids, isSettled: false });
+                  toast.success("Lançamento marcado em aberto");
+                } catch (error) {
+                  toast.error("Não foi possível atualizar a situação", {
+                    description: getTransactionMutationErrorMessage(error),
+                  });
+                }
+              },
+            });
+            return;
+          }
           try {
             await settleTransactions.mutateAsync({ ids, isSettled, settledDate });
             const item = transactionsQuery.data?.items.find((item) =>
               ids.includes(item.recordId ?? item.id),
             );
             toast.success(
-              isSettled
-                ? item?.type === "income"
-                  ? "Recebimento registrado"
-                  : item?.type === "transfer"
-                    ? "Transferência confirmada"
-                    : "Pagamento registrado"
-                : "Lançamento marcado em aberto",
+              item?.type === "income"
+                ? "Recebimento registrado"
+                : item?.type === "transfer"
+                  ? "Transferência confirmada"
+                  : "Pagamento registrado",
               {
                 action:
-                  isSettled && item && !item.isDivided
+                  item && !item.isDivided
                     ? {
                         label: "Desfazer",
                         onClick: () =>
@@ -276,6 +293,27 @@ export function TransactionsContainer({
             });
             return;
           }
+          if (!isSettled) {
+            setUnsettleTarget({
+              name: selected?.name ?? "Este lançamento",
+              type: selected?.type ?? "expense",
+              onConfirm: async () => {
+                try {
+                  await settleRecurringOccurrence.mutateAsync({
+                    recurringRuleId,
+                    purchaseDate,
+                    isSettled: false,
+                  });
+                  toast.success("Lançamento marcado em aberto");
+                } catch (error) {
+                  toast.error("Não foi possível atualizar a situação", {
+                    description: getTransactionMutationErrorMessage(error),
+                  });
+                }
+              },
+            });
+            return;
+          }
           try {
             await settleRecurringOccurrence.mutateAsync({
               recurringRuleId,
@@ -288,11 +326,7 @@ export function TransactionsContainer({
                 item.recurringRuleId === recurringRuleId && item.purchaseDate === purchaseDate,
             );
             toast.success(
-              isSettled
-                ? item?.type === "income"
-                  ? "Recebimento registrado"
-                  : "Pagamento registrado"
-                : "Lançamento marcado em aberto",
+              item?.type === "income" ? "Recebimento registrado" : "Pagamento registrado",
             );
           } catch {
             toast.error("Não foi possível atualizar a situação");
@@ -366,6 +400,7 @@ export function TransactionsContainer({
         transactions={transactionsQuery.data?.items ?? []}
         cardInvoices={transactionsQuery.data?.cardInvoices ?? []}
       />
+      <TransactionUnsettleDialog onClose={() => setUnsettleTarget(null)} target={unsettleTarget} />
       {settlementTarget ? (
         <TransactionSettlementDialog
           key={`${settlementTarget.ids?.join(",") ?? settlementTarget.recurringRuleId}:${settlementTarget.purchaseDate ?? ""}`}

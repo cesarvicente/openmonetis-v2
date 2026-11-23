@@ -16,6 +16,7 @@ import { useMobileNavigationVisibility } from "@/hooks/useMobileNavigationVisibi
 import { authClient } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
 import { DesktopNavigation } from "./desktop-navigation";
+import { InboxLink } from "./inbox-link";
 import { MobileNavigation } from "./mobile-navigation";
 import { MobileNavigationMenu } from "./mobile-navigation-menu";
 import { headerIconButtonClassName } from "./navbar-options";
@@ -103,6 +104,8 @@ export function Navbar() {
               </TooltipTrigger>
               <TooltipContent>Calculadora</TooltipContent>
             </Tooltip>
+
+            <InboxLink enabled={Boolean(user)} />
 
             <Tooltip>
               <TooltipTrigger

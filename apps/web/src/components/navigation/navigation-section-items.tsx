@@ -1,23 +1,24 @@
+import { useLocation } from "@tanstack/react-router";
 import { cn } from "@/lib/utils";
 
-import { isPathActive, type NavItem } from "./nav-items";
+import { isNavItemActive, type NavItem } from "./nav-items";
 import { NavLink } from "./nav-link";
 
 export function NavigationSectionItems({
   className,
   items,
   onNavigate,
-  pathname,
 }: {
   className?: string;
   items: NavItem[];
   onNavigate?: () => void;
-  pathname: string;
 }) {
+  const location = useLocation();
+
   return (
     <div className={cn("grid gap-1", className)}>
       {items.map((item) => {
-        const active = !item.isShortcut && isPathActive(pathname, item.href);
+        const active = isNavItemActive(item, location);
 
         return (
           <NavLink
@@ -26,7 +27,7 @@ export function NavigationSectionItems({
               active && "bg-accent text-accent-foreground",
             )}
             href={item.href}
-            key={item.href}
+            key={item.label}
             onClick={onNavigate}
             preservePeriod={item.preservePeriod}
             search={item.search}

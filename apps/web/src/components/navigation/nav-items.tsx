@@ -1,5 +1,7 @@
 import {
+  ArrowDownLeft,
   ArrowLeftRight,
+  ArrowUpRight,
   CalendarClock,
   ClipboardList,
   CreditCard,
@@ -7,7 +9,6 @@ import {
   GitFork,
   Goal,
   HandCoins,
-  Inbox,
   Landmark,
   NotebookText,
   Paperclip,
@@ -27,12 +28,25 @@ export type NavLinkItem = {
   isShortcut?: boolean;
   preservePeriod?: boolean;
   search?: Record<string, string>;
+  /** Parâmetros que precisam ser iguais aos do item (ou ausentes) para ele ficar ativo. */
+  exclusiveSearchKeys?: string[];
 };
 
 export type NavItem = NavLinkItem;
 
 export function isPathActive(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+/** Itens com a mesma rota se distinguem pelos parâmetros de busca (ex.: Receitas e Despesas). */
+export function isNavItemActive(
+  item: NavLinkItem,
+  location: { pathname: string; search: Record<string, unknown> },
+) {
+  if (item.isShortcut || !isPathActive(location.pathname, item.href)) return false;
+  return (item.exclusiveSearchKeys ?? Object.keys(item.search ?? {})).every(
+    (key) => location.search[key] === item.search?.[key],
+  );
 }
 
 type NavSection = {
@@ -49,13 +63,24 @@ export const navSections: NavSection[] = [
         label: "Lançamentos",
         description: "Registre e gerencie suas transações",
         icon: <ArrowLeftRight className="size-4" aria-hidden="true" />,
+        exclusiveSearchKeys: ["type"],
         preservePeriod: true,
       },
       {
-        href: "/inbox",
-        label: "Caixa de entrada",
-        description: "Revise as capturas do Companion",
-        icon: <Inbox className="size-4" aria-hidden="true" />,
+        href: "/transactions",
+        label: "Receitas",
+        description: "Entradas do mês",
+        icon: <ArrowDownLeft className="size-4" aria-hidden="true" />,
+        preservePeriod: true,
+        search: { type: "income" },
+      },
+      {
+        href: "/transactions",
+        label: "Despesas",
+        description: "Saídas do mês",
+        icon: <ArrowUpRight className="size-4" aria-hidden="true" />,
+        preservePeriod: true,
+        search: { type: "expense" },
       },
       {
         href: "/people/admin",

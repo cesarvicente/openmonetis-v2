@@ -9,6 +9,7 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 
 ### Adicionado
 
+- Menu Lançamentos com **Receitas** e **Despesas**, que abrem a lista já filtrada no mês em exibição.
 - "Personalizar dashboard" define as colunas do mosaico (1 a 4) e, em cada card, a largura, a altura, a
   altura responsiva (cresce com o conteúdo até o limite) e a barra de rolagem no lugar de "Ver mais".
   Uma largura maior que o mosaico é limitada só na exibição e volta quando ele tiver colunas suficientes.
@@ -84,6 +85,9 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 
 ### Alterado
 
+- A Caixa de entrada sai do menu Lançamentos e vira um ícone no topo, ao lado da calculadora, com a
+  quantidade de capturas pendentes.
+- Na lista de lançamentos, desfazer um pagamento, recebimento ou transferência pede confirmação.
 - Em "Personalizar dashboard", os cards são reordenados arrastando pela alça (ou com as setas do teclado
   sobre ela). Os botões de seta levam o card para o topo ou para o final; um card visível vai para baixo
   do último visível, sem contar os ocultos.
