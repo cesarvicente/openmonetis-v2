@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
-import { existsSync, readdirSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
+import { createDefaultCategoryDrafts } from "@openmonetis/domain/categories";
 import { bootstrapIconCatalog } from "./bootstrap-icons.catalog";
 import {
   categoryIconGroups,
@@ -10,6 +11,7 @@ import {
   getBootstrapIconLabel,
   getCategoryIconSections,
 } from "./category-icon-library";
+import { bootstrapIconPrefix } from "./category-icons.constants";
 
 const library = createCategoryIconLibrary([
   { value: "key", label: "Chave" },
@@ -87,4 +89,18 @@ test("labels are composed in Portuguese", () => {
   );
   assert.equal(getBootstrapIconLabel("cart4"), "Carrinho de compras 4");
   assert.equal(getBootstrapIconLabel("piggy-bank"), "Cofrinho");
+});
+
+test("every default category uses an icon the application can render", () => {
+  const source = readFileSync(new URL("./category-icons.tsx", import.meta.url), "utf8");
+  const general = [...source.matchAll(/option\("([^"]+)"/g)].map((match) => match[1]);
+  const bootstrap = bootstrapIconCatalog
+    .trim()
+    .split("\n")
+    .map((line) => bootstrapIconPrefix + line.split(";")[0]);
+  const available = new Set([...general, ...bootstrap]);
+  const missing = createDefaultCategoryDrafts("user").filter(
+    (draft) => !draft.icon || !available.has(draft.icon),
+  );
+  assert.deepEqual(missing, []);
 });

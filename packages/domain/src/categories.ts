@@ -18,6 +18,11 @@ export type CategoryCreateDraft = {
   parentId?: string | null;
 };
 
+/** Categoria criada para novos usuários; a subcategoria aponta a principal pelo nome, ainda sem ID. */
+export type DefaultCategoryDraft = Omit<CategoryCreateDraft, "parentId"> & {
+  parentName: string | null;
+};
+
 export type CategoryHierarchyNode = {
   id: string;
   type: CategoryType;
@@ -104,6 +109,7 @@ const defaultCategoryDefinitions: Array<{
   type: CategoryType;
   icon: string;
   isSystem?: boolean;
+  children?: Array<{ name: string; icon: string }>;
 }> = [
   {
     name: balanceAdjustmentCategoryName,
@@ -111,20 +117,150 @@ const defaultCategoryDefinitions: Array<{
     icon: "circle-dollar-sign",
     isSystem: true,
   },
-  { name: "Alimentação", type: "expense", icon: "utensils" },
-  { name: "Transporte", type: "expense", icon: "bus" },
-  { name: "Moradia", type: "expense", icon: "home" },
-  { name: "Saúde", type: "expense", icon: "heart-pulse" },
-  { name: "Educação", type: "expense", icon: "book-open" },
-  { name: "Lazer", type: "expense", icon: "gamepad" },
-  { name: "Compras", type: "expense", icon: "shopping-bag" },
-  { name: "Assinaturas", type: "expense", icon: "repeat" },
-  { name: "Pets", type: "expense", icon: "paw-print" },
-  { name: "Mercado", type: "expense", icon: "shopping-basket" },
-  { name: "Restaurantes", type: "expense", icon: "restaurant" },
-  { name: "Delivery", type: "expense", icon: "bike" },
-  { name: "Energia e água", type: "expense", icon: "zap" },
-  { name: "Internet", type: "expense", icon: "wifi" },
+  {
+    name: "Alimentação",
+    type: "expense",
+    icon: "utensils",
+    children: [
+      { name: "Restaurantes", icon: "restaurant" },
+      { name: "Delivery", icon: "bike" },
+    ],
+  },
+  {
+    name: "Mercado",
+    type: "expense",
+    icon: "shopping-basket",
+    children: [
+      { name: "Açougue", icon: "beef" },
+      { name: "Adega", icon: "wine" },
+      { name: "Depósito", icon: "bi-box-seam" },
+      { name: "Padaria", icon: "croissant" },
+      { name: "Sacolão", icon: "carrot" },
+    ],
+  },
+  {
+    name: "Moradia",
+    type: "expense",
+    icon: "home",
+    children: [
+      { name: "Aluguel", icon: "key" },
+      { name: "Condomínio", icon: "building" },
+      { name: "Manutenção", icon: "wrench" },
+      { name: "Móveis", icon: "sofa" },
+      { name: "Reforma", icon: "paint-roller" },
+      { name: "Utensílios Casa", icon: "cooking-pot" },
+    ],
+  },
+  {
+    name: "Contas",
+    type: "expense",
+    icon: "bi-receipt-cutoff",
+    children: [
+      { name: "Água", icon: "droplets" },
+      { name: "Energia", icon: "zap" },
+      { name: "Gás", icon: "flame" },
+      { name: "Internet", icon: "wifi" },
+    ],
+  },
+  {
+    name: "Transporte",
+    type: "expense",
+    icon: "bus",
+    children: [
+      { name: "Transporte Público", icon: "bi-train-front" },
+      { name: "Uber", icon: "bi-taxi-front" },
+    ],
+  },
+  {
+    name: "Carro | Moto",
+    type: "expense",
+    icon: "car",
+    children: [
+      { name: "Acessórios e Peças", icon: "bi-nut" },
+      { name: "Combustível", icon: "bi-fuel-pump" },
+      { name: "Documentos", icon: "bi-file-earmark-text" },
+      { name: "Estacionamento", icon: "bi-p-circle" },
+      { name: "Limpeza", icon: "bi-bucket" },
+      { name: "Manutenção", icon: "wrench" },
+      { name: "Multas", icon: "bi-exclamation-triangle" },
+      { name: "Pedágio", icon: "bi-signpost-split" },
+      { name: "Seguro", icon: "bi-shield-check" },
+    ],
+  },
+  {
+    name: "Saúde",
+    type: "expense",
+    icon: "heart-pulse",
+    children: [
+      { name: "Academia", icon: "dumbbell" },
+      { name: "Consulta", icon: "bi-clipboard2-pulse" },
+      { name: "Dentista", icon: "bi-emoji-smile" },
+      { name: "Exames", icon: "bi-file-earmark-medical" },
+      { name: "Higiene", icon: "bath" },
+      { name: "Plano de Saúde", icon: "bi-shield-plus" },
+      { name: "Remédios", icon: "pill" },
+    ],
+  },
+  {
+    name: "Educação",
+    type: "expense",
+    icon: "book-open",
+    children: [
+      { name: "Cursos", icon: "bi-mortarboard" },
+      { name: "Livros", icon: "bi-book" },
+    ],
+  },
+  { name: "Lazer", type: "expense", icon: "bi-ticket-perforated" },
+  {
+    name: "Planos e Assinaturas",
+    type: "expense",
+    icon: "bi-calendar2-check",
+    children: [
+      { name: "Celular", icon: "bi-phone" },
+      { name: "Marketplace", icon: "bi-shop" },
+      { name: "Música", icon: "bi-music-note-beamed" },
+      { name: "Software e IA", icon: "bi-robot" },
+      { name: "Streaming", icon: "bi-collection-play" },
+    ],
+  },
+  {
+    name: "Eletrônicos e Tecnologia",
+    type: "expense",
+    icon: "monitor",
+    children: [
+      { name: "Hardware PC", icon: "bi-motherboard" },
+      { name: "Jogos", icon: "bi-joystick" },
+      { name: "Periféricos", icon: "bi-keyboard" },
+      { name: "Software", icon: "bi-window-stack" },
+      { name: "Videogames | Acessórios", icon: "gamepad" },
+    ],
+  },
+  {
+    name: "Pets",
+    type: "expense",
+    icon: "paw-print",
+    children: [
+      { name: "Banho e Tosa", icon: "bi-scissors" },
+      { name: "Brinquedos", icon: "toy-brick" },
+      { name: "Ração", icon: "bone" },
+      { name: "Remédios", icon: "pill" },
+      { name: "Veterinário", icon: "hospital" },
+    ],
+  },
+  {
+    name: "Pagamentos",
+    type: "expense",
+    icon: "bi-cash-coin",
+    children: [
+      { name: "Documentos", icon: "bi-file-earmark-text" },
+      { name: "Empréstimo", icon: "bi-cash-stack" },
+      { name: "Impostos e Tributos", icon: "bi-bank" },
+      { name: "Investimentos", icon: "bi-graph-up-arrow" },
+      { name: "LIS", icon: "bi-credit-card" },
+      { name: "Taxas", icon: "bi-percent" },
+    ],
+  },
+  { name: "Terceiros", type: "expense", icon: "users" },
   { name: "Vestuário", type: "expense", icon: "shirt" },
   { name: "Viagem", type: "expense", icon: "plane" },
   { name: "Presentes", type: "expense", icon: "gift" },
@@ -160,10 +296,15 @@ const defaultCategoryDefinitions: Array<{
   },
 ];
 
-export function createDefaultCategoryDrafts(userId: string): CategoryCreateDraft[] {
-  return defaultCategoryDefinitions.map((category) => ({
-    ...category,
-    userId,
-    isSystem: category.isSystem ?? false,
-  }));
+export function createDefaultCategoryDrafts(userId: string): DefaultCategoryDraft[] {
+  return defaultCategoryDefinitions.flatMap(({ children = [], ...category }) => [
+    { ...category, userId, isSystem: category.isSystem ?? false, parentName: null },
+    ...children.map((child) => ({
+      ...child,
+      userId,
+      type: category.type,
+      isSystem: false,
+      parentName: category.name,
+    })),
+  ]);
 }

@@ -1,11 +1,15 @@
 import { budgets, categories, db, recurringTransactionRules, transactions } from "@openmonetis/db";
-import { CategoryConstraintError, expandCategoryIds } from "@openmonetis/domain/categories";
-import { and, asc, eq, inArray, type SQLWrapper, sql } from "drizzle-orm";
+import {
+  CategoryConstraintError,
+  type DefaultCategoryDraft,
+  expandCategoryIds,
+} from "@openmonetis/domain/categories";
+import { and, asc, eq, inArray, isNull, type SQLWrapper, sql } from "drizzle-orm";
 import type { CategoriesRepository } from "../services/categories.service";
 
 export const categoriesRepository = {
-  async insertDefaults(data) {
-    await db.insert(categories).values(data).onConflictDoNothing();
+  async insertDefaults(userId, drafts) {
+    await db.transaction((tx) => insertDefaultCategories(tx, userId, drafts));
   },
   async insert(data) {
     return categoryWrite(data.userId, async (tx) => {
@@ -108,6 +112,41 @@ export function listCategoriesByIdsForUser(ids: string[], userId: string) {
     })
     .from(categories)
     .where(and(eq(categories.userId, userId), inArray(categories.id, ids)));
+}
+
+/** Grava as principais antes das subcategorias, que dependem do ID delas; as existentes são mantidas. */
+export async function insertDefaultCategories(
+  tx: CategoryTransaction,
+  userId: string,
+  drafts: readonly DefaultCategoryDraft[],
+) {
+  const toRow = (
+    { name, type, icon, isSystem }: DefaultCategoryDraft,
+    parentId: string | null,
+  ) => ({
+    userId,
+    name,
+    type,
+    icon,
+    isSystem,
+    parentId,
+  });
+  const parents = drafts.filter((draft) => draft.parentName === null);
+  if (!parents.length) return;
+  await tx
+    .insert(categories)
+    .values(parents.map((draft) => toRow(draft, null)))
+    .onConflictDoNothing();
+  const rows = await tx
+    .select({ id: categories.id, name: categories.name, type: categories.type })
+    .from(categories)
+    .where(and(eq(categories.userId, userId), isNull(categories.parentId)));
+  const parentIds = new Map(rows.map((row) => [`${row.type}:${row.name}`, row.id]));
+  const children = drafts.flatMap((draft) => {
+    const parentId = draft.parentName && parentIds.get(`${draft.type}:${draft.parentName}`);
+    return parentId ? [toRow(draft, parentId)] : [];
+  });
+  if (children.length) await tx.insert(categories).values(children).onConflictDoNothing();
 }
 
 type CategoryTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];

@@ -47,6 +47,7 @@ import {
 } from "@openmonetis/db";
 import { and, eq, inArray, isNotNull, notInArray, or } from "drizzle-orm";
 import type { SettingsRepository, SettingsResetDraft } from "../services/settings.service";
+import { insertDefaultCategories } from "./categories.repository";
 
 type DatabaseTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
@@ -234,7 +235,7 @@ export const settingsRepository = {
         .set({ image: draft.admin.avatarUrl, updatedAt: new Date() })
         .where(eq(user.id, userId));
       await transaction.insert(people).values(draft.admin);
-      await transaction.insert(categories).values(draft.categories);
+      await insertDefaultCategories(transaction, userId, draft.categories);
       return true;
     });
   },

@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   assertCategoryHierarchy,
   type CategoryHierarchyNode,
+  createDefaultCategoryDrafts,
   expandCategoryIds,
 } from "./categories";
 
@@ -51,4 +52,18 @@ test("hierarchy rejects self-reference, moving a group under its child and chang
     () => assertCategoryHierarchy({ id: "home", type: "income", parentId: null, categories }),
     { code: "category_has_children" },
   );
+});
+
+test("default subcategories belong to an editable root category of the same type", () => {
+  const drafts = createDefaultCategoryDrafts("user");
+  const roots = drafts.filter((draft) => draft.parentName === null);
+  const children = drafts.filter((draft) => draft.parentName !== null);
+  assert.ok(children.length > 0);
+  for (const child of children) {
+    const parent = roots.find((root) => root.name === child.parentName && root.type === child.type);
+    assert.equal(parent?.isSystem, false, child.name);
+    assert.equal(child.isSystem, false);
+  }
+  const keys = drafts.map((draft) => `${draft.type}:${draft.parentName}:${draft.name}`);
+  assert.equal(new Set(keys).size, keys.length);
 });

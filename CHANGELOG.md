@@ -9,7 +9,10 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 
 ### Adicionado
 
-- Ícones de categoria: Vinho, Carne, Hortifrúti, Banho, Osso e Brinquedo entram no grupo "Geral".
+- Novos usuários (e quem redefine os dados) recebem categorias padrão com subcategorias. Quem já tem
+  conta não é afetado.
+- Ícones de categoria: Vinho, Carne, Hortifrúti, Padaria, Móveis, Panela, Pintura, Nota, Banho, Osso e
+  Brinquedo entram no grupo "Geral".
 - Ícones de categoria: os 2.078 ícones do Bootstrap Icons se somam aos atuais, que ficam em "Geral".
   O seletor separa os ícones por categoria e a pesquisa funciona em português e em inglês, sem
   diferenciar acentos e maiúsculas. Os ícones já escolhidos não mudam.

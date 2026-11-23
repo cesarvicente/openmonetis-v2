@@ -1,11 +1,11 @@
 import {
   assertCategoryHierarchy,
   CategoryConstraintError,
-  type CategoryCreateDraft,
   type CategoryType,
   canChangeCategoryType,
   createCategoryDraft,
   createDefaultCategoryDrafts,
+  type DefaultCategoryDraft,
 } from "@openmonetis/domain/categories";
 import type {
   CategoryOutput,
@@ -29,7 +29,7 @@ export type CategoryRecord = {
 type CategoryCreateRecord = Omit<CategoryRecord, "id" | "createdAt" | "updatedAt">;
 type CategoryUpdateRecord = Partial<Pick<CategoryRecord, "name" | "type" | "icon" | "parentId">>;
 export type CategoriesRepository = {
-  insertDefaults(data: CategoryCreateDraft[]): Promise<void>;
+  insertDefaults(userId: string, drafts: DefaultCategoryDraft[]): Promise<void>;
   insert(data: CategoryCreateRecord): Promise<CategoryRecord>;
   listByUser(userId: string): Promise<CategoryRecord[]>;
   findByIdForUser(id: string, userId: string): Promise<CategoryRecord | null>;
@@ -110,7 +110,7 @@ export function createCategoriesService(repository: CategoriesRepository) {
   }
   return {
     async seedDefaults(userId: string) {
-      await repository.insertDefaults(createDefaultCategoryDrafts(userId));
+      await repository.insertDefaults(userId, createDefaultCategoryDrafts(userId));
     },
     async create(input: CreateCategoryInput, userId: string) {
       return write(async () => {

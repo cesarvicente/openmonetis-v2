@@ -1,6 +1,6 @@
 import {
-  type CategoryCreateDraft,
   createDefaultCategoryDrafts,
+  type DefaultCategoryDraft,
 } from "@openmonetis/domain/categories";
 import {
   type AdminPersonDraft,
@@ -20,7 +20,7 @@ import type { AttachmentStorage } from "../utils/storage";
 
 export type SettingsResetDraft = {
   admin: AdminPersonDraft;
-  categories: CategoryCreateDraft[];
+  categories: DefaultCategoryDraft[];
 };
 
 export type SettingsRepository = {

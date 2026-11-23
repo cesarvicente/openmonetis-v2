@@ -44,6 +44,7 @@ import {
   type TransactionType,
 } from "@openmonetis/domain/transactions";
 import { and, eq, inArray, ne } from "drizzle-orm";
+import { insertDefaultCategories } from "../repositories/categories.repository";
 
 const DEFAULT_MONTHS = 6;
 const MIN_MONTHS = 3;
@@ -351,10 +352,7 @@ export async function seedMockData(argv = process.argv.slice(2)) {
   const seededPeriods = new Set<string>();
 
   await db.transaction(async (tx) => {
-    await tx
-      .insert(categories)
-      .values(createDefaultCategoryDrafts(targetUser.id))
-      .onConflictDoNothing();
+    await insertDefaultCategories(tx, targetUser.id, createDefaultCategoryDrafts(targetUser.id));
 
     const categoryRows = await tx
       .select({ id: categories.id, name: categories.name, type: categories.type })
@@ -560,7 +558,7 @@ export async function seedMockData(argv = process.argv.slice(2)) {
       { category: "Transporte", amount: 620 },
       { category: "Moradia", amount: 3200 },
       { category: "Lazer", amount: 420 },
-      { category: "Assinaturas", amount: 240 },
+      { category: "Planos e Assinaturas", amount: 240 },
     ] as const;
     const budgetRows = periods.flatMap((period, index) =>
       budgetDefinitions.map((definition) => ({
@@ -806,7 +804,7 @@ export async function seedMockData(argv = process.argv.slice(2)) {
         dueDate: dateForPeriodDay(firstPeriod, 18),
         personId: adminPerson.id,
         accountId: accountIds.itau,
-        categoryId: categoryId("expense", "Energia e água"),
+        categoryId: categoryId("expense", "Energia"),
         note: "Conta mensal de energia.",
       },
       {
@@ -818,7 +816,7 @@ export async function seedMockData(argv = process.argv.slice(2)) {
         startDate: dateForPeriodDay(firstPeriod, 9),
         personId: adminPerson.id,
         cardId: cardRows.ultravioleta.id,
-        categoryId: categoryId("expense", "Assinaturas"),
+        categoryId: categoryId("expense", "Planos e Assinaturas"),
         note: "Assinatura mensal.",
         splitShares: [
           { personId: adminPerson.id, amount: 35.9 },
@@ -1021,7 +1019,7 @@ export async function seedMockData(argv = process.argv.slice(2)) {
         installmentCount: 8,
         purchaseDate: dateForPeriodDay(firstPeriod, 12),
         card: cardRows.itaucard,
-        categoryId: categoryId("expense", "Compras"),
+        categoryId: categoryId("expense", "Eletrônicos e Tecnologia"),
         note: "Notebook para o home office.",
       }),
       appendInstallmentSeries({

@@ -2,7 +2,10 @@ import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-import { invoicePaymentCategoryName } from "@openmonetis/domain/categories";
+import {
+  createDefaultCategoryDrafts,
+  invoicePaymentCategoryName,
+} from "@openmonetis/domain/categories";
 import { ListCategoryTrendsQuerySchema } from "@openmonetis/validators/category-trends";
 import {
   ListTransactionsQuerySchema,
@@ -314,6 +317,16 @@ test("subcategory hierarchy, ownership, filters and totals persist together", {
     for (const row of rows.filter((row) => row.parentId))
       assert.equal(rows.find((parent) => parent.id === row.parentId)?.parentId, null);
     assert.deepEqual(await categories.list(other.id), []);
+    // Seeding twice keeps a single copy of every default category and subcategory.
+    await categories.seedDefaults(other.id);
+    await categories.seedDefaults(other.id);
+    const seeded = await categories.list(other.id);
+    const toKey = (category: { type: string; name: string; parentName?: string | null }) =>
+      `${category.type}:${category.parentName ?? ""}:${category.name}`;
+    assert.deepEqual(
+      seeded.map(toKey).sort(),
+      createDefaultCategoryDrafts(other.id).map(toKey).sort(),
+    );
     await db.insert(schema.categories).values({
       userId: owner.id,
       name: invoicePaymentCategoryName,
