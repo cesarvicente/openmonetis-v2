@@ -178,7 +178,7 @@ function getAccountStatementScope(
         />
       ),
     },
-    adminSettledOnly: true,
+    settledOnly: true,
     view: "accountStatement" as const,
     hiddenFilters: ["accountCard", "person", "settlement"] as const,
     contentNavigation: (

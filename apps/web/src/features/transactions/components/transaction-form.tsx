@@ -11,6 +11,7 @@ import { TransactionFormActions } from "./transaction-form-actions";
 import { TransactionFormScopeDialogs } from "./transaction-form-scope-dialogs";
 import { TransactionPaymentFields } from "./transaction-payment-fields";
 import { TransactionPeopleFields } from "./transaction-people-fields";
+import { TransactionReimbursementFields } from "./transaction-reimbursement-fields";
 import { TransactionRelatedRecordDialog } from "./transaction-related-record-dialog";
 import { TransactionScheduleFields } from "./transaction-schedule-fields";
 import { TransactionSettlementField } from "./transaction-settlement-field";
@@ -178,6 +179,14 @@ export function TransactionForm({
                     isSubmitting={isSubmitting}
                     isTransfer={isTransfer}
                     isSplitBetweenPeople={isSplitBetweenPeople}
+                  />
+
+                  <TransactionReimbursementFields
+                    form={form}
+                    isSubmitting={isSubmitting}
+                    people={people}
+                    transaction={mode === "edit" ? transaction : null}
+                    values={values}
                   />
 
                   <section className="grid gap-4">

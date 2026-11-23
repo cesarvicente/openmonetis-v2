@@ -167,6 +167,7 @@ test("subcategory hierarchy, ownership, filters and totals persist together", {
     const transactionService = createTransactionsService(
       {
         ...transactions,
+        ...(await import("./partial-payments.repository")),
         transitionRecurringRuleForUser: (await import("./recurring-transactions.repository"))
           .transitionRecurringRuleForUser,
         ...accounts,

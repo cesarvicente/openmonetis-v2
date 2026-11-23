@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils";
 import {
   formatInstallmentPurchaseTotal,
   formatPaymentMethodTable,
+  isTransactionLocked,
   paymentMethodIcons,
   transactionConditionIcons,
   transactionConditionLabels,
@@ -96,14 +97,20 @@ export function TransactionRow({
       ? (transaction.cardName ?? "cartão")
       : (transaction.accountName ?? transaction.cardName ?? "conta");
   const isRefund = transaction.origin === "refund";
-  const isGenerated = transaction.origin !== "regular";
+  const isPartialPayment = Boolean(transaction.parentTransactionId);
+  const isGenerated =
+    transaction.origin !== "regular" &&
+    (transaction.origin !== "reimbursement" || isPartialPayment);
+  const isLocked = isTransactionLocked(transaction);
+  const isPartiallyPaid = Boolean(transaction.partialPayment) && transaction.isSettled === false;
   const isLastInstallment =
     transaction.condition === "installment" &&
     transaction.currentInstallment !== null &&
     transaction.installmentCount !== null &&
     transaction.installmentCount > 1 &&
     transaction.currentInstallment === transaction.installmentCount;
-  const canDelete = isInvoiceAdjustment || canDeleteTransactionOrigin(transaction.origin);
+  const canDelete =
+    isInvoiceAdjustment || (!isPartialPayment && canDeleteTransactionOrigin(transaction.origin));
   const isPaymentControlledByInvoice =
     transaction.paymentMethod === "credit_card" || transaction.isSettled === null;
   const shouldShowPersonContext =
@@ -115,11 +122,17 @@ export function TransactionRow({
     ? "Ajustes de saldo são sempre confirmados."
     : isInvoicePayment
       ? "Este pagamento já foi conciliado com a fatura."
-      : isGenerated
-        ? "Este lançamento é controlado automaticamente pelo sistema."
-        : transaction.isSettled
-          ? "Desfazer o pagamento e marcar como em aberto."
-          : "Marcar este lançamento como pago.";
+      : isPartialPayment
+        ? "Pagamento parcial: para desfazer, abra o lançamento principal."
+        : isGenerated
+          ? "Este lançamento é controlado automaticamente pelo sistema."
+          : transaction.isSettled
+            ? "Desfazer o pagamento e marcar como em aberto."
+            : isPartiallyPaid
+              ? "Pago em parte: registre o restante."
+              : transaction.type === "income"
+                ? "Registrar o recebimento."
+                : "Marcar este lançamento como pago.";
 
   const amountValue = (
     <MoneyValue
@@ -137,6 +150,7 @@ export function TransactionRow({
           : isRefund
             ? "bg-success/5"
             : undefined,
+        transaction.isOverdue && "bg-destructive/5 hover:bg-destructive/10",
         selected && "bg-brand/5",
         splitConnector && splitConnector !== "end" && "border-b-0",
       )}
@@ -170,7 +184,7 @@ export function TransactionRow({
       <TableCell className="text-right whitespace-nowrap">
         <span className="sr-only">
           {isRefund
-            ? "Reembolso"
+            ? "Estorno"
             : isInvoiceReduction
               ? "Redução de despesa"
               : transaction.type === "income"
@@ -250,7 +264,11 @@ export function TransactionRow({
                         : "Marcar como pago"
                   }
                   disabled={
-                    isInvoicePayment || isBalanceAdjustment || isGenerated || settlementPending
+                    isInvoicePayment ||
+                    isBalanceAdjustment ||
+                    isGenerated ||
+                    isPartialPayment ||
+                    settlementPending
                   }
                   onClick={() => {
                     if (transaction.recordId) {
@@ -268,7 +286,9 @@ export function TransactionRow({
                   className={
                     transaction.isSettled
                       ? "bg-success/10 text-success"
-                      : "text-muted-foreground hover:text-success"
+                      : isPartiallyPaid
+                        ? "bg-warning/15 text-foreground hover:text-success"
+                        : "text-muted-foreground hover:text-success"
                   }
                   variant="ghost"
                 >
@@ -276,6 +296,10 @@ export function TransactionRow({
                     <Loader2 aria-hidden="true" className="size-4 animate-spin" />
                   ) : transaction.isSettled ? (
                     <CircleCheck aria-hidden="true" className="size-4" />
+                  ) : isPartiallyPaid ? (
+                    <span aria-hidden="true" className="font-semibold text-lg leading-none">
+                      ~
+                    </span>
                   ) : (
                     <Circle aria-hidden="true" className="size-4" />
                   )}
@@ -294,7 +318,7 @@ export function TransactionRow({
             onUndoAnticipation={onUndoAnticipation}
             onRefund={onRefund}
             isBalanceAdjustment={isBalanceAdjustment}
-            isGenerated={isGenerated}
+            isGenerated={isGenerated || isLocked}
             isRefund={isRefund}
             isInvoiceAdjustment={isInvoiceAdjustment}
             canDelete={canDelete}

@@ -2,7 +2,9 @@
 
 O relatório em **Relatórios → Distribuição financeira** mostra as categorias de receita e de
 despesa de um mês, agrupando subcategorias sem duplicar os valores. Usa o período dos lançamentos,
-com valores efetivos quando houver baixa, e respeita a pessoa selecionada e seus rateios.
+com valores efetivos quando houver baixa, e respeita a pessoa selecionada e seus rateios. Na visão do
+usuário (`personScope=admin`), as despesas entram por inteiro e os
+[reembolsos](reimbursements.md) recebidos ou garantidos reduzem a categoria da despesa.
 
 - **Lançados:** lançamentos avulsos, parcelas e ocorrências recorrentes confirmadas.
 - **Com previsões:** inclui também as demais ocorrências de recorrências do mês. Confirmar uma

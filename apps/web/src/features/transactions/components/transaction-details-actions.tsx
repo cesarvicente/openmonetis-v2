@@ -13,6 +13,7 @@ import {
 import type { Dispatch, SetStateAction } from "react";
 import { Button } from "@/components/ui/button";
 import { DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
+import { getTransactionSettlementAction } from "../transactions.presentation";
 import { TransactionActionsMenu } from "./transaction-actions-menu";
 import type { TransactionDetailsSheetProps } from "./transaction-details-sheet.types";
 export function TransactionDetailsActions({
@@ -47,7 +48,7 @@ export function TransactionDetailsActions({
             leadingItems={
               detail.isSettled !== null &&
               detail.paymentMethod !== "credit_card" &&
-              detail.origin === "regular" ? (
+              (detail.origin === "regular" || detail.origin === "reimbursement") ? (
                 <DropdownMenuItem
                   disabled={
                     mobileActions.pendingSettlementKey ===
@@ -73,7 +74,7 @@ export function TransactionDetailsActions({
                   ) : (
                     <CircleCheck />
                   )}
-                  {detail.isSettled ? "Marcar em aberto" : "Marcar como pago"}
+                  {getTransactionSettlementAction(detail)}
                 </DropdownMenuItem>
               ) : null
             }

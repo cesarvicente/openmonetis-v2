@@ -73,6 +73,7 @@ test("settlements preserve planned values, cash dates, rateios, undo and recurre
     const service = createTransactionsService(
       {
         ...transactions,
+        ...(await import("./partial-payments.repository")),
         dueDateRules: dueDateRulesRepository,
         ...recurring,
         ...accounts,
@@ -106,12 +107,23 @@ test("settlements preserve planned values, cash dates, rateios, undo and recurre
       accountId: account.id,
       categoryId: category.id,
       isSettled: false,
-      splitShares: [
-        { personId: person.id, amount: 600 },
-        { personId: external.id, amount: 400 },
-      ],
+      splitShares: null,
     });
-    const item = await service.createTransaction({ ...base, userId: owner.id });
+    const splitShares = [
+      { personId: person.id, amount: 600 },
+      { personId: external.id, amount: 400 },
+    ];
+    const [splitCategory] = await db
+      .insert(schema.categories)
+      .values({ userId: owner.id, name: "Split", type: "expense" })
+      .returning();
+    const item = await service.createTransaction({
+      ...base,
+      type: "expense",
+      categoryId: splitCategory.id,
+      splitShares,
+      userId: owner.id,
+    });
     assert.ok(item.recordId);
     const id = item.recordId;
     await settlements.settlePersistedTransactions({
@@ -132,13 +144,13 @@ test("settlements preserve planned values, cash dates, rateios, undo and recurre
     );
     assert.equal(
       (await db.select().from(schema.transactions).where(eq(schema.transactions.id, id)))[0].amount,
-      "1000.00",
+      "-1000.00",
     );
     const accountsService = createAccountsService(accountsRepository);
     const augustAccounts = await accountsService.list(owner.id, "2026-08");
     assert.equal(
       augustAccounts.find((row) => row.id === secondAccount.id)?.summary.balance,
-      540.01,
+      -900.01,
     );
     const augustStatement = await service.listTransactions(
       owner.id,
@@ -300,6 +312,7 @@ test("settlements preserve planned values, cash dates, rateios, undo and recurre
       userId: owner.id,
       type: "expense",
       categoryId: expenseCategory.id,
+      splitShares,
     });
     assert.ok(expense.recordId);
     await service.settleTransactions(
@@ -312,7 +325,7 @@ test("settlements preserve planned values, cash dates, rateios, undo and recurre
     );
     const { budgetsRepository } = await import("./budgets.repository");
     const spending = await budgetsRepository.listSpendingEntries(owner.id, "2026-09");
-    assert.equal(spending.find((row) => row.categoryId === expenseCategory.id)?.amount, "-210.02");
+    assert.equal(spending.find((row) => row.categoryId === expenseCategory.id)?.amount, "-350.03");
     const { createDashboardService } = await import("../services/dashboard.service");
     const { dashboardRepository } = await import("./dashboard.repository");
     assert.equal(
@@ -322,7 +335,7 @@ test("settlements preserve planned values, cash dates, rateios, undo and recurre
           owner.id,
         )
       ).expensesTotal,
-      210.02,
+      1350.03,
     );
     const { OpenAPIHono } = await import("@hono/zod-openapi");
     const { createTransactionsRoute } = await import("../routes/transactions");
@@ -980,7 +993,7 @@ test("settlements preserve planned values, cash dates, rateios, undo and recurre
         {
           accountId: account.id,
           paidAt: "2026-10-12",
-          allocations: [{ personId: person.id, amount: 40 }],
+          amount: 40,
         },
         owner.id,
       ),
@@ -998,7 +1011,7 @@ test("settlements preserve planned values, cash dates, rateios, undo and recurre
       {
         accountId: account.id,
         paidAt: "2026-10-12",
-        allocations: [{ personId: person.id, amount: 40 }],
+        amount: 40,
       },
       owner.id,
     );
@@ -1028,7 +1041,7 @@ test("settlements preserve planned values, cash dates, rateios, undo and recurre
       {
         accountId: account.id,
         paidAt: "2026-10-12",
-        allocations: [{ personId: person.id, amount: 60 }],
+        amount: 60,
       },
       owner.id,
     );
@@ -1090,12 +1103,14 @@ test("settlements preserve planned values, cash dates, rateios, undo and recurre
         ],
       });
     }
-    const { personSettlementsRepository } = await import("./person-settlements.repository");
-    const { createPersonSettlementsService } = await import(
-      "../services/person-settlements.service"
-    );
+    const { reimbursementsRepository } = await import("./reimbursements.repository");
+    const { createReimbursementsService } = await import("../services/reimbursements.service");
     const { createPeopleService } = await import("../services/people.service");
-    const personSettlementsService = createPersonSettlementsService(personSettlementsRepository);
+    const reimbursementsService = createReimbursementsService(
+      reimbursementsRepository,
+      dueDateRulesRepository,
+      () => "2026-10-12",
+    );
     const peopleService = createPeopleService(people.peopleRepository, {
       list: service.listTransactions,
     });
@@ -1104,29 +1119,71 @@ test("settlements preserve planned values, cash dates, rateios, undo and recurre
       owner.id,
       "2026-10",
     );
-    const settlementsOctober = await personSettlementsService.getSnapshot(
-      invoicePerson.id,
-      owner.id,
-      "2026-10",
-    );
-    const settlementsNovember = await personSettlementsService.getSnapshot(
-      invoicePerson.id,
-      owner.id,
-      "2026-11",
-    );
-    const summaryOctober = await personSettlementsService.getSummary(owner.id, "2026-10");
     assert.equal(personOctober.totalExpenses, 4270.8);
-    assert.equal(settlementsOctober.balance.assignedAmount, personOctober.totalExpenses);
-    assert.equal(settlementsNovember.balance.assignedAmount, 27.4);
+    await reimbursementsService.synchronize(owner.id);
+    await reimbursementsService.synchronize(owner.id);
+    const owed = await db
+      .select()
+      .from(schema.transactions)
+      .where(
+        and(
+          eq(schema.transactions.userId, owner.id),
+          eq(schema.transactions.origin, "reimbursement"),
+          eq(schema.transactions.personId, invoicePerson.id),
+        ),
+      );
+    const owedInOctober = owed.filter((row) => row.period === "2026-10");
     assert.equal(
-      summaryOctober.items.find((item) => item.personId === invoicePerson.id)?.balance
-        .assignedAmount,
-      4270.8,
+      owedInOctober.reduce((total, row) => total + Number(row.amount), 0).toFixed(2),
+      "4270.80",
     );
-    assert.deepEqual(
-      await personSettlementsRepository.listRecurringBalanceRulesForPeriod(other.id, "2026-10"),
-      [],
+    assert.ok(owedInOctober.every((row) => row.reimbursementPeriod === "2026-10"));
+    assert.equal(
+      owed
+        .filter((row) => row.period === "2026-11")
+        .reduce((total, row) => total + Number(row.amount), 0),
+      27.4,
     );
+    const summaryOctober = await reimbursementsService.summarize(owner.id, "2026-10");
+    assert.ok(
+      (summaryOctober.items.find((item) => item.personId === invoicePerson.id)?.pendingAmount ??
+        0) > 4270.8,
+    );
+
+    // A partial payment leaves the rest pending; undoing it restores the whole amount.
+    const reimbursement = owedInOctober.find((row) => row.reimbursementSourceId);
+    assert.ok(reimbursement);
+    const registered = await service.registerPartialPayment(
+      reimbursement.id,
+      { amount: 243.4, date: "2026-10-12", accountId: account.id },
+      owner.id,
+    );
+    assert.equal(registered.remainingAmount, 4000);
+    await reimbursementsService.synchronize(owner.id);
+    assert.equal(
+      (await service.listPartialPayments(reimbursement.id, owner.id)).remainingAmount,
+      4000,
+    );
+    await assert.rejects(
+      service.updateTransaction(reimbursement.reimbursementSourceId as string, owner.id, {
+        amount: 10,
+      }),
+      { code: "REIMBURSEMENT_RECEIVED" },
+    );
+    const [payment] = registered.payments;
+    assert.ok(payment);
+    await service.removePartialPayment(reimbursement.id, payment.id, owner.id);
+    assert.equal(
+      (await service.listPartialPayments(reimbursement.id, owner.id)).remainingAmount,
+      4243.4,
+    );
+
+    // Deleting the expense takes its reimbursement along.
+    await service.deleteTransaction(reimbursement.reimbursementSourceId as string, owner.id);
+    await assert.rejects(service.getTransactionById(reimbursement.id, owner.id), {
+      code: "TRANSACTION_NOT_FOUND",
+    });
+    assert.deepEqual((await reimbursementsService.summarize(other.id, "2026-10")).items, []);
   } finally {
     await applicationPool?.end();
     if (originalExternalUrl === undefined) delete process.env.EXTERNAL_DATABASE_URL;

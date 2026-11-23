@@ -21,7 +21,7 @@ import { ExternalExpensesSection } from "@/features/external-expenses/components
 import { PersonConnectionPanel } from "@/features/person-connections/components/person-connection-panel";
 import { PersonConnectionsManager } from "@/features/person-connections/components/person-connections-manager";
 import { personConnectionsQueryOptions } from "@/features/person-connections/person-connections.queries";
-import { PersonSettlementsCard } from "@/features/person-settlements/components/person-settlements-card";
+import { PersonReceivablesCard } from "@/features/reimbursements/components/person-receivables-card";
 import { TransactionsContainer } from "@/features/transactions/components/transactions-container";
 import {
   formatPeriod,
@@ -170,7 +170,7 @@ function getPersonTransactionsScope(
       selectedView === "panel" ? (
         <div className="grid gap-4">
           {financialSummary}
-          <PersonSettlementsCard period={period} person={person} />
+          <PersonReceivablesCard period={period} person={person} />
           <PersonConnectionPanel person={person} />
         </div>
       ) : selectedView === "external" ? (

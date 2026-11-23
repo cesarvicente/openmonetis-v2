@@ -54,13 +54,13 @@ function repository(listForUser: InstallmentsRepository["listForUser"]): Install
   ) as InstallmentsRepository;
 }
 
-test("installment report uses only the admin person's allocation", async () => {
-  let receivedOptions: { personScope?: "admin" | "all" } | undefined;
+test("installment report uses whole installments", async () => {
   const service = createInstallmentsService(
-    repository(async (_receivedUserId, options) => {
-      receivedOptions = options;
-      return [installment(1, "2026-09"), installment(2, "2026-10"), installment(3, "2026-11")];
-    }),
+    repository(async () => [
+      installment(1, "2026-09"),
+      installment(2, "2026-10"),
+      installment(3, "2026-11"),
+    ]),
     () => "2026-09",
   );
 
@@ -69,7 +69,6 @@ test("installment report uses only the admin person's allocation", async () => {
     status: "all",
   });
 
-  assert.deepEqual(receivedOptions, { personScope: "admin" });
   assert.equal(report.groups[0]?.originalAmount, 150);
   assert.equal(report.groups[0]?.trackedAmount, 150);
   assert.equal(report.groups[0]?.pendingAmount, 150);
@@ -236,11 +235,10 @@ function anticipationFixture() {
   };
 }
 
-test("installment dashboard scopes the owner and primary person's allocation", async () => {
+test("installment dashboard scopes the owner", async () => {
   const service = createInstallmentsService(
-    repository(async (owner, options) => {
+    repository(async (owner) => {
       assert.equal(owner, userId);
-      assert.deepEqual(options, { personScope: "admin" });
       return [installment(2, "2026-10"), installment(3, "2026-11")];
     }),
   );

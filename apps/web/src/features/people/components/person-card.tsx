@@ -1,19 +1,24 @@
 import type { PersonOutput } from "@openmonetis/validators/people";
+import type { PersonReceivableOutput } from "@openmonetis/validators/reimbursements";
 import { Link } from "@tanstack/react-router";
 import { Image } from "@unpic/react";
 import { MessageSquare, Pencil, Trash2, UserRound } from "lucide-react";
 import { CurrentUserBadge } from "@/components/current-user-badge";
+import { MoneyValue } from "@/components/money-value";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { PersonReceivableRows } from "@/features/reimbursements/components/person-receivable-rows";
 import { cn } from "@/lib/utils";
 
 type PersonCardProps = {
   person: PersonOutput;
+  receivable?: PersonReceivableOutput;
+  periodLabel: string;
   onEdit: (person: PersonOutput) => void;
   onRemove?: (person: PersonOutput) => void;
 };
 
-export function PersonCard({ person, onEdit, onRemove }: PersonCardProps) {
+export function PersonCard({ person, periodLabel, receivable, onEdit, onRemove }: PersonCardProps) {
   const isAdmin = person.role === "admin";
   const isInactive = person.status === "inactive";
 
@@ -76,9 +81,25 @@ export function PersonCard({ person, onEdit, onRemove }: PersonCardProps) {
         </div>
       </CardHeader>
 
-      <CardContent className="flex flex-col gap-1">
-        <p className="text-muted-foreground text-xs">E-mail</p>
-        <p className="truncate text-sm">{person.email ?? "Sem e-mail cadastrado"}</p>
+      <CardContent className="grid flex-1 content-start gap-4">
+        {!isAdmin ? (
+          <div className="grid gap-2">
+            <div className="flex items-end justify-between gap-3">
+              <p className="text-muted-foreground text-xs">A receber</p>
+              <MoneyValue
+                amount={receivable?.pendingAmount ?? 0}
+                className="font-semibold text-lg tracking-tight"
+              />
+            </div>
+            {receivable ? (
+              <PersonReceivableRows periodLabel={periodLabel} receivable={receivable} />
+            ) : null}
+          </div>
+        ) : null}
+        <div>
+          <p className="text-muted-foreground text-xs">E-mail</p>
+          <p className="truncate text-sm">{person.email ?? "Sem e-mail cadastrado"}</p>
+        </div>
       </CardContent>
 
       <CardFooter className="flex flex-wrap gap-3 border-t pt-3">

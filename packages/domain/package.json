@@ -22,7 +22,7 @@
     "./budgets": "./src/budgets.ts",
     "./goals": "./src/goals.ts",
     "./notes": "./src/notes.ts",
-    "./person-settlements": "./src/person-settlements.ts",
+    "./reimbursements": "./src/reimbursements.ts",
     "./notifications": "./src/notifications.ts",
     "./recurring-expenses": "./src/recurring-expenses.ts",
     "./releases": "./src/releases.ts",

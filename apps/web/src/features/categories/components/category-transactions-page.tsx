@@ -86,8 +86,7 @@ function getCategoryTransactionsScope(
   const periodLabel = formatPeriod(period);
 
   return {
-    adminPersonOnly: personScope === "admin",
-    personIds: personScope === "all" ? [] : personScope === "admin" ? undefined : [personScope],
+    personIds: personScope === "all" || personScope === "admin" ? [] : [personScope],
     categoryIds: [category.id],
     createDefaults: { categoryId: category.id },
     createTypes: [category.type],

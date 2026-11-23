@@ -68,7 +68,10 @@ export function TransactionsTable({
                     </TableHeader>
                     <TableBody>
                       {cardInvoices.map((invoice) => (
-                        <TransactionCardInvoiceRow invoice={invoice} key={invoice.cardId} />
+                        <TransactionCardInvoiceRow
+                          invoice={invoice}
+                          key={`${invoice.cardId}:${invoice.period}`}
+                        />
                       ))}
                       {groupTransactionRows(transactions).map(({ transaction, splitConnector }) => (
                         <TransactionRow

@@ -3,7 +3,6 @@ import {
   categories,
   db,
   financialAccounts,
-  invoicePaymentAllocations,
   invoicePayments,
   invoices,
   people,
@@ -16,7 +15,7 @@ import {
   invoiceAdjustmentCategoryName,
   invoicePaymentCategoryName,
 } from "@openmonetis/domain/categories";
-import { and, asc, desc, eq, inArray, isNotNull, isNull, lte, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, lt, lte, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import type { InvoicesRepository } from "../services/invoices.service";
 import { effectiveRecurringEndDateSql } from "./recurring-transactions.repository";
@@ -205,23 +204,6 @@ export const invoicesRepository = {
       dueDate: row.dueDate?.toISOString().slice(0, 10) ?? null,
     }));
   },
-  listPaymentAllocations(userId, period) {
-    return db
-      .select({
-        cardId: invoicePayments.cardId,
-        personId: invoicePaymentAllocations.personId,
-        amount: invoicePaymentAllocations.amount,
-      })
-      .from(invoicePaymentAllocations)
-      .innerJoin(
-        invoicePayments,
-        and(
-          eq(invoicePaymentAllocations.paymentId, invoicePayments.id),
-          eq(invoicePayments.userId, userId),
-        ),
-      )
-      .where(and(eq(invoicePaymentAllocations.userId, userId), eq(invoicePayments.period, period)));
-  },
   async listPayments(userId, period) {
     const rows = await db
       .select({
@@ -261,29 +243,45 @@ export const invoicesRepository = {
       dueDateAdjustment: row.dueDateAdjustment,
     }));
   },
-  async findOwnedContext(userId, cardId, accountId, personIds) {
-    const accountRequest = accountId
-      ? db
-          .select({ id: financialAccounts.id, name: financialAccounts.name })
-          .from(financialAccounts)
-          .where(
-            and(
-              eq(financialAccounts.userId, userId),
-              eq(financialAccounts.id, accountId),
-              eq(financialAccounts.isArchived, false),
-            ),
-          )
-      : Promise.resolve([]);
-    const [cardRows, accountRows, personRows, adminRows, paymentCategoryRows] = await Promise.all([
+  async listUnpaidPeriods(userId, fromPeriod, beforePeriod) {
+    const rows = await db
+      .select({ period: transactions.period })
+      .from(transactions)
+      .where(
+        and(
+          eq(transactions.userId, userId),
+          isNotNull(transactions.cardId),
+          gte(transactions.period, fromPeriod),
+          lt(transactions.period, beforePeriod),
+        ),
+      )
+      .groupBy(transactions.cardId, transactions.period)
+      .having(
+        sql`-sum(${effectiveTransactionAmountSql}) > coalesce((
+          select sum(p.amount) from invoice_payments p
+          where p.user_id = ${userId}
+            and p.card_id = ${transactions.cardId}
+            and p.period = ${transactions.period}
+        ), 0)`,
+      );
+    return [...new Set(rows.map((row) => row.period))].sort();
+  },
+  async findOwnedContext(userId, cardId, accountId) {
+    const [cardRows, accountRows, adminRows, paymentCategoryRows] = await Promise.all([
       db
         .select({ id: cards.id, name: cards.name })
         .from(cards)
         .where(and(eq(cards.userId, userId), eq(cards.id, cardId))),
-      accountRequest,
       db
-        .select({ id: people.id, name: people.name })
-        .from(people)
-        .where(and(eq(people.userId, userId), inArray(people.id, personIds))),
+        .select({ id: financialAccounts.id, name: financialAccounts.name })
+        .from(financialAccounts)
+        .where(
+          and(
+            eq(financialAccounts.userId, userId),
+            eq(financialAccounts.id, accountId),
+            eq(financialAccounts.isArchived, false),
+          ),
+        ),
       db
         .select({ id: people.id })
         .from(people)
@@ -304,7 +302,6 @@ export const invoicesRepository = {
     return {
       card: cardRows[0] ?? null,
       account: accountRows[0] ?? null,
-      people: personRows,
       adminPersonId: adminRows[0]?.id ?? null,
       paymentCategoryId: paymentCategoryRows[0]?.id ?? null,
     };
@@ -336,42 +333,39 @@ export const invoicesRepository = {
           ),
         );
       if ((invoiceState?.excluded ?? false) !== data.expectedDueDateRuleExcluded) return null;
-      let transactionId: string | null = null;
-      if (data.adminAmount > 0 && data.accountId && data.paymentCategoryId) {
-        const [movementRecord] = await tx
-          .insert(transactions)
-          .values({
-            userId: data.userId,
-            personId: data.adminPersonId,
-            type: "expense",
-            origin: "invoicePayment",
-            condition: "single",
-            paymentMethod: "bank_transfer",
-            name: `Pagamento fatura ${data.cardName}`,
-            amount: (-data.adminAmount).toFixed(2),
-            purchaseDate: new Date(`${data.paidAt}T00:00:00.000Z`),
-            period: data.paidAt.slice(0, 7),
-            accountId: data.accountId,
-            cardId: null,
-            categoryId: data.paymentCategoryId,
-            sourceAccountId: null,
-            destinationAccountId: null,
-            dueDate: null,
-            boletoPaymentDate: null,
-            installmentCount: null,
-            currentInstallment: null,
-            seriesId: null,
-            transferId: null,
-            recurringRuleId: null,
-            isSettled: true,
-            note: data.note,
-            importSourceFingerprint: null,
-            importExternalId: null,
-            importBatchId: null,
-          })
-          .returning({ id: transactions.id });
-        transactionId = (movementRecord as { id: string }).id;
-      }
+      const [movementRecord] = await tx
+        .insert(transactions)
+        .values({
+          userId: data.userId,
+          personId: data.adminPersonId,
+          type: "expense",
+          origin: "invoicePayment",
+          condition: "single",
+          paymentMethod: "bank_transfer",
+          name: `Pagamento fatura ${data.cardName}`,
+          amount: (-data.amount).toFixed(2),
+          purchaseDate: new Date(`${data.paidAt}T00:00:00.000Z`),
+          period: data.paidAt.slice(0, 7),
+          accountId: data.accountId,
+          cardId: null,
+          categoryId: data.paymentCategoryId,
+          sourceAccountId: null,
+          destinationAccountId: null,
+          dueDate: null,
+          boletoPaymentDate: null,
+          installmentCount: null,
+          currentInstallment: null,
+          seriesId: null,
+          transferId: null,
+          recurringRuleId: null,
+          isSettled: true,
+          note: data.note,
+          importSourceFingerprint: null,
+          importExternalId: null,
+          importBatchId: null,
+        })
+        .returning({ id: transactions.id });
+      const transactionId = (movementRecord as { id: string }).id;
       const [paymentRecord] = await tx
         .insert(invoicePayments)
         .values({
@@ -385,31 +379,6 @@ export const invoicesRepository = {
         })
         .returning({ id: invoicePayments.id });
       const payment = paymentRecord as { id: string };
-      await tx.insert(invoicePaymentAllocations).values(
-        data.allocations.map((item) => ({
-          userId: data.userId,
-          paymentId: payment.id,
-          personId: item.personId,
-          amount: item.amount.toFixed(2),
-        })),
-      );
-      const [previousAccount] =
-        data.remainingAmount === 0 && data.accountId === null
-          ? await tx
-              .select({ accountId: invoicePayments.accountId })
-              .from(invoicePayments)
-              .where(
-                and(
-                  eq(invoicePayments.userId, data.userId),
-                  eq(invoicePayments.cardId, data.cardId),
-                  eq(invoicePayments.period, data.period),
-                  isNotNull(invoicePayments.accountId),
-                ),
-              )
-              .orderBy(desc(invoicePayments.createdAt))
-              .limit(1)
-          : [];
-      const paymentAccountId = data.accountId ?? previousAccount?.accountId ?? null;
       await tx
         .insert(invoices)
         .values({
@@ -418,7 +387,7 @@ export const invoicesRepository = {
           period: data.period,
           paymentStatus: data.remainingAmount === 0 ? "paid" : "pending",
           paidAt: data.remainingAmount === 0 ? new Date(`${data.paidAt}T00:00:00.000Z`) : null,
-          paymentAccountId: data.remainingAmount === 0 ? paymentAccountId : null,
+          paymentAccountId: data.remainingAmount === 0 ? data.accountId : null,
           closingDate: new Date(`${data.closingDate}T00:00:00.000Z`),
           dueDate: new Date(`${data.dueDate}T00:00:00.000Z`),
           originalDueDate: new Date(`${data.originalDueDate ?? data.dueDate}T00:00:00.000Z`),
@@ -429,7 +398,7 @@ export const invoicesRepository = {
           set: {
             paymentStatus: data.remainingAmount === 0 ? "paid" : "pending",
             paidAt: data.remainingAmount === 0 ? new Date(`${data.paidAt}T00:00:00.000Z`) : null,
-            paymentAccountId: data.remainingAmount === 0 ? paymentAccountId : null,
+            paymentAccountId: data.remainingAmount === 0 ? data.accountId : null,
             closingDate: new Date(`${data.closingDate}T00:00:00.000Z`),
             dueDate: new Date(`${data.dueDate}T00:00:00.000Z`),
             originalDueDate: new Date(`${data.originalDueDate ?? data.dueDate}T00:00:00.000Z`),

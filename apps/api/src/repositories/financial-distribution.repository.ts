@@ -19,10 +19,13 @@ import { and, asc, eq, gte, inArray, isNull, lte, ne, or, sql } from "drizzle-or
 import { alias } from "drizzle-orm/pg-core";
 import type { FinancialDistributionRepository } from "../services/financial-distribution.service";
 import { effectiveRecurringEndDateSql } from "./recurring-transactions.repository";
+import { listCategoryReimbursementsForUser } from "./reimbursements.repository";
 import {
+  countedTransactionSql,
   effectiveSplitAmountSql,
   effectiveTransactionAmountSql,
   recurringOccurrenceOverridesSql,
+  requiresSettlementSql,
 } from "./settlements.repository";
 
 const transactionPeople = alias(people, "financial_distribution_transaction_people");
@@ -77,6 +80,7 @@ export const financialDistributionRepository = {
     categoryIds,
     personScope = "admin",
   ) {
+    const ownTotals = personScope === "admin";
     const rows = await db
       .select({
         categoryId: sql<string>`coalesce(${categories.id}::text, case when ${transactions.type} = 'income' then ${uncategorizedIncomeKey} else ${uncategorizedExpenseKey} end)`,
@@ -120,6 +124,7 @@ export const financialDistributionRepository = {
         and(
           eq(transactionSplits.transactionId, transactions.id),
           eq(transactionSplits.userId, userId),
+          ownTotals ? sql`false` : undefined,
         ),
       )
       .leftJoin(
@@ -141,27 +146,49 @@ export const financialDistributionRepository = {
           ),
           gte(transactions.period, startPeriod),
           lte(transactions.period, endPeriod),
-          personScope === "all"
-            ? undefined
-            : or(
-                and(
-                  isNull(transactionSplits.id),
-                  personScope === "admin"
-                    ? eq(transactionPeople.role, "admin")
-                    : eq(transactionPeople.id, personScope),
+          // Linked reimbursements reduce the expense's category instead of being an income of their own.
+          ownTotals
+            ? and(
+                countedTransactionSql(transactionPeople.role),
+                isNull(transactions.reimbursementPeriod),
+              )
+            : personScope === "all"
+              ? undefined
+              : and(
+                  isNull(transactions.reimbursementPeriod),
+                  or(
+                    and(isNull(transactionSplits.id), eq(transactionPeople.id, personScope)),
+                    eq(splitPeople.id, personScope),
+                  ),
                 ),
-                personScope === "admin"
-                  ? eq(splitPeople.role, "admin")
-                  : eq(splitPeople.id, personScope),
-              ),
           categoryIds.length ? inArray(categories.id, [...categoryIds]) : undefined,
         ),
       )
       .orderBy(asc(transactions.period), asc(categories.name), asc(categories.id));
-    return rows;
+    if (!ownTotals) return rows;
+    const reimbursements = await listCategoryReimbursementsForUser(userId, startPeriod, endPeriod);
+    return [
+      ...rows,
+      ...reimbursements
+        .filter(
+          (entry) =>
+            !categoryIds.length ||
+            (entry.categoryId !== null && categoryIds.includes(entry.categoryId)),
+        )
+        .map((entry) => ({
+          categoryId: entry.categoryId ?? uncategorizedExpenseKey,
+          origin: entry.origin,
+          transactionType: entry.type,
+          type: "expense" as const,
+          period: entry.period,
+          excludeFromBalance: entry.excludeFromBalance,
+          amount: entry.amount,
+        })),
+    ];
   },
 
   async listRecurringRulesForUser(userId, periodEnd, categoryIds, personScope = "admin") {
+    const ownTotals = personScope === "admin";
     const rows = await db
       .select({
         categoryId: sql<string>`coalesce(${categories.id}::text, case when ${recurringTransactionRules.type} = 'income' then ${uncategorizedIncomeKey} else ${uncategorizedExpenseKey} end)`,
@@ -191,6 +218,7 @@ export const financialDistributionRepository = {
           sql<string>`coalesce(${recurringTransactionSplits.personId}, ${recurringTransactionRules.personId})`.as(
             "allocation_person_id",
           ),
+        requiresSettlement: requiresSettlementSql(recurringPeople.role),
         frequency: recurringTransactionRules.frequency,
         paymentMethod: recurringTransactionRules.paymentMethod,
         dueDate: recurringTransactionRules.dueDate,
@@ -216,6 +244,7 @@ export const financialDistributionRepository = {
         and(
           eq(recurringTransactionSplits.recurringRuleId, recurringTransactionRules.id),
           eq(recurringTransactionSplits.userId, userId),
+          ownTotals ? sql`false` : undefined,
         ),
       )
       .leftJoin(
@@ -257,18 +286,11 @@ export const financialDistributionRepository = {
             eq(categories.isSystem, false),
           ),
           lte(recurringTransactionRules.startDate, new Date(periodEnd.getTime() + 32 * 86_400_000)),
-          personScope === "all"
+          ownTotals || personScope === "all"
             ? undefined
             : or(
-                and(
-                  isNull(recurringTransactionSplits.id),
-                  personScope === "admin"
-                    ? eq(recurringPeople.role, "admin")
-                    : eq(recurringPeople.id, personScope),
-                ),
-                personScope === "admin"
-                  ? eq(recurringSplitPeople.role, "admin")
-                  : eq(recurringSplitPeople.id, personScope),
+                and(isNull(recurringTransactionSplits.id), eq(recurringPeople.id, personScope)),
+                eq(recurringSplitPeople.id, personScope),
               ),
           categoryIds.length ? inArray(categories.id, [...categoryIds]) : undefined,
         ),
@@ -285,7 +307,9 @@ export const financialDistributionRepository = {
       occurrenceOverrides: row.occurrenceOverrides,
       excludeFromBalance: row.excludeFromBalance,
       occurrenceAccountExclusions: row.occurrenceAccountExclusions,
-      allocationPersonId: row.allocationPersonId,
+      // Whole occurrences count in the user's own totals.
+      allocationPersonId: ownTotals ? undefined : row.allocationPersonId,
+      requiresSettlement: ownTotals && row.requiresSettlement,
 
       configuredEndDate: row.configuredEndDate,
       frequency: row.frequency,

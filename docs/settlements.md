@@ -47,9 +47,9 @@ A lista prioriza contas pendentes por vencimento e mantém as pagas ao final. Av
 usam a mesma fonte. O filtro `payables=true` de `/transactions` reproduz esse recorte e pode ser
 combinado com `settlement=unpaid`.
 
-Cada lançamento aceita uma baixa integral, mesmo quando o valor efetivo difere do previsto; não há
-saldo parcial desse lançamento. Cartão de crédito usa o fluxo separado de pagamento de fatura,
-que já admite pagamentos parciais. Os snapshots de vencimento de contas a pagar e faturas seguem
+Uma baixa quita o lançamento, mesmo quando o valor efetivo difere do previsto. Para deixar o restante
+em aberto, use o [pagamento parcial](reimbursements.md#pagamentos-parciais). Cartão de crédito usa o
+fluxo separado de pagamento de fatura, que também admite pagamentos parciais. Os snapshots de vencimento de contas a pagar e faturas seguem
 as [regras de vencimento](due-date-rules.md). O ciclo de uma série está descrito em
 [lançamentos recorrentes](recurring-transactions.md).
 

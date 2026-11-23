@@ -270,14 +270,6 @@ function InvoiceCardName({ invoice }: { invoice: DashboardInvoice }) {
                   <span className="min-w-0 truncate font-medium text-sm">{person.personName}</span>
                   <MoneyValue amount={person.amount} className="shrink-0 font-medium text-sm" />
                 </div>
-                <div className="flex items-center justify-between gap-3 text-muted-foreground text-xs">
-                  <span>Pago</span>
-                  <MoneyValue amount={person.paidAmount} />
-                </div>
-                <div className="flex items-center justify-between gap-3 text-muted-foreground text-xs">
-                  <span>Em aberto</span>
-                  <MoneyValue amount={person.remainingAmount} />
-                </div>
               </div>
             </div>
           ))}

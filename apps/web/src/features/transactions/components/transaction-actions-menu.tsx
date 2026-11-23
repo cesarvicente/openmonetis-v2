@@ -62,10 +62,11 @@ export function TransactionActionsMenu({
         {transaction.recordId &&
         transaction.type === "expense" &&
         transaction.origin === "regular" &&
+        !transaction.parentTransactionId &&
         transaction.refundableAmount > 0 ? (
           <DropdownMenuItem onClick={() => onRefund(transaction)}>
             <BadgeDollarSign />
-            Registrar reembolso
+            Registrar estorno
           </DropdownMenuItem>
         ) : null}
 

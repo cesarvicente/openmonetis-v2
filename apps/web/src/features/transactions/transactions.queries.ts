@@ -1,8 +1,14 @@
-import { InstallmentOptionsQuerySchema } from "@openmonetis/validators/transactions";
+import {
+  InstallmentOptionsQuerySchema,
+  type TransactionOutput,
+} from "@openmonetis/validators/transactions";
 import { keepPreviousData, queryOptions } from "@tanstack/react-query";
 import {
   getInstallmentOptions,
+  getLinkedReimbursements,
+  getPartialPayments,
   getRecentEstablishments,
+  getRecurringLinkedReimbursements,
   getTransaction,
   getTransactions,
   type TransactionsApiSearch,
@@ -12,6 +18,9 @@ export const transactionKeys = {
   all: ["transactions"] as const,
   list: (search: TransactionsApiSearch) => [...transactionKeys.all, search] as const,
   detail: (id: string) => [...transactionKeys.all, "detail", id] as const,
+  linkedReimbursements: (key: string) =>
+    [...transactionKeys.all, "linked-reimbursements", key] as const,
+  partialPayments: (id: string) => [...transactionKeys.all, "partial-payments", id] as const,
   recentEstablishments: () => [...transactionKeys.all, "recent-establishments"] as const,
   installmentOptions: (amount: number | null) =>
     [...transactionKeys.all, "installment-options", amount] as const,
@@ -47,5 +56,30 @@ export function recentEstablishmentsQueryOptions() {
     queryKey: transactionKeys.recentEstablishments(),
     queryFn: getRecentEstablishments,
     staleTime: 5 * 60 * 1000,
+  });
+}
+
+export type LinkedReimbursementsTarget = Pick<
+  TransactionOutput,
+  "recordId" | "recurringRuleId" | "purchaseDate"
+>;
+
+export function linkedReimbursementsQueryOptions(target: LinkedReimbursementsTarget) {
+  const { purchaseDate, recordId, recurringRuleId } = target;
+  return queryOptions({
+    queryKey: transactionKeys.linkedReimbursements(
+      recordId ?? `${recurringRuleId}:${purchaseDate}`,
+    ),
+    queryFn: () =>
+      recordId
+        ? getLinkedReimbursements(recordId)
+        : getRecurringLinkedReimbursements(recurringRuleId as string, purchaseDate),
+  });
+}
+
+export function partialPaymentsQueryOptions(id: string) {
+  return queryOptions({
+    queryKey: transactionKeys.partialPayments(id),
+    queryFn: () => getPartialPayments(id),
   });
 }

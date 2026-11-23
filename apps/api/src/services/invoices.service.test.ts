@@ -67,22 +67,12 @@ function createRepository(
         },
       ],
       listRecurringMovements: async () => [],
-      listPaymentAllocations: async () => [],
       listPayments: async () => [],
       listDates: async () => [],
-      findOwnedContext: async (
-        _userId: string,
-        _cardId: string,
-        requestedAccountId: string | null,
-        personIds: string[],
-      ) => ({
+      findOwnedContext: async (_userId: string, _cardId: string, requestedAccountId: string) => ({
         card: { id: cardId, name: "Nubank" },
         account:
           requestedAccountId === accountId ? { id: accountId, name: "Conta principal" } : null,
-        people: [
-          { id: adminPersonId, name: "Pessoa principal" },
-          { id: externalPersonId, name: "Pessoa externa" },
-        ].filter((person) => personIds.includes(person.id)),
         adminPersonId,
         paymentCategoryId: "70000000-0000-4000-8000-000000000007",
       }),
@@ -104,7 +94,7 @@ function createRepository(
   ) as unknown as InvoicesRepository;
 }
 
-test("full invoice payment moves only the primary person's allocation", async () => {
+test("the invoice is paid as a whole, whoever the purchases belong to", async () => {
   let inserted: PaymentDraft | undefined;
   const service = createInvoicesService(
     createRepository((data) => {
@@ -116,75 +106,47 @@ test("full invoice payment moves only the primary person's allocation", async ()
   const result = await service.pay(
     cardId,
     "2026-09",
-    {
-      accountId,
-      paidAt: "2026-09-04",
-      allocations: [
-        { personId: adminPersonId, amount: 1000 },
-        { personId: externalPersonId, amount: 9999.99 },
-      ],
-    },
+    { accountId, paidAt: "2026-09-04", amount: 10999.99 },
     userId,
   );
 
   assert.equal(inserted?.amount, 10999.99);
-  assert.equal(inserted?.adminAmount, 1000);
   assert.equal(inserted?.accountId, accountId);
   assert.deepEqual(result, {
     id: paymentId,
     amount: 10999.99,
-    accountAmount: 1000,
+    accountAmount: 10999.99,
     remainingAmount: 0,
     status: "paid",
   });
 });
 
-test("external person's payment does not require or move an account", async () => {
-  let inserted: PaymentDraft | undefined;
+test("a partial invoice payment leaves the rest pending", async () => {
   const service = createInvoicesService(
-    createRepository((data) => {
-      inserted = data;
+    createRepository(() => undefined, {
+      listPayments: async () => [
+        { id: paymentId, cardId, amount: "1000.00", paidAt: "2026-09-02" },
+      ],
     }),
     () => "2026-09-04",
   );
-
+  const [invoice] = (await service.get("2026-09", userId)).items;
+  assert.equal(invoice?.paidAmount, 1000);
+  assert.equal(invoice?.remainingAmount, 9999.99);
+  assert.deepEqual(
+    invoice?.people.map(({ personId, amount }) => ({ personId, amount })),
+    [
+      { personId: externalPersonId, amount: 9999.99 },
+      { personId: adminPersonId, amount: 1000 },
+    ],
+  );
   const result = await service.pay(
     cardId,
     "2026-09",
-    {
-      accountId: null,
-      paidAt: "2026-09-04",
-      allocations: [{ personId: externalPersonId, amount: 9999.99 }],
-    },
+    { accountId, paidAt: "2026-09-04", amount: 999.99 },
     userId,
   );
-
-  assert.equal(inserted?.adminAmount, 0);
-  assert.equal(inserted?.accountId, null);
-  assert.equal(result.accountAmount, 0);
-  assert.equal(result.remainingAmount, 1000);
-  assert.notEqual(result.status, "paid");
-});
-
-test("primary person's payment requires a financial account", async () => {
-  const service = createInvoicesService(
-    createRepository(() => undefined),
-    () => "2026-09-04",
-  );
-
-  await assert.rejects(
-    service.pay(
-      cardId,
-      "2026-09",
-      {
-        accountId: null,
-        paidAt: "2026-09-04",
-        allocations: [{ personId: adminPersonId, amount: 500 }],
-      },
-      userId,
-    ),
-    (error: ApiError) => error.code === "invoice_payment_account_required" && error.status === 400,
-  );
+  assert.equal(result.remainingAmount, 9000);
 });
 
 test("invoice reduction is an expense adjustment assigned entirely to the selected person", async () => {
@@ -330,16 +292,19 @@ for (const outcome of ["deleted", "has_payments", "not_found"] as const) {
 
 const changedDates = { closingDate: "2026-09-05", dueDate: "2026-09-12" };
 
-for (const allocations of [
-  [{ personId: adminPersonId, amount: 1000.01 }],
-  [{ personId: adminPersonId, amount: 0 }],
-  [{ personId: "unowned", amount: 1 }],
-  [
-    { personId: adminPersonId, amount: 1 },
-    { personId: adminPersonId, amount: 1 },
-  ],
-]) {
-  test(`invalid invoice allocations reject before ownership lookup and writes: ${JSON.stringify(allocations)}`, async () => {
+test("invoice payment rejects a future date", async () => {
+  const service = createInvoicesService(
+    createRepository(() => assert.fail("Unexpected payment write")),
+    () => "2026-09-04",
+  );
+  await assert.rejects(
+    service.pay(cardId, "2026-09", { accountId, paidAt: "2026-09-05", amount: 1 }, userId),
+    { code: "invoice_payment_date_future" },
+  );
+});
+
+for (const amount of [0, -1, 11000]) {
+  test(`invalid invoice amount ${amount} rejects before ownership lookup and writes`, async () => {
     const service = createInvoicesService(
       createRepository(() => assert.fail("Unexpected payment write"), {
         findOwnedContext: async () => {
@@ -348,11 +313,8 @@ for (const allocations of [
       }),
     );
     await assert.rejects(
-      service.pay(cardId, "2026-09", { accountId, paidAt: "2026-09-10", allocations }, userId),
-      {
-        code: "invalid_invoice_payment_amount",
-        status: 400,
-      },
+      service.pay(cardId, "2026-09", { accountId, paidAt: "2026-09-10", amount }, userId),
+      { code: "invalid_invoice_payment_amount", status: 400 },
     );
   });
 }
@@ -360,7 +322,6 @@ for (const allocations of [
 for (const [label, patch, code] of [
   ["card", { card: null }, "card_not_found"],
   ["primary person", { adminPersonId: null }, "person_not_found"],
-  ["participant", { people: [] }, "person_not_found"],
   ["account", { account: null }, "account_not_found"],
   ["category", { paymentCategoryId: null }, "payment_category_not_found"],
 ] as Array<
@@ -378,7 +339,7 @@ for (const [label, patch, code] of [
         {
           accountId,
           paidAt: "2026-09-10",
-          allocations: [{ personId: adminPersonId, amount: 100 }],
+          amount: 100,
         },
         userId,
       ),
@@ -404,7 +365,7 @@ test("invoice payment detects a concurrent payment without retrying the write", 
       {
         accountId,
         paidAt: "2026-09-10",
-        allocations: [{ personId: adminPersonId, amount: 100 }],
+        amount: 100,
       },
       userId,
     ),
@@ -487,27 +448,6 @@ for (const [label, patch, code] of [
     );
   });
 }
-
-test("an allocation recorded without payment rows still prevents reducing below the paid total", async () => {
-  const service = createInvoicesService(
-    createRepository(() => undefined, {
-      listPaymentAllocations: async () => [{ cardId, personId: adminPersonId, amount: "500.00" }],
-    }),
-  );
-  await assert.rejects(
-    service.adjust(
-      cardId,
-      "2026-09",
-      {
-        date: "2026-09-10",
-        amount: 499.99,
-        personId: adminPersonId,
-      },
-      userId,
-    ),
-    { code: "invoice_adjustment_below_paid_amount" },
-  );
-});
 
 test("invoice adjustment handles a payment registered between the snapshot and insertion", async () => {
   const drafts: Parameters<InvoicesRepository["insertAdjustment"]>[0][] = [];
@@ -612,7 +552,7 @@ for (const operation of ["get", "pay", "adjust", "reopen"] as const) {
               {
                 accountId,
                 paidAt: "2026-09-10",
-                allocations: [{ personId: adminPersonId, amount: 1 }],
+                amount: 1,
               },
               userId,
             )

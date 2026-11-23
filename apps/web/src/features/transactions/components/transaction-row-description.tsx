@@ -8,6 +8,7 @@ import { formatCompactDate } from "../transactions.presentation";
 import { TransactionCategory } from "./transaction-category";
 import { TransactionDueDate } from "./transaction-due-date";
 import { TransactionPeople } from "./transaction-people";
+import { TransactionStatusTags } from "./transaction-status-tags";
 
 import type { TransactionRowProps } from "./transactions-table.types";
 
@@ -83,6 +84,7 @@ export function TransactionRowDescription({
                 {transaction.currentInstallment} de {transaction.installmentCount}
               </span>
             ) : null}
+            <TransactionStatusTags transaction={transaction} />
             {isLastInstallment ? (
               <Tooltip>
                 <TooltipTrigger
@@ -112,7 +114,7 @@ export function TransactionRowDescription({
             ) : null}
             {transaction.refundedAmount > 0 ? (
               <span className="rounded-md bg-success/10 px-1.5 py-0.5 font-medium text-success text-xs">
-                {transaction.refundableAmount === 0 ? "Reembolsado" : "Reembolso parcial"}
+                {transaction.refundableAmount === 0 ? "Estornado" : "Estorno parcial"}
               </span>
             ) : null}
             {transaction.anticipationId ? (

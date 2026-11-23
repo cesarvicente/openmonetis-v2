@@ -32,18 +32,24 @@ export function TransactionDetailsSheet({
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [installmentDeleteOpen, setInstallmentDeleteOpen] = useState(false);
   const [recurringAction, setRecurringAction] = useState<"pause" | "stop" | "skip" | null>(null);
-  const recordId = transaction?.recordId ?? "";
+  // A linked transaction opens in place; another row brings the sheet back to its own.
+  const [linked, setLinked] = useState<{ from: string; id: string } | null>(null);
+  const linkedId = linked && linked.from === transaction?.id ? linked.id : null;
+  const recordId = linkedId ?? transaction?.recordId ?? "";
   const detailQuery = useQuery({
     ...transactionDetailQueryOptions(recordId),
     enabled: open && Boolean(recordId),
   });
-  const detail = detailQuery.data ?? transaction;
-  const canEdit = detail?.origin === "regular" && detail.paymentMethod !== null;
+  const detail = detailQuery.data ?? (linkedId ? null : transaction);
+  const canEdit =
+    detail?.origin === "regular" && detail.paymentMethod !== null && !detail.parentTransactionId;
   const hasMobileActions =
     detail &&
+    !detail.parentTransactionId &&
     (detail.origin === "regular" ||
       detail.recurringRuleId ||
       detail.anticipationId ||
+      detail.origin === "reimbursement" ||
       detail.origin === "invoiceAdjustment");
 
   function edit(transactionToEdit: TransactionOutput) {
@@ -57,7 +63,13 @@ export function TransactionDetailsSheet({
   }
 
   return (
-    <Sheet onOpenChange={onOpenChange} open={open}>
+    <Sheet
+      onOpenChange={(next) => {
+        if (!next) setLinked(null);
+        onOpenChange(next);
+      }}
+      open={open}
+    >
       <SheetContent
         mobileLayout="page"
         className="gap-0 data-[side=right]:w-full! sm:data-[side=right]:w-3/4! md:max-w-xl!"
@@ -100,6 +112,7 @@ export function TransactionDetailsSheet({
               detailQuery={detailQuery}
               mobileActions={mobileActions}
               hasMobileActions={hasMobileActions}
+              onOpenLinked={(id) => transaction && setLinked({ from: transaction.id, id })}
               openRelatedAction={openRelatedAction}
               setDeleteOpen={setDeleteOpen}
               setInstallmentDeleteOpen={setInstallmentDeleteOpen}
@@ -117,11 +130,11 @@ export function TransactionDetailsSheet({
           >
             <Button
               className="w-full sm:w-auto"
-              onClick={() => onOpenChange(false)}
+              onClick={() => (linkedId ? setLinked(null) : onOpenChange(false))}
               type="button"
               variant="outline"
             >
-              Fechar
+              {linkedId ? "Voltar" : "Fechar"}
             </Button>
             {canEdit ? (
               <Button className="w-full sm:w-auto" onClick={() => edit(detail)} type="button">

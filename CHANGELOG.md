@@ -9,6 +9,19 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 
 ### Adicionado
 
+- **Reembolsos:** despesa em nome de outra pessoa, ou dividida com ela, cria uma receita de reembolso
+  vinculada e travada, por pessoa, parcela e ocorrência. Excluir a despesa exclui o reembolso e recalcula
+  o saldo. "Reembolso garantido" faz o valor pendente contar em previsões, orçamentos e categoria; sem
+  ele, só conta depois de recebido. O recebido abate a categoria no mês da despesa. Veja
+  `docs/reimbursements.md`.
+- **Atrasados:** receitas, despesas e faturas em aberto de meses anteriores aparecem também no mês atual,
+  destacadas, sem duplicar registros nem somar nos totais.
+- **Pagamento parcial** de receitas e despesas fora do cartão: cada entrada vira um lançamento vinculado e
+  o restante continua em aberto. Também vale para ocorrências recorrentes.
+- Receber mais que o reembolso pergunta se a sobra vira receita ou é descontada do próximo. Pagar ou
+  receber menos que o previsto pede confirmação.
+- Cards de Pessoas, painel da pessoa e o widget "Reembolsos por pessoa" mostram o que está atrasado, a
+  vencer, futuro, pago em parte e recebido.
 - Menu Lançamentos com **Receitas** e **Despesas**, que abrem a lista já filtrada no mês em exibição.
 - "Personalizar dashboard" define as colunas do mosaico (1 a 4) e, em cada card, a largura, a altura, a
   altura responsiva (cresce com o conteúdo até o limite) e a barra de rolagem no lugar de "Ver mais".
@@ -85,6 +98,14 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 
 ### Alterado
 
+- Saldos, faturas, dashboard e relatórios usam o valor integral das despesas, de quem quer que sejam. A
+  fatura é paga inteira pela conta, sem rateio por pessoa, e `POST /invoices/{cardId}/{period}/payments`
+  recebe `amount` e `accountId` no lugar de `allocations`.
+- Receitas não são mais divididas, e a pessoa passa a ser "De quem você recebeu?". A receita em nome de
+  outra pessoa conta como sua quando recebida ou garantida.
+- O estorno da loja, antes "Reembolso", passa a se chamar **Estorno**, inclusive nos já lançados.
+- "Reembolso" é categoria de sistema. A categoria "Repasses" e os antigos acertos por pessoa dão lugar
+  aos reembolsos (migration `0030_reimbursements.sql`).
 - A Caixa de entrada sai do menu Lançamentos e vira um ícone no topo, ao lado da calculadora, com a
   quantidade de capturas pendentes.
 - Na lista de lançamentos, desfazer um pagamento, recebimento ou transferência pede confirmação.

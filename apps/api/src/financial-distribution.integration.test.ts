@@ -4,7 +4,10 @@ import {
   type FinancialDistributionOutput,
   FinancialDistributionOutputSchema,
 } from "@openmonetis/validators/financial-distribution";
-import type { TransactionOutput } from "@openmonetis/validators/transactions";
+import type {
+  LinkedReimbursementsOutput,
+  TransactionOutput,
+} from "@openmonetis/validators/transactions";
 import { createTestApiClient } from "./test-support/api-client";
 import { withIntegrationDatabase } from "./test-support/integration-database";
 
@@ -23,7 +26,7 @@ test("financial distribution isolates ownership, honors splits and settlements, 
     const reportPath = "/reports/financial-distribution?period=2020-01";
     await api.error(await api.request(reportPath), 401);
     await api.error(await api.request(`${reportPath}&mode=paid`, owner), 400);
-    await api.expense(owner, {
+    const shared = await api.expense(owner, {
       amount: 100,
       accountId: account.id,
       splitShares: [
@@ -68,10 +71,28 @@ test("financial distribution isolates ownership, honors splits and settlements, 
       assert.equal(FinancialDistributionOutputSchema.safeParse(report).success, true);
       return report;
     };
+    assert.equal((await read()).expenseAmount, 145);
+    // What the guest owes only reduces the category once guaranteed or received, in its month.
+    const { items: owed } = await api.data<LinkedReimbursementsOutput>(
+      await api.request(`/transactions/${shared.id}/reimbursements`, owner),
+    );
+    assert.deepEqual(
+      owed.map((item) => [item.personId, item.pendingAmount, item.isCurrent]),
+      [[guest.id, 40, true]],
+    );
+    const guarantee = async (isGuaranteed: boolean) =>
+      api.data(
+        await api.request(`/transactions/${owed[0]?.id}/reimbursement`, owner, "PATCH", {
+          isGuaranteed,
+        }),
+      );
+    await guarantee(true);
     assert.equal((await read()).expenseAmount, 105);
+    assert.equal((await read()).incomeAmount, 200);
+    await guarantee(false);
     assert.equal((await read("all")).expenseAmount, 145);
     assert.equal((await read(guest.id)).expenseAmount, 40);
-    assert.equal((await read("admin", "forecast")).expenseAmount, 125);
+    assert.equal((await read("admin", "forecast")).expenseAmount, 165);
     assert.equal((await read("all", "forecast")).expenseAmount, 165);
     assert.equal((await read("all", "forecast", stranger)).incomeAmount, 0);
     assert.equal((await read("all", "forecast", stranger)).expenseAmount, 0);
@@ -87,8 +108,8 @@ test("financial distribution isolates ownership, honors splits and settlements, 
         accountId: account.id,
       }),
     );
-    assert.equal((await read()).expenseAmount, 123);
-    assert.equal((await read("admin", "forecast")).expenseAmount, 123);
+    assert.equal((await read()).expenseAmount, 163);
+    assert.equal((await read("admin", "forecast")).expenseAmount, 163);
     const { db, transactions } = await import("@openmonetis/db");
     const { and, eq } = await import("drizzle-orm");
     await db
@@ -100,7 +121,7 @@ test("financial distribution isolates ownership, honors splits and settlements, 
       uncategorized.categories.find((category) => category.key === "uncategorized-expense")?.amount,
       45,
     );
-    assert.equal(uncategorized.expenseAmount, 123);
+    assert.equal(uncategorized.expenseAmount, 163);
 
     const hiddenAccount = await api.data<{ id: string }>(
       await api.request("/accounts", owner, "POST", {
@@ -168,8 +189,8 @@ test("financial distribution isolates ownership, honors splits and settlements, 
     for (const mode of ["actual", "forecast"]) {
       const report = await read("admin", mode);
       assert.equal(report.incomeAmount, 200);
-      assert.equal(report.expenseAmount, 123);
-      assert.equal(report.balanceAmount, 77);
+      assert.equal(report.expenseAmount, 163);
+      assert.equal(report.balanceAmount, 37);
       assert.equal((await read("all", mode)).expenseAmount, 163);
     }
     assert.ok(hiddenIncomeRule.recurringRuleId);
@@ -203,15 +224,15 @@ test("financial distribution isolates ownership, honors splits and settlements, 
       }),
     );
     for (const mode of ["actual", "forecast"])
-      assert.equal((await read("admin", mode)).expenseAmount, 105);
+      assert.equal((await read("admin", mode)).expenseAmount, 145);
     await api.data(
       await api.request(`/accounts/${hiddenAccount.id}`, owner, "PATCH", {
         excludeFromBalance: false,
       }),
     );
     assert.equal((await read()).incomeAmount, 238);
-    assert.equal((await read()).expenseAmount, 147);
-    assert.equal((await read("admin", "forecast")).expenseAmount, 158);
+    assert.equal((await read()).expenseAmount, 187);
+    assert.equal((await read("admin", "forecast")).expenseAmount, 198);
     const specResponse = await api.app.request("http://localhost:7001/openapi.json");
     if (specResponse.ok) assert.match(await specResponse.text(), /reports\/financial-distribution/);
   });

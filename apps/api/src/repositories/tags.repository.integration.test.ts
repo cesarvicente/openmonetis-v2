@@ -71,6 +71,7 @@ test("tags persist across transaction and recurring scopes with database ownersh
     const service = createTransactionsService(
       {
         ...transactions,
+        ...(await import("./partial-payments.repository")),
         transitionRecurringRuleForUser: (await import("./recurring-transactions.repository"))
           .transitionRecurringRuleForUser,
         ...accounts,

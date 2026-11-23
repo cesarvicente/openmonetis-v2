@@ -77,6 +77,7 @@ test("recurring income actions preserve history, deadlines and projections", {
     const service = createTransactionsService(
       {
         ...transactions,
+        ...(await import("./partial-payments.repository")),
         ...recurring,
         ...accounts,
         ...cards,

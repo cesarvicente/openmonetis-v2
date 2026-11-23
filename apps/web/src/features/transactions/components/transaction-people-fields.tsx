@@ -43,11 +43,15 @@ export function TransactionPeopleFields({
                 <FieldShell
                   error={getTransactionFormErrorMessage("personId", field.state.meta.errors)}
                   label={
-                    values.type === "expense" ? "De quem é esta despesa?" : "Pessoa responsável"
+                    values.type === "expense" ? "De quem é esta despesa?" : "De quem você recebeu?"
                   }
                 >
                   <MobileRecordSelect
-                    title="Pessoa responsável"
+                    title={
+                      values.type === "expense"
+                        ? "De quem é esta despesa?"
+                        : "De quem você recebeu?"
+                    }
                     options={[
                       { value: noneValue, label: "Selecione" },
                       ...activePeople.map((item) => ({
@@ -96,7 +100,7 @@ export function TransactionPeopleFields({
               )}
             </form.Field>
           ) : null}
-          {activePeople.length > 1 ? (
+          {values.type === "expense" && activePeople.length > 1 ? (
             <form.Field name="splitShares">
               {(field) => (
                 <TransactionSplitDialog

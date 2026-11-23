@@ -58,10 +58,7 @@ type InstallmentAnticipationRecord = {
 };
 
 export type InstallmentsRepository = {
-  listForUser(
-    userId: string,
-    options?: { personScope?: "admin" | "all" },
-  ): Promise<InstallmentReportRow[]>;
+  listForUser(userId: string): Promise<InstallmentReportRow[]>;
   findByIdsForUser(ids: string[], userId: string): Promise<InstallmentQuoteRecord[]>;
   createAnticipation(data: {
     userId: string;
@@ -98,12 +95,12 @@ export function createInstallmentsService(
 ) {
   return {
     async dashboard(userId: string, period: string): Promise<DashboardInstallmentExpensesOutput> {
-      const rows = await repository.listForUser(userId, { personScope: "admin" });
+      const rows = await repository.listForUser(userId);
       return { period, items: calculateDashboardInstallmentExpenses(rows, period) };
     },
 
     async list(userId: string, query: ListInstallmentsQuery): Promise<InstallmentsReportOutput> {
-      const rows = await repository.listForUser(userId, { personScope: "admin" });
+      const rows = await repository.listForUser(userId);
       return calculateInstallmentsReport(rows, {
         referencePeriod: query.period,
         historyEndPeriod: addMonthsToPeriod(getCurrentPeriod(), 1),

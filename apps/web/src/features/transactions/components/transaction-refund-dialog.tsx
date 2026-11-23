@@ -51,21 +51,21 @@ export function TransactionRefundDialog({
         note: value.note || null,
       });
       if (!parsed.success || parsed.data.amount > transaction.refundableAmount) {
-        toast.error("Revise o valor do reembolso", {
+        toast.error("Revise o valor do estorno", {
           description: "Informe um valor positivo dentro do saldo disponível.",
         });
         return;
       }
       try {
         await mutation.mutateAsync({ id: transaction.recordId, data: parsed.data });
-        toast.success("Reembolso registrado", {
+        toast.success("Estorno registrado", {
           description: transaction.cardId
             ? "O valor foi abatido da fatura selecionada."
             : "O valor foi lançado na conta da compra.",
         });
         onOpenChange(false);
       } catch {
-        toast.error("Não foi possível registrar o reembolso", {
+        toast.error("Não foi possível registrar o estorno", {
           description: "A despesa ou a fatura pode ter sido alterada. Tente novamente.",
         });
       }
@@ -79,7 +79,7 @@ export function TransactionRefundDialog({
           <span className="mb-1 grid size-10 place-items-center rounded-full bg-success/10 text-success">
             <BadgeDollarSign aria-hidden="true" className="size-5" />
           </span>
-          <DialogTitle>Registrar reembolso</DialogTitle>
+          <DialogTitle>Registrar estorno</DialogTitle>
           <DialogDescription>
             {transaction
               ? `Vincule a devolução à despesa “${transaction.name}” para manter seus indicadores corretos.`
@@ -109,7 +109,7 @@ export function TransactionRefundDialog({
               <MoneyValue amount={transaction?.displayAmount ?? 0} className="mt-1 font-semibold" />
             </div>
             <div className="text-right">
-              <p className="text-muted-foreground text-xs">Disponível para reembolso</p>
+              <p className="text-muted-foreground text-xs">Disponível para estorno</p>
               <MoneyValue
                 amount={transaction?.refundableAmount ?? 0}
                 className="mt-1 font-semibold text-success"
@@ -146,7 +146,7 @@ export function TransactionRefundDialog({
           <form.Field name="receivedAt">
             {(field) => (
               <div className="grid gap-2">
-                <Label htmlFor={`${id}-received-at`}>Data do reembolso</Label>
+                <Label htmlFor={`${id}-received-at`}>Data do estorno</Label>
                 <DatePicker
                   id={`${id}-received-at`}
                   onChange={field.handleChange}
@@ -207,7 +207,7 @@ export function TransactionRefundDialog({
               Cancelar
             </Button>
             <Button disabled={!transaction || mutation.isPending} type="submit">
-              {mutation.isPending ? "Registrando…" : "Confirmar reembolso"}
+              {mutation.isPending ? "Registrando…" : "Confirmar estorno"}
             </Button>
           </DialogFooter>
         </form>

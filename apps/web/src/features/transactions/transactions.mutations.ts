@@ -15,11 +15,15 @@ import {
   importTransactions,
   previewTransactionImport,
   refundTransaction,
+  registerPartialPayment,
+  registerRecurringPartialPayment,
+  removePartialPayment,
   settleRecurringOccurrence,
   settleTransactions,
   type TransactionsApiSearch,
   undoTransactionImport,
   updateRecurringRule,
+  updateReimbursement,
   updateTransaction,
 } from "./transactions.api";
 import { downloadTransactionExport } from "./transactions.presentation";
@@ -142,6 +146,38 @@ export function useRecurringRuleActionMutation() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: applyRecurringRuleAction,
+    onSuccess: () => refreshFinancialQueries(queryClient),
+  });
+}
+
+export function useUpdateReimbursementMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: updateReimbursement,
+    onSuccess: () => refreshFinancialQueries(queryClient),
+  });
+}
+
+export function useRegisterPartialPaymentMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: registerPartialPayment,
+    onSuccess: () => refreshFinancialQueries(queryClient),
+  });
+}
+
+export function useRegisterRecurringPartialPaymentMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: registerRecurringPartialPayment,
+    onSuccess: () => refreshFinancialQueries(queryClient),
+  });
+}
+
+export function useRemovePartialPaymentMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: removePartialPayment,
     onSuccess: () => refreshFinancialQueries(queryClient),
   });
 }

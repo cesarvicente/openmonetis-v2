@@ -14,6 +14,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import { TransactionRemovalWarnings } from "./transaction-removal-warnings";
 
 type InstallmentActionDialogProps = {
   action: "edit" | "delete";
@@ -115,6 +116,10 @@ export function InstallmentActionDialog({
             );
           })}
         </div>
+
+        {action === "delete" && transaction ? (
+          <TransactionRemovalWarnings series transaction={transaction} />
+        ) : null}
 
         <DialogFooter className="grid grid-cols-2 sm:grid-cols-2 [&>*]:w-full">
           <Button

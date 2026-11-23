@@ -8,7 +8,11 @@ import { TableCell, TableRow } from "@/components/ui/table";
 import { DueDateIndicator } from "@/features/due-date-rules/components/due-date-indicator";
 import { invoicesQueryOptions } from "@/features/invoices/invoices.queries";
 import { cn } from "@/lib/utils";
-import { formatCardInvoiceEntryCount, formatCompactDate } from "../transactions.presentation";
+import {
+  formatCardInvoiceEntryCount,
+  formatCompactDate,
+  formatPeriod,
+} from "../transactions.presentation";
 
 const logoSizeClassNames = { 32: "size-8", 40: "size-10" } as const;
 
@@ -69,6 +73,14 @@ function CardInvoiceDueDate({
   ) : null;
 }
 
+function CardInvoiceSubtitle({ invoice }: { invoice: TransactionCardInvoiceOutput }) {
+  return invoice.isOverdue ? (
+    <span className="font-medium text-destructive">Atrasada · {formatPeriod(invoice.period)}</span>
+  ) : (
+    formatCardInvoiceEntryCount(invoice.transactionCount)
+  );
+}
+
 function cardInvoiceName(invoice: TransactionCardInvoiceOutput) {
   return `Fatura ${invoice.cardName ?? "do cartão"}`;
 }
@@ -77,7 +89,9 @@ export function TransactionCardInvoiceRow({ invoice }: { invoice: TransactionCar
   const name = cardInvoiceName(invoice);
 
   return (
-    <TableRow>
+    <TableRow
+      className={invoice.isOverdue ? "bg-destructive/5 hover:bg-destructive/10" : undefined}
+    >
       <TableCell />
       <TableCell className="w-full max-w-0">
         <div className="flex min-w-64 items-center gap-2.5">
@@ -92,7 +106,7 @@ export function TransactionCardInvoiceRow({ invoice }: { invoice: TransactionCar
               {name}
             </Link>
             <span className="h-4 whitespace-nowrap text-muted-foreground text-xs">
-              {formatCardInvoiceEntryCount(invoice.transactionCount)}
+              <CardInvoiceSubtitle invoice={invoice} />
               <CardInvoiceDueDate invoice={invoice} separator />
             </span>
           </span>
@@ -144,7 +158,7 @@ export function MobileTransactionCardInvoiceRow({
   const name = cardInvoiceName(invoice);
 
   return (
-    <li className="min-h-20 px-3 py-3">
+    <li className={cn("min-h-20 px-3 py-3", invoice.isOverdue && "bg-destructive/5")}>
       <Link
         aria-label={`Abrir ${name.toLocaleLowerCase("pt-BR")}`}
         className="flex items-center gap-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -156,7 +170,7 @@ export function MobileTransactionCardInvoiceRow({
         <span className="min-w-0 flex-1">
           <span className="block truncate font-medium text-sm">{name}</span>
           <span className="mt-1 block truncate text-muted-foreground text-xs">
-            {formatCardInvoiceEntryCount(invoice.transactionCount)}
+            <CardInvoiceSubtitle invoice={invoice} />
           </span>
         </span>
         <MoneyValue

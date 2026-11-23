@@ -50,6 +50,7 @@ import {
   inArray,
   isNotNull,
   isNull,
+  lt,
   lte,
   ne,
   notInArray,
@@ -69,6 +70,7 @@ import { effectiveRecurringEndDateSql } from "./recurring-transactions.repositor
 import {
   effectiveSplitAmountSql,
   effectiveTransactionAmountSql,
+  partialPaymentsAmountSql,
   recurringOccurrenceOverridesSql,
   settlePersistedTransactions,
   settleRecurringTransaction,
@@ -88,7 +90,6 @@ const transactionAccounts = alias(financialAccounts, "transaction_accounts");
 const occurrenceAccounts = alias(financialAccounts, "occurrence_accounts");
 const sourceAccounts = alias(financialAccounts, "source_accounts");
 const destinationAccounts = alias(financialAccounts, "destination_accounts");
-const balanceSplitPeople = alias(people, "transfer_balance_split_people");
 
 type DatabaseTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
@@ -137,7 +138,18 @@ export type TransactionCreateRecord = Omit<
   | "dueDateRuleExcluded"
   | "autoSettleFrom"
   | "autoSettledAt"
+  | "isGuaranteed"
+  | "reimbursementDueDate"
+  | "reimbursementSourceId"
+  | "reimbursementSeriesId"
+  | "reimbursementOccurrenceDate"
+  | "reimbursementPeriod"
+  | "reimbursementExpenseDueDate"
+  | "reimbursementCustomized"
+  | "parentTransactionId"
 > & {
+  isGuaranteed?: boolean;
+  reimbursementDueDate?: Date | null;
   dueDateAdjustment?: import("@openmonetis/domain/due-date-rules").DueDateAdjustmentDetails | null;
   frozenDueDate?: Date | null;
   dueDateRuleExcluded?: boolean;
@@ -162,7 +174,9 @@ type RecurringRuleCreateRecord = Omit<
   | "recurrenceEndDate"
   | "dueDateRuleExcluded"
   | "autoSettleFrom"
+  | "isGuaranteed"
 > & {
+  isGuaranteed?: boolean;
   dueDateRuleExcluded?: boolean;
   autoSettleFrom?: Date | null;
   tagIds?: string[];
@@ -307,6 +321,8 @@ export type TransactionUpdateRecord = Partial<
     | "installmentCount"
     | "currentInstallment"
     | "isSettled"
+    | "isGuaranteed"
+    | "reimbursementDueDate"
     | "note"
     | "tagIds"
   >
@@ -334,40 +350,7 @@ async function getSettledAccountBalanceThroughPeriod(
   accountId: string,
   period: string,
 ) {
-  const [adminPostings] = await transaction
-    .select({
-      total: sql<string>`coalesce(sum(case when ${transactionSplits.id} is not null then ${effectiveSplitAmountSql} else ${effectiveTransactionAmountSql} end), 0)`,
-    })
-    .from(transactions)
-    .innerJoin(people, and(eq(transactions.personId, people.id), eq(people.userId, userId)))
-    .leftJoin(
-      transactionSplits,
-      and(
-        eq(transactionSplits.transactionId, transactions.id),
-        eq(transactionSplits.userId, userId),
-      ),
-    )
-    .leftJoin(
-      balanceSplitPeople,
-      and(
-        eq(transactionSplits.personId, balanceSplitPeople.id),
-        eq(balanceSplitPeople.userId, userId),
-      ),
-    )
-    .where(
-      and(
-        eq(transactions.userId, userId),
-        eq(transactions.accountId, accountId),
-        eq(transactions.isSettled, true),
-        or(isNull(transactions.paymentMethod), ne(transactions.paymentMethod, "boleto")),
-        sql`coalesce(to_char(${transactions.settledDate}, 'YYYY-MM'), ${transactions.period}) <= ${period}`,
-        or(
-          and(isNull(transactionSplits.id), eq(people.role, "admin")),
-          eq(balanceSplitPeople.role, "admin"),
-        ),
-      ),
-    );
-  const [billPostings] = await transaction
+  const [postings] = await transaction
     .select({ total: sql<string>`coalesce(sum(${effectiveTransactionAmountSql}), 0)` })
     .from(transactions)
     .where(
@@ -375,16 +358,16 @@ async function getSettledAccountBalanceThroughPeriod(
         eq(transactions.userId, userId),
         eq(transactions.accountId, accountId),
         eq(transactions.isSettled, true),
-        eq(transactions.type, "expense"),
-        eq(transactions.paymentMethod, "boleto"),
+        or(
+          isNull(transactions.paymentMethod),
+          ne(transactions.paymentMethod, "boleto"),
+          eq(transactions.type, "expense"),
+        ),
         sql`coalesce(to_char(${transactions.settledDate}, 'YYYY-MM'), ${transactions.period}) <= ${period}`,
       ),
     );
 
-  return (
-    Number((adminPostings as { total: string }).total) +
-    Number((billPostings as { total: string }).total)
-  );
+  return Number((postings as { total: string }).total);
 }
 
 async function assertSufficientTransferBalance(
@@ -417,10 +400,59 @@ async function assertSufficientTransferBalance(
   });
 }
 
+export type ReimbursementSummaryRecord = {
+  count: number;
+  totalAmount: string;
+  receivedAmount: string;
+  isGuaranteed: boolean;
+  dueDate: string | null;
+  expenseDueDate: string | null;
+  hasPending: boolean;
+};
+export type ReimbursementSourceRecord = {
+  transactionId: string | null;
+  recurringRuleId: string | null;
+  occurrenceDate: string | null;
+  name: string;
+  period: string;
+  dueDate: string | null;
+  currentInstallment: number | null;
+  installmentCount: number | null;
+};
+
+// Totals of the reimbursements of an expense; received parts are their own settled rows.
+const reimbursementSummaryFieldsSql = sql`
+  'count', count(*) filter (where r.parent_transaction_id is null),
+  'totalAmount', sum(case when r.is_settled then coalesce(r.settled_amount, r.amount) else r.amount end),
+  'receivedAmount', coalesce(sum(coalesce(r.settled_amount, r.amount)) filter (where r.is_settled), 0),
+  'isGuaranteed', coalesce(bool_and(r.is_guaranteed) filter (where r.parent_transaction_id is null), false),
+  'dueDate', to_char(min(r.due_date) filter (where r.parent_transaction_id is null), 'YYYY-MM-DD'),
+  'expenseDueDate', to_char(min(r.reimbursement_expense_due_date), 'YYYY-MM-DD'),
+  'hasPending', coalesce(bool_or(not r.is_settled), false)`;
+
 export type TransactionWithRelations = Omit<
   Transaction,
-  "settledAmount" | "settledDate" | "dueDateRuleExcluded" | "frozenDueDate" | "dueDateAdjustment"
+  | "settledAmount"
+  | "settledDate"
+  | "dueDateRuleExcluded"
+  | "frozenDueDate"
+  | "dueDateAdjustment"
+  | "isGuaranteed"
+  | "reimbursementDueDate"
+  | "reimbursementSourceId"
+  | "reimbursementSeriesId"
+  | "reimbursementOccurrenceDate"
+  | "reimbursementPeriod"
+  | "reimbursementExpenseDueDate"
+  | "reimbursementCustomized"
+  | "parentTransactionId"
 > & {
+  isGuaranteed?: boolean;
+  reimbursementDueDate?: Date | null;
+  parentTransactionId?: string | null;
+  partialPaidAmount?: string;
+  reimbursementSummary?: ReimbursementSummaryRecord | null;
+  reimbursementSource?: ReimbursementSourceRecord | null;
   dueDateRuleExcluded?: boolean;
   dueDateAdjustment?: import("@openmonetis/domain/due-date-rules").DueDateAdjustmentDetails | null;
   frozenDueDate?: Date | null;
@@ -450,8 +482,10 @@ export type TransactionWithRelations = Omit<
 
 export type RecurringRuleWithRelations = Omit<
   RecurringTransactionRule,
-  "recurrenceEndDate" | "dueDateRuleExcluded"
+  "recurrenceEndDate" | "dueDateRuleExcluded" | "isGuaranteed"
 > & {
+  isGuaranteed?: boolean;
+  occurrenceReimbursements?: Record<string, ReimbursementSummaryRecord>;
   dueDateRuleExcluded?: boolean;
   occurrenceOverrides?: import("@openmonetis/domain/settlements").SettlementAwareRule["occurrenceOverrides"];
   recurrenceEndDate?: Date | null;
@@ -516,6 +550,50 @@ const transactionColumns = {
   transferId: transactions.transferId,
   recurringRuleId: transactions.recurringRuleId,
   isSettled: transactions.isSettled,
+  isGuaranteed: transactions.isGuaranteed,
+  reimbursementDueDate: transactions.reimbursementDueDate,
+  parentTransactionId: transactions.parentTransactionId,
+  partialPaidAmount: partialPaymentsAmountSql.as("partial_paid_amount"),
+  reimbursementSummary:
+    sql<ReimbursementSummaryRecord | null>`case when ${transactions.type} = 'expense' then (
+    select jsonb_build_object(${reimbursementSummaryFieldsSql})
+    from transactions r
+    where r.user_id = ${transactions.userId} and r.reimbursement_source_id = ${transactions.id}
+    having count(*) > 0
+  ) end`.as("reimbursement_summary"),
+  reimbursementSource: sql<ReimbursementSourceRecord | null>`case
+    when ${transactions.reimbursementSourceId} is not null then (
+      select jsonb_build_object(
+        'transactionId', e.id,
+        'recurringRuleId', null,
+        'occurrenceDate', null,
+        'name', e.name,
+        'period', e.period,
+        'dueDate', to_char(${transactions.reimbursementExpenseDueDate}, 'YYYY-MM-DD'),
+        'currentInstallment', e.current_installment,
+        'installmentCount', e.installment_count
+      )
+      from transactions e
+      where e.id = ${transactions.reimbursementSourceId} and e.user_id = ${transactions.userId}
+    )
+    when ${transactions.reimbursementSeriesId} is not null then (
+      select jsonb_build_object(
+        'transactionId', null,
+        'recurringRuleId', e.id,
+        'occurrenceDate', to_char(${transactions.reimbursementOccurrenceDate}, 'YYYY-MM-DD'),
+        'name', e.name,
+        'period', ${transactions.reimbursementPeriod},
+        'dueDate', to_char(${transactions.reimbursementExpenseDueDate}, 'YYYY-MM-DD'),
+        'currentInstallment', null,
+        'installmentCount', null
+      )
+      from recurring_transaction_rules e
+      where e.series_id = ${transactions.reimbursementSeriesId}
+        and e.user_id = ${transactions.userId}
+        and e.start_date <= ${transactions.reimbursementOccurrenceDate}
+      order by e.start_date desc limit 1
+    )
+  end`.as("reimbursement_source"),
   note: transactions.note,
   importSourceFingerprint: transactions.importSourceFingerprint,
   importExternalId: transactions.importExternalId,
@@ -618,6 +696,17 @@ const recurringRuleColumns = {
   dueDateRuleExcluded: recurringTransactionRules.dueDateRuleExcluded,
   autoSettleFrom: recurringTransactionRules.autoSettleFrom,
   isSettled: recurringTransactionRules.isSettled,
+  isGuaranteed: recurringTransactionRules.isGuaranteed,
+  occurrenceReimbursements: sql<Record<string, ReimbursementSummaryRecord>>`coalesce((
+    select jsonb_object_agg(s.occurrence_date, s.summary) from (
+      select to_char(r.reimbursement_occurrence_date, 'YYYY-MM-DD') as occurrence_date,
+        jsonb_build_object(${reimbursementSummaryFieldsSql}) as summary
+      from transactions r
+      where r.user_id = ${recurringTransactionRules.userId}
+        and r.reimbursement_series_id = ${recurringTransactionRules.seriesId}
+      group by r.reimbursement_occurrence_date
+    ) s
+  ), '{}'::jsonb)`.as("occurrence_reimbursements"),
   note: recurringTransactionRules.note,
   status: recurringTransactionRules.status,
   createdAt: recurringTransactionRules.createdAt,
@@ -1270,6 +1359,26 @@ export async function listTransactionsByPeriod(
   ]);
 }
 
+/** Income and expenses outside the card still pending from before the period. */
+export async function listOverdueTransactionsBeforePeriod(
+  userId: string,
+  period: string,
+  fromPeriod: string,
+  today: string,
+  filters: PersistedTransactionFilters = {},
+) {
+  return listPersistedTransactions(userId, [
+    lt(transactions.period, period),
+    gte(transactions.period, fromPeriod),
+    eq(transactions.isSettled, false),
+    isNull(transactions.cardId),
+    inArray(transactions.type, ["income", "expense"]),
+    inArray(transactions.origin, ["regular", "reimbursement"]),
+    sql`coalesce(${transactions.dueDate}, ${transactions.purchaseDate}) < ${today}`,
+    ...buildPersistedTransactionFilters(userId, filters),
+  ]);
+}
+
 export async function listTransactionsByDueDateRange(
   userId: string,
   from: string,
@@ -1806,6 +1915,8 @@ export function listTransactionSeriesForUser(seriesId: string, userId: string) {
       currentInstallment: transactions.currentInstallment,
       isSettled: transactions.isSettled,
       settledDate: transactions.settledDate,
+      isGuaranteed: transactions.isGuaranteed,
+      reimbursementDueDate: transactions.reimbursementDueDate,
     })
     .from(transactions)
     .where(and(eq(transactions.seriesId, seriesId), eq(transactions.userId, userId)))

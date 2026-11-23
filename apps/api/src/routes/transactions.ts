@@ -6,11 +6,16 @@ import {
   ImportTransactionsInputSchema,
   InstallmentOptionsOutputSchema,
   InstallmentOptionsQuerySchema,
+  LinkedReimbursementsOutputSchema,
   ListTransactionsQuerySchema,
   PaginatedTransactionsOutputSchema,
+  PartialPaymentInputSchema,
+  PartialPaymentParamsSchema,
+  PartialPaymentsOutputSchema,
   PreviewTransactionImportInputSchema,
   RecentEstablishmentsOutputSchema,
   RecurringOccurrenceActionInputSchema,
+  RecurringPartialPaymentInputSchema,
   RecurringRuleActionInputSchema,
   RecurringRuleOccurrenceQuerySchema,
   SettleRecurringOccurrenceInputSchema,
@@ -26,11 +31,16 @@ import {
   TransactionParamsSchema,
   TransactionRefundOutputSchema,
   UpdateRecurringRuleQuerySchema,
+  UpdateReimbursementInputSchema,
   UpdateTransactionInputSchema,
 } from "@openmonetis/validators/transactions";
 import type { TransactionsService } from "../services/transactions.service";
 import type { ApiVariables } from "../types/context";
-import { ErrorResponseSchema as errorSchema, validationHook } from "../utils/openapi";
+import {
+  errorResponse,
+  ErrorResponseSchema as errorSchema,
+  validationHook,
+} from "../utils/openapi";
 
 const transactionResponseSchema = z
   .object({
@@ -82,13 +92,19 @@ export function createTransactionsRoute(service: TransactionsService) {
     getTransactionById,
     getRecurringRuleOccurrence,
     importTransactions,
+    listLinkedReimbursements,
+    listPartialPayments,
     listRecentEstablishments,
     listTransactions,
     previewTransactionImport,
+    registerPartialPayment,
+    registerRecurringPartialPayment,
+    removePartialPayment,
     settleRecurringOccurrence,
     settleTransactions,
     undoTransactionImport,
     updateRecurringRule,
+    updateReimbursement,
     updateTransaction,
   } = service;
   const transactionsRoute = new OpenAPIHono<{ Variables: ApiVariables }>({
@@ -602,11 +618,240 @@ export function createTransactionsRoute(service: TransactionsService) {
             input.settledDate,
             input.settledAmount,
             input.accountId,
+            input.surplusDestination,
           ),
         ),
         200,
       );
     },
+  );
+
+  transactionsRoute.openapi(
+    createRoute({
+      method: "post",
+      path: "/recurring-occurrences/partial-payments",
+      tags: ["Transactions"],
+      request: {
+        body: {
+          required: true,
+          content: { "application/json": { schema: RecurringPartialPaymentInputSchema } },
+        },
+      },
+      responses: {
+        200: {
+          description:
+            "Register a partial payment of a recurring occurrence, which becomes a transaction",
+          content: {
+            "application/json": {
+              schema: z.object({ data: PartialPaymentsOutputSchema, error: z.null() }),
+            },
+          },
+        },
+        400: errorResponse("Invalid request"),
+        401: errorResponse("Authentication required"),
+        404: errorResponse("Transaction not found"),
+      },
+    }),
+    async (c) =>
+      c.json(ok(await registerRecurringPartialPayment(c.req.valid("json"), c.get("userId"))), 200),
+  );
+
+  transactionsRoute.openapi(
+    createRoute({
+      method: "get",
+      path: "/recurring-rules/{id}/reimbursements",
+      tags: ["Transactions"],
+      request: { params: TransactionParamsSchema, query: RecurringRuleOccurrenceQuerySchema },
+      responses: {
+        200: {
+          description: "List the reimbursements of a recurring expense",
+          content: {
+            "application/json": {
+              schema: z.object({ data: LinkedReimbursementsOutputSchema, error: z.null() }),
+            },
+          },
+        },
+        400: errorResponse("Invalid request"),
+        401: errorResponse("Authentication required"),
+        404: errorResponse("Transaction not found"),
+      },
+    }),
+    async (c) =>
+      c.json(
+        ok(
+          await listLinkedReimbursements(
+            {
+              recurringRuleId: c.req.valid("param").id,
+              occurrenceDate: c.req.valid("query").occurrenceDate,
+            },
+            c.get("userId"),
+          ),
+        ),
+        200,
+      ),
+  );
+
+  transactionsRoute.openapi(
+    createRoute({
+      method: "get",
+      path: "/{id}/reimbursements",
+      tags: ["Transactions"],
+      request: { params: TransactionParamsSchema },
+      responses: {
+        200: {
+          description: "List the reimbursements linked to an expense or to another reimbursement",
+          content: {
+            "application/json": {
+              schema: z.object({ data: LinkedReimbursementsOutputSchema, error: z.null() }),
+            },
+          },
+        },
+        400: errorResponse("Invalid request"),
+        401: errorResponse("Authentication required"),
+        404: errorResponse("Transaction not found"),
+      },
+    }),
+    async (c) =>
+      c.json(
+        ok(
+          await listLinkedReimbursements(
+            { transactionId: c.req.valid("param").id },
+            c.get("userId"),
+          ),
+        ),
+        200,
+      ),
+  );
+
+  transactionsRoute.openapi(
+    createRoute({
+      method: "patch",
+      path: "/{id}/reimbursement",
+      tags: ["Transactions"],
+      request: {
+        params: TransactionParamsSchema,
+        body: {
+          required: true,
+          content: { "application/json": { schema: UpdateReimbursementInputSchema } },
+        },
+      },
+      responses: {
+        200: {
+          description: "Change the guarantee or the promised date of a pending reimbursement",
+          content: {
+            "application/json": {
+              schema: z.object({ data: TransactionOutputSchema, error: z.null() }),
+            },
+          },
+        },
+        400: errorResponse("Invalid request"),
+        401: errorResponse("Authentication required"),
+        404: errorResponse("Transaction not found"),
+      },
+    }),
+    async (c) =>
+      c.json(
+        ok(
+          await updateReimbursement(c.req.valid("param").id, c.get("userId"), c.req.valid("json")),
+        ),
+        200,
+      ),
+  );
+
+  transactionsRoute.openapi(
+    createRoute({
+      method: "get",
+      path: "/{id}/partial-payments",
+      tags: ["Transactions"],
+      request: { params: TransactionParamsSchema },
+      responses: {
+        200: {
+          description: "List the partial payments of a transaction",
+          content: {
+            "application/json": {
+              schema: z.object({ data: PartialPaymentsOutputSchema, error: z.null() }),
+            },
+          },
+        },
+        400: errorResponse("Invalid request"),
+        401: errorResponse("Authentication required"),
+        404: errorResponse("Transaction not found"),
+      },
+    }),
+    async (c) =>
+      c.json(ok(await listPartialPayments(c.req.valid("param").id, c.get("userId"))), 200),
+  );
+
+  transactionsRoute.openapi(
+    createRoute({
+      method: "post",
+      path: "/{id}/partial-payments",
+      tags: ["Transactions"],
+      request: {
+        params: TransactionParamsSchema,
+        body: {
+          required: true,
+          content: { "application/json": { schema: PartialPaymentInputSchema } },
+        },
+      },
+      responses: {
+        200: {
+          description: "Register a partial payment, keeping the rest pending",
+          content: {
+            "application/json": {
+              schema: z.object({ data: PartialPaymentsOutputSchema, error: z.null() }),
+            },
+          },
+        },
+        400: errorResponse("Invalid request"),
+        401: errorResponse("Authentication required"),
+        404: errorResponse("Transaction not found"),
+      },
+    }),
+    async (c) =>
+      c.json(
+        ok(
+          await registerPartialPayment(
+            c.req.valid("param").id,
+            c.req.valid("json"),
+            c.get("userId"),
+          ),
+        ),
+        200,
+      ),
+  );
+
+  transactionsRoute.openapi(
+    createRoute({
+      method: "delete",
+      path: "/{id}/partial-payments/{paymentId}",
+      tags: ["Transactions"],
+      request: { params: PartialPaymentParamsSchema },
+      responses: {
+        200: {
+          description: "Undo a partial payment",
+          content: {
+            "application/json": {
+              schema: z.object({ data: PartialPaymentsOutputSchema, error: z.null() }),
+            },
+          },
+        },
+        400: errorResponse("Invalid request"),
+        401: errorResponse("Authentication required"),
+        404: errorResponse("Transaction not found"),
+      },
+    }),
+    async (c) =>
+      c.json(
+        ok(
+          await removePartialPayment(
+            c.req.valid("param").id,
+            c.req.valid("param").paymentId,
+            c.get("userId"),
+          ),
+        ),
+        200,
+      ),
   );
 
   transactionsRoute.openapi(

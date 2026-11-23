@@ -36,6 +36,8 @@ export type TransactionFormValues = {
   isSettled: "true" | "false";
   note: string;
   splitShares: Array<{ personId: string; amount: string }>;
+  isGuaranteed: boolean;
+  reimbursementDueDate: string;
 };
 
 export type TransactionCreateDefaults = Partial<
@@ -92,6 +94,8 @@ const transactionFieldMessages: Record<TransactionFieldName, string> = {
   isSettled: "Selecione o status.",
   note: "A observação deve ter até 1000 caracteres.",
   splitShares: "Confira a divisão entre as pessoas.",
+  isGuaranteed: "Confira se o reembolso é garantido.",
+  reimbursementDueDate: "Informe a previsão do reembolso.",
 };
 
 export function getDefaultTransactionFormValues(
@@ -143,6 +147,8 @@ export function getDefaultTransactionFormValues(
     isSettled,
     note: "",
     splitShares: [],
+    isGuaranteed: false,
+    reimbursementDueDate: "",
   };
 }
 
@@ -210,6 +216,38 @@ export function getTransactionFormValuesFromTransaction(
           installmentCopyMultiplier,
       ),
     })),
+    isGuaranteed:
+      transaction.reimbursementSummary?.isGuaranteed ?? transaction.isGuaranteed ?? false,
+    reimbursementDueDate: mode === "edit" ? (transaction.reimbursementDueDate ?? "") : "",
+  };
+}
+
+/** Whether the form deals with money from someone else, and if its date can be informed. */
+export function getReimbursementFormState(
+  value: Pick<
+    TransactionFormValues,
+    "type" | "condition" | "paymentMethod" | "dueDate" | "personId" | "splitShares"
+  >,
+  people: ReadonlyArray<Pick<PersonOutput, "id" | "role">>,
+  transaction: Pick<TransactionOutput, "reimbursementSummary"> | null,
+) {
+  const isExternal = (personId: string) =>
+    people.find((person) => person.id === personId)?.role === "external";
+  if (value.type === "income")
+    return isExternal(value.personId) ? ({ kind: "income" } as const) : null;
+  if (value.type !== "expense") return null;
+  const owners = value.splitShares.length
+    ? value.splitShares.map((share) => share.personId)
+    : [value.personId];
+  if (!owners.some(isExternal)) return null;
+  const hasDueDate = value.paymentMethod === "credit_card" || Boolean(value.dueDate);
+  const overdue = hasDueDate && transaction?.reimbursementSummary?.dueDateEditable === true;
+  return {
+    kind: "expense" as const,
+    dateEditable: value.condition !== "recurring" && (!hasDueDate || overdue),
+    dateRequired: value.condition !== "recurring" && !hasDueDate,
+    overdue,
+    currentDate: transaction?.reimbursementSummary?.dueDate ?? null,
   };
 }
 
@@ -264,12 +302,15 @@ export function normalizeTransactionInput(
         : value.isSettled === "true",
     tagIds: value.tagIds,
     note: value.note.trim() || null,
-    splitShares: value.splitShares.length
-      ? value.splitShares.map((share) => ({
-          personId: share.personId,
-          amount: Number(share.amount),
-        }))
-      : null,
+    isGuaranteed: value.isGuaranteed,
+    reimbursementDueDate: getReimbursementDueDateInput(value),
+    splitShares:
+      value.type === "expense" && value.splitShares.length
+        ? value.splitShares.map((share) => ({
+            personId: share.personId,
+            amount: Number(share.amount),
+          }))
+        : null,
   });
 }
 
@@ -293,13 +334,23 @@ export function validateTransactionAmount(value: string) {
   }
 }
 
-export function validateTransactionForm({ value }: { value: TransactionFormValues }) {
+export function validateTransactionForm({
+  value,
+  people = [],
+}: {
+  value: TransactionFormValues;
+  people?: ReadonlyArray<Pick<PersonOutput, "id" | "role">>;
+}) {
+  const reimbursement = getReimbursementFormState(value, people, null);
+  const missingReimbursementDate =
+    reimbursement?.kind === "expense" && reimbursement.dateRequired && !value.reimbursementDueDate;
   const result = TransactionInputSchema.safeParse({
     ...normalizeLooseTransactionInput(value),
   });
 
   if (
     result.success &&
+    !missingReimbursementDate &&
     !(
       value.paymentMethod === "boleto" &&
       value.boletoPaymentDate &&
@@ -310,6 +361,8 @@ export function validateTransactionForm({ value }: { value: TransactionFormValue
   }
 
   const fields: Partial<Record<TransactionFieldName, string>> = {};
+  if (missingReimbursementDate)
+    fields.reimbursementDueDate = transactionFieldMessages.reimbursementDueDate;
 
   if (!result.success) {
     for (const issue of result.error.issues) {
@@ -395,6 +448,10 @@ export function getChangedTransactionInput(
     ...(JSON.stringify(value.splitShares) !== JSON.stringify(defaults.splitShares)
       ? { splitShares: data.splitShares }
       : {}),
+    ...(value.isGuaranteed !== defaults.isGuaranteed ? { isGuaranteed: data.isGuaranteed } : {}),
+    ...(value.reimbursementDueDate !== defaults.reimbursementDueDate
+      ? { reimbursementDueDate: data.reimbursementDueDate }
+      : {}),
   };
 }
 
@@ -464,11 +521,20 @@ function normalizeLooseTransactionInput(value: TransactionFormValues) {
         : value.isSettled === "true",
     tagIds: value.tagIds,
     note: value.note,
-    splitShares: value.splitShares.length
-      ? value.splitShares.map((share) => ({
-          personId: share.personId,
-          amount: Number(share.amount),
-        }))
-      : null,
+    isGuaranteed: value.isGuaranteed,
+    reimbursementDueDate: getReimbursementDueDateInput(value),
+    splitShares:
+      value.type === "expense" && value.splitShares.length
+        ? value.splitShares.map((share) => ({
+            personId: share.personId,
+            amount: Number(share.amount),
+          }))
+        : null,
   };
+}
+
+function getReimbursementDueDateInput(value: TransactionFormValues) {
+  return value.type === "expense" && value.condition !== "recurring"
+    ? value.reimbursementDueDate || null
+    : null;
 }

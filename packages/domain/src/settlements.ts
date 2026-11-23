@@ -1,3 +1,4 @@
+import { toCents } from "./money";
 import { allocateAmountProportionally } from "./transactions";
 
 export type SettlementAllocation = {
@@ -18,6 +19,8 @@ export type OccurrenceOverride = {
 export type SettlementAwareRule = import("./recurring-expenses").DatedRecurringRule & {
   occurrenceOverrides?: Record<string, OccurrenceOverride>;
   allocationPersonId?: string;
+  /** Expected from someone else without guarantee: only counts once received. */
+  requiresSettlement?: boolean;
 };
 export class SettlementError extends Error {
   constructor(public readonly code: string) {
@@ -65,6 +68,50 @@ export function planSettlement(input: {
     })),
   };
 }
+/** Takes a payment out of what is left, keeping the share of each person in both parts. */
+export function planPartialPayment(input: {
+  remainingAmount: string | number;
+  amount: number;
+  date: string;
+  today: string;
+  splits: Array<{ personId: string; amount: string | number }>;
+}) {
+  if (input.date > input.today) throw new SettlementError("SETTLEMENT_DATE_FUTURE");
+  const sign = Number(input.remainingAmount) < 0 ? -1 : 1;
+  const remainingCents = Math.abs(toCents(Number(input.remainingAmount)));
+  const paidCents = toCents(input.amount);
+  if (!Number.isFinite(input.amount) || paidCents <= 0)
+    throw new SettlementError("INVALID_SETTLEMENT_AMOUNT");
+  if (paidCents >= remainingCents) throw new SettlementError("PARTIAL_PAYMENT_NOT_PARTIAL");
+  const signed = (cents: number) => ((sign * cents) / 100).toFixed(2);
+  let paidShares: number[];
+  try {
+    paidShares = input.splits.length
+      ? allocateAmountProportionally(
+          input.amount,
+          input.splits.map((split) => Math.abs(Number(split.amount))),
+        )
+      : [];
+  } catch (error) {
+    if (error instanceof RangeError) throw new SettlementError("INVALID_SETTLEMENT_ALLOCATION");
+    throw error;
+  }
+  const splits = input.splits.map((split, index) => {
+    const paid = toCents(paidShares[index] as number);
+    const remaining = Math.abs(toCents(Number(split.amount))) - paid;
+    if (remaining <= 0) throw new SettlementError("INVALID_SETTLEMENT_ALLOCATION");
+    return {
+      personId: split.personId,
+      paidAmount: signed(paid),
+      remainingAmount: signed(remaining),
+    };
+  });
+  return {
+    paidAmount: signed(paidCents),
+    remainingAmount: signed(remainingCents - paidCents),
+    splits,
+  };
+}
 export function getOccurrenceAmount(
   rule: SettlementAwareRule,
   date: string,
@@ -72,6 +119,7 @@ export function getOccurrenceAmount(
   personId = rule.allocationPersonId,
 ) {
   const state = rule.occurrenceOverrides?.[date];
+  if (rule.requiresSettlement && !state?.isSettled) return 0;
   if (!state?.isSettled || state.amount == null) return Number(expected);
   if (personId) {
     const allocation = state.allocations?.find((share) =>

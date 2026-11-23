@@ -32,6 +32,9 @@ import { useTransactionSelection } from "../useTransactionSelection";
 import { MobileTransactionCardInvoiceRow } from "./transaction-card-invoice-row";
 import { TransactionDueDate } from "./transaction-due-date";
 import { TransactionSelectionSummary } from "./transaction-selection-summary";
+import { TransactionStatusTags } from "./transaction-status-tags";
+
+const carriedOverGroup = "carried-over";
 
 type TransactionsMobileListProps = {
   accountStatement?: boolean;
@@ -50,9 +53,11 @@ export function TransactionsMobileList(props: TransactionsMobileListProps) {
   const selection = useTransactionSelection(props.transactions);
   const groups = new Map<string, TransactionOutput[]>();
   for (const transaction of props.transactions) {
-    const date = props.accountStatement
-      ? (transaction.postingDate ?? transaction.purchaseDate)
-      : transaction.purchaseDate;
+    const date = transaction.isCarriedOver
+      ? carriedOverGroup
+      : props.accountStatement
+        ? (transaction.postingDate ?? transaction.purchaseDate)
+        : transaction.purchaseDate;
     groups.set(date, [...(groups.get(date) ?? []), transaction]);
   }
 
@@ -133,7 +138,10 @@ export function TransactionsMobileList(props: TransactionsMobileListProps) {
           <Card className="gap-0 overflow-hidden py-0">
             <ul className="divide-y">
               {cardInvoices.map((invoice) => (
-                <MobileTransactionCardInvoiceRow invoice={invoice} key={invoice.cardId} />
+                <MobileTransactionCardInvoiceRow
+                  invoice={invoice}
+                  key={`${invoice.cardId}:${invoice.period}`}
+                />
               ))}
             </ul>
           </Card>
@@ -145,7 +153,7 @@ export function TransactionsMobileList(props: TransactionsMobileListProps) {
             className="px-1 font-medium text-muted-foreground text-xs uppercase tracking-wide"
             id={`transactions-${date}`}
           >
-            {formatGroupDate(date)}
+            {date === carriedOverGroup ? "Atrasados de meses anteriores" : formatGroupDate(date)}
           </h2>
           <Card className="gap-0 overflow-hidden py-0">
             <ul className="divide-y">
@@ -239,6 +247,7 @@ function MobileTransactionRow({
       className={cn(
         "flex min-h-20 items-center gap-3 px-3 py-3",
         isInvoicePayment && "bg-success/5",
+        transaction.isOverdue && "bg-destructive/5",
         selected && "bg-brand/5",
       )}
     >
@@ -319,6 +328,9 @@ function MobileTransactionRow({
                 <Landmark aria-hidden="true" className="size-4 shrink-0" />
               ) : null}
               <span className="truncate">{transaction.categoryName ?? "Sem categoria"}</span>
+            </span>
+            <span className="mt-1 flex flex-wrap gap-1 empty:hidden">
+              <TransactionStatusTags transaction={transaction} />
             </span>
             {transaction.paymentMethod === "boleto" && transaction.boletoPaymentDate ? (
               <span className="mt-1 block text-muted-foreground text-xs">

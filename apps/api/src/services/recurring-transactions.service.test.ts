@@ -17,7 +17,6 @@ function rule(overrides: Partial<RecurringRuleReportRecord> = {}): RecurringRule
     paymentMethod: "pix",
     name: "Shared rent",
     amount: "-100",
-    adminAmount: "-60",
     startDate: new Date("2020-01-31"),
     endDate: null,
     frequency: "monthly",
@@ -102,16 +101,15 @@ test("recurring reports use the owner's effective share and exclude series with 
         },
       },
     }),
-    rule({ id: "external-only", seriesId: "external", adminAmount: null }),
   ]);
   const result = await f.service.report({ period: "2020-02", type: "expense" }, "owner");
   assert.equal(result.items.length, 1);
-  assert.equal(result.items[0].amount, 60);
+  assert.equal(result.items[0].amount, 100);
   assert.equal(result.items[0].totalAmount, 100);
-  assert.equal(result.summary.projectedTotal, 54.01);
+  assert.equal(result.summary.projectedTotal, 90.01);
   assert.deepEqual(
     result.projections.map((item) => item.total),
-    [54.01, 60, 60],
+    [90.01, 100, 100],
   );
   assert.deepEqual(
     result.items[0].splitPeople.map((person) => person.id),
@@ -128,7 +126,6 @@ test("recurring reports select one version per series while preserving historica
       id: "new",
       startDate: new Date("2020-03-01"),
       amount: "-200",
-      adminAmount: "-120",
       recurrenceEndDate: new Date("2020-04-30"),
     }),
   ]);
@@ -139,7 +136,7 @@ test("recurring reports select one version per series while preserving historica
   );
   assert.deepEqual(
     result.projections.map((item) => item.total),
-    [60, 120, 120],
+    [100, 200, 200],
   );
   f.setToday("2020-03-01");
   const march = await f.service.report({ period: "2020-03", type: "expense" }, "owner");
@@ -150,7 +147,7 @@ test("recurring reports select one version per series while preserving historica
   assert.equal(march.items[0].recurrenceEndDate, "2020-04-30");
   assert.deepEqual(
     march.projections.map((item) => item.total),
-    [120, 120, 0],
+    [200, 200, 0],
   );
 });
 

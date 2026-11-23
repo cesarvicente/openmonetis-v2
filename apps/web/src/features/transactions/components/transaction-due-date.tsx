@@ -1,9 +1,17 @@
 import type { TransactionOutput } from "@openmonetis/validators/transactions";
 import { DueDateIndicator } from "@/features/due-date-rules/components/due-date-indicator";
-import { formatCompactDate } from "../transactions.presentation";
+import { formatCompactDate, isTransactionLocked } from "../transactions.presentation";
 
 export function TransactionDueDate({ transaction }: { transaction: TransactionOutput }) {
   if (!transaction.dueDate) return null;
+  // Its date comes from another transaction, so there is no rule to make an exception to.
+  if (isTransactionLocked(transaction))
+    return (
+      <span>
+        {transaction.origin === "reimbursement" ? "Previsto" : "Venc."}{" "}
+        {formatCompactDate(transaction.dueDate)}
+      </span>
+    );
   return (
     <DueDateIndicator
       dueDate={transaction.dueDate}

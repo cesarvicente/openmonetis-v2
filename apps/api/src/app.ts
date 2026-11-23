@@ -9,6 +9,7 @@ import { requireAdmin } from "./middlewares/admin";
 import { createRequireAuth, requireSession } from "./middlewares/auth";
 import { createRequireDeviceToken } from "./middlewares/device-auth";
 import { errorHandler, notFoundHandler } from "./middlewares/errors";
+import { createReimbursementsSync } from "./middlewares/reimbursements";
 import { createMutationRateLimit, privateCache, securityHeaders } from "./middlewares/security";
 import { accountsRepository } from "./repositories/accounts.repository";
 import { apiKeysRepository } from "./repositories/api-keys.repository";
@@ -34,10 +35,10 @@ import { notesRepository } from "./repositories/notes.repository";
 import { notificationsRepository } from "./repositories/notifications.repository";
 import { peopleRepository } from "./repositories/people.repository";
 import { personConnectionsRepository } from "./repositories/person-connections.repository";
-import { personSettlementsRepository } from "./repositories/person-settlements.repository";
 import { preferencesRepository } from "./repositories/preferences.repository";
 import { recurringExpensesRepository } from "./repositories/recurring-expenses.repository";
 import { recurringTransactionsRepository } from "./repositories/recurring-transactions.repository";
+import { reimbursementsRepository } from "./repositories/reimbursements.repository";
 import { applicationVersion, releasesRepository } from "./repositories/releases.repository";
 import { settingsRepository } from "./repositories/settings.repository";
 import { signupAllowlistRepository } from "./repositories/signup-allowlist.repository";
@@ -67,10 +68,10 @@ import { createNotesRoute } from "./routes/notes";
 import { createNotificationsRoute } from "./routes/notifications";
 import { createPeopleRoute } from "./routes/people";
 import { createPersonConnectionsRoute } from "./routes/person-connections";
-import { createPersonSettlementsRoute } from "./routes/person-settlements";
 import { createPreferencesRoute } from "./routes/preferences";
 import { createRecurringExpensesRoute } from "./routes/recurring-expenses";
 import { createRecurringTransactionsRoute } from "./routes/recurring-transactions";
+import { createReimbursementsRoute } from "./routes/reimbursements";
 import { createReleasesRoute } from "./routes/releases";
 import { createSettingsRoute } from "./routes/settings";
 import { createSignupAllowlistRoute } from "./routes/signup-allowlist";
@@ -107,10 +108,10 @@ import { createNotesService } from "./services/notes.service";
 import { createNotificationsService } from "./services/notifications.service";
 import { createPeopleService } from "./services/people.service";
 import { createPersonConnectionsService } from "./services/person-connections.service";
-import { createPersonSettlementsService } from "./services/person-settlements.service";
 import { createPreferencesService } from "./services/preferences.service";
 import { createRecurringExpensesService } from "./services/recurring-expenses.service";
 import { createRecurringTransactionsService } from "./services/recurring-transactions.service";
+import { createReimbursementsService } from "./services/reimbursements.service";
 import { createReleasesService } from "./services/releases.service";
 import { createSettingsService } from "./services/settings.service";
 import { createSignupAllowlistService } from "./services/signup-allowlist.service";
@@ -175,7 +176,11 @@ const notesService = createNotesService(notesRepository);
 const notesRoute = createNotesRoute(notesService);
 const attachmentsService = createAttachmentsService(attachmentsRepository, attachmentStorage);
 const attachmentsRoute = createAttachmentsRoute(attachmentsService);
-const transactionsService = createDefaultTransactionsService(accountsService, attachmentsService);
+const transactionsService = createDefaultTransactionsService(
+  accountsService,
+  attachmentsService,
+  invoicesService,
+);
 const transactionsRoute = createTransactionsRoute(transactionsService);
 const tagsRoute = createTagsRoute(
   createTagsService(tagsRepository, async (userId, period) => {
@@ -196,9 +201,11 @@ const personConnectionsService = createPersonConnectionsService(personConnection
     synchronizeRecurringExternalExpenses(externalExpensesRepository, { ownerUserId, period }),
 });
 const personConnectionsRoute = createPersonConnectionsRoute(personConnectionsService);
-const personSettlementsRoute = createPersonSettlementsRoute(
-  createPersonSettlementsService(personSettlementsRepository),
+const reimbursementsService = createReimbursementsService(
+  reimbursementsRepository,
+  dueDateRulesRepository,
 );
+const reimbursementsRoute = createReimbursementsRoute(reimbursementsService);
 const externalExpensesService = createExternalExpensesService(externalExpensesRepository, {
   transactionCreator: transactionsService,
   buildEstablishmentLogoUrl: logoDevGateway.buildLogoUrl,
@@ -356,10 +363,10 @@ app.use("/people", privateCache);
 app.use("/people/*", privateCache);
 app.use("/people", requireAuth);
 app.use("/people/*", requireAuth);
-app.use("/person-settlements", privateCache);
-app.use("/person-settlements/*", privateCache);
-app.use("/person-settlements", requireAuth);
-app.use("/person-settlements/*", requireAuth);
+app.use("/reimbursements", privateCache);
+app.use("/reimbursements/*", privateCache);
+app.use("/reimbursements", requireAuth);
+app.use("/reimbursements/*", requireAuth);
 app.use("/person-connections", privateCache);
 app.use("/person-connections/*", privateCache);
 app.use("/person-connections", requireAuth);
@@ -596,6 +603,22 @@ app.use(
   }),
 );
 
+const reimbursementsSync = createReimbursementsSync(reimbursementsService);
+for (const root of [
+  "/accounts",
+  "/cards",
+  "/due-date-rules",
+  "/external-expenses",
+  "/inbox",
+  "/installments",
+  "/invoices",
+  "/people",
+  "/recurring-expenses",
+  "/recurring-transactions",
+  "/transactions",
+])
+  app.use(`${root}/*`, reimbursementsSync);
+
 app.use("/api/auth/*", async (context, next) => {
   if (
     context.req.path.startsWith("/api/auth/device/") ||
@@ -618,7 +641,7 @@ app.route("/categories", categoriesRoute);
 app.route("/tags", tagsRoute);
 app.route("/people", peopleRoute);
 app.route("/person-connections", personConnectionsRoute);
-app.route("/person-settlements", personSettlementsRoute);
+app.route("/reimbursements", reimbursementsRoute);
 app.route("/external-expenses", externalExpensesRoute);
 app.route("/notes", notesRoute);
 app.route("/recurring-transactions", recurringTransactionsRoute);

@@ -12,7 +12,6 @@ import {
   transactionSplits,
   transactions,
 } from "@openmonetis/db";
-import { calculateInstallmentAllocationTotal } from "@openmonetis/domain/installments";
 import { and, asc, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import type { InstallmentsRepository } from "../services/installments.service";
@@ -22,8 +21,7 @@ const transactionAccounts = alias(financialAccounts, "installment_transaction_ac
 const cardAccounts = alias(financialAccounts, "installment_card_accounts");
 
 export const installmentsRepository = {
-  async listForUser(userId, options) {
-    const adminScope = options?.personScope === "admin";
+  async listForUser(userId) {
     const rows = await db
       .select({
         id: transactions.id,
@@ -31,38 +29,6 @@ export const installmentsRepository = {
         name: transactions.name,
         note: transactions.note,
         amount: transactions.amount,
-        adminAmount: sql<string | null>`case
-          when exists (
-            select 1 from ${transactionSplits}
-            where ${transactionSplits.userId} = ${userId}
-              and ${transactionSplits.transactionId} = ${transactions.id}
-          ) then (
-            select ${transactionSplits.amount}
-            from ${transactionSplits}
-            inner join ${people}
-              on ${people.id} = ${transactionSplits.personId}
-              and ${people.userId} = ${userId}
-              and ${people.role} = 'admin'
-            where ${transactionSplits.userId} = ${userId}
-              and ${transactionSplits.transactionId} = ${transactions.id}
-            limit 1
-          )
-          when ${people.role} = 'admin' then ${transactions.amount}
-          else null
-        end`.as("admin_amount"),
-        adminPersonId:
-          sql<string>`(select ${people.id} from ${people} where ${people.userId} = ${userId} and ${people.role} = 'admin' limit 1)`.as(
-            "admin_person_id",
-          ),
-        adminPersonName:
-          sql<string>`(select ${people.name} from ${people} where ${people.userId} = ${userId} and ${people.role} = 'admin' limit 1)`.as(
-            "admin_person_name",
-          ),
-        adminPersonAvatarUrl: sql<
-          string | null
-        >`(select ${people.avatarUrl} from ${people} where ${people.userId} = ${userId} and ${people.role} = 'admin' limit 1)`.as(
-          "admin_person_avatar_url",
-        ),
         purchaseDate: transactions.purchaseDate,
         period: transactions.period,
         dueDate: transactions.dueDate,
@@ -131,71 +97,36 @@ export const installmentsRepository = {
       )
       .orderBy(asc(installmentSeries.id), asc(transactions.currentInstallment));
 
-    const adminOriginalAmounts = new Map<string, number>();
-    if (adminScope) {
-      const rowsBySeries = new Map<string, typeof rows>();
-      for (const row of rows) {
-        const seriesRows = rowsBySeries.get(row.seriesId);
-        if (seriesRows) seriesRows.push(row);
-        else rowsBySeries.set(row.seriesId, [row]);
-      }
-
-      for (const [seriesId, seriesRows] of rowsBySeries) {
-        const allocatedRows = seriesRows.filter((row) => row.adminAmount !== null);
-        const representative = allocatedRows[0];
-        if (!representative) continue;
-
-        adminOriginalAmounts.set(
-          seriesId,
-          calculateInstallmentAllocationTotal({
-            originalTransactionAmount: representative.originalAmount,
-            totalInstallments: representative.totalInstallments,
-            trackedFromInstallment: representative.trackedFromInstallment,
-            trackedTransactionAmounts: allocatedRows.map((row) => row.amount),
-            trackedAllocationAmounts: allocatedRows.map((row) => row.adminAmount as string),
-          }),
-        );
-      }
-    }
-
-    return rows.flatMap((row) => {
-      if (adminScope && row.adminAmount === null) return [];
-
-      return [
-        {
-          id: row.id,
-          seriesId: row.seriesId,
-          name: row.name,
-          note: row.note,
-          amount: adminScope ? (row.adminAmount as string) : row.amount,
-          purchaseDate: toDateString(row.purchaseDate),
-          period: row.period,
-          dueDate: row.dueDate ? toDateString(row.dueDate) : null,
-          currentInstallment: row.currentInstallment as number,
-          paymentMethod: row.paymentMethod as NonNullable<typeof row.paymentMethod>,
-          isSettled: row.isSettled,
-          invoicePaymentStatus: row.invoicePaymentStatus,
-          totalInstallments: row.totalInstallments,
-          trackedFromInstallment: row.trackedFromInstallment,
-          originalAmount: adminScope
-            ? (adminOriginalAmounts.get(row.seriesId) ?? row.originalAmount)
-            : row.originalAmount,
-          personId: adminScope ? row.adminPersonId : row.personId,
-          personName: adminScope ? row.adminPersonName : row.personName,
-          personAvatarUrl: adminScope ? row.adminPersonAvatarUrl : row.personAvatarUrl,
-          categoryId: row.categoryId,
-          categoryName: row.categoryName,
-          categoryIcon: row.categoryIcon,
-          cardId: row.cardId,
-          cardName: row.cardName,
-          cardLogo: row.cardLogo,
-          cardDueDay: row.cardDueDay,
-          accountId: row.transactionAccountId ?? row.cardAccountId,
-          accountName: row.transactionAccountName ?? row.cardAccountName,
-          accountLogo: row.transactionAccountLogo ?? row.cardAccountLogo,
-        },
-      ];
-    });
+    return rows.map((row) => ({
+      id: row.id,
+      seriesId: row.seriesId,
+      name: row.name,
+      note: row.note,
+      amount: row.amount,
+      purchaseDate: toDateString(row.purchaseDate),
+      period: row.period,
+      dueDate: row.dueDate ? toDateString(row.dueDate) : null,
+      currentInstallment: row.currentInstallment as number,
+      paymentMethod: row.paymentMethod as NonNullable<typeof row.paymentMethod>,
+      isSettled: row.isSettled,
+      invoicePaymentStatus: row.invoicePaymentStatus,
+      totalInstallments: row.totalInstallments,
+      trackedFromInstallment: row.trackedFromInstallment,
+      originalAmount: row.originalAmount,
+      personId: row.personId,
+      personName: row.personName,
+      personAvatarUrl: row.personAvatarUrl,
+      categoryId: row.categoryId,
+      categoryName: row.categoryName,
+      categoryIcon: row.categoryIcon,
+      cardId: row.cardId,
+      cardName: row.cardName,
+      cardLogo: row.cardLogo,
+      cardDueDay: row.cardDueDay,
+      accountId: row.transactionAccountId ?? row.cardAccountId,
+      accountName: row.transactionAccountName ?? row.cardAccountName,
+      accountLogo: row.transactionAccountLogo ?? row.cardAccountLogo,
+    }));
   },
 
   async findByIdsForUser(ids, userId) {

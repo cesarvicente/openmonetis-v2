@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { InstallmentActionDialog } from "./installment-action-dialog";
 import { RecurringStatusDialog } from "./recurring-status-dialog";
+import { TransactionRemovalWarnings } from "./transaction-removal-warnings";
 import type { TransactionRowProps } from "./transactions-table.types";
 export function TransactionActionDialogs({
   transaction,
@@ -48,7 +49,7 @@ export function TransactionActionDialogs({
           <AlertDialogHeader>
             <AlertDialogTitle>
               {isRefund
-                ? "Remover reembolso?"
+                ? "Remover estorno?"
                 : isInvoiceAdjustment
                   ? "Remover ajuste de fatura?"
                   : isBalanceAdjustment
@@ -57,13 +58,14 @@ export function TransactionActionDialogs({
             </AlertDialogTitle>
             <AlertDialogDescription>
               {isRefund
-                ? `O reembolso de “${transaction.name.replace(/^Reembolso · /, "")}” será desfeito.`
+                ? `O estorno de “${transaction.name.replace(/^Estorno · /, "")}” será desfeito.`
                 : isInvoiceAdjustment
                   ? "O ajuste será removido e o valor da fatura será recalculado. Se houver pagamentos, reabra a fatura primeiro."
                   : isBalanceAdjustment
                     ? "O lançamento de ajuste será removido e o saldo da conta será recalculado."
                     : `O lançamento “${transaction.name}” será removido desta base.`}
             </AlertDialogDescription>
+            <TransactionRemovalWarnings transaction={transaction} />
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>

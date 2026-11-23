@@ -30,7 +30,7 @@
 
 - contas, cartões, faturas, transações e transferências;
 - parcelas, recorrências, orçamentos e contas a pagar;
-- pessoas, divisões, repasses e gastos compartilhados entre contas;
+- pessoas, divisões, reembolsos e gastos compartilhados entre contas;
 - categorias e subcategorias, etiquetas, estabelecimentos, notas e checklists, além de anexos quando um storage S3 está
   configurado;
 - relatórios, dashboard mensal e widgets configuráveis;

@@ -15,7 +15,6 @@ import { MobileFormState } from "@/components/forms/mobile-form-state";
 import { MobileSelect as Select } from "@/components/forms/mobile-select";
 import { MobileSelectContent as SelectContent } from "@/components/forms/mobile-select-content";
 import { PaymentSuccess } from "@/components/payment-success";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { CurrencyInput } from "@/components/ui/currency-input";
 import { DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -42,58 +41,31 @@ export function InvoicePaymentDialog({
   const id = useId();
   const mutation = usePayInvoiceMutation();
   const [paymentResult, setPaymentResult] = useState<{
-    accountAmount: number;
     status: DashboardInvoice["status"];
   } | null>(null);
   const today = getCurrentDateInBrazil();
-  const canPayByPerson =
-    (invoice?.people.filter((person) => person.remainingAmount > 0).length ?? 0) > 1;
   const defaultAccountId =
     invoice && accounts.some((account) => account.id === invoice.accountId)
       ? invoice.accountId
       : (accounts[0]?.id ?? "");
   const form = useForm({
     defaultValues: {
-      mode: "invoice" as "invoice" | "person" | "manual",
+      mode: "invoice" as "invoice" | "manual",
       accountId: defaultAccountId,
-      personId: invoice?.people.find((person) => person.remainingAmount > 0)?.personId ?? "",
       amount: "",
       paidAt: today,
     },
     onSubmit: async ({ value }) => {
       if (!invoice) return;
-      const person = invoice.people.find((item) => item.personId === value.personId);
-      const allocations =
-        value.mode === "invoice"
-          ? invoice.people
-              .filter((item) => item.remainingAmount > 0)
-              .map((item) => ({ personId: item.personId, amount: item.remainingAmount }))
-          : person
-            ? [
-                {
-                  personId: person.personId,
-                  amount:
-                    value.mode === "person"
-                      ? person.remainingAmount
-                      : parseCurrencyInput(value.amount),
-                },
-              ]
-            : [];
-      const usesAccount = allocations.some((allocation) =>
-        invoice.people.some(
-          (item) => item.personId === allocation.personId && item.personRole === "admin",
-        ),
-      );
       const parsed = CreateInvoicePaymentInputSchema.safeParse({
-        accountId: usesAccount ? value.accountId : null,
+        accountId: value.accountId,
         paidAt: value.paidAt,
-        allocations,
+        amount:
+          value.mode === "invoice" ? invoice.remainingAmount : parseCurrencyInput(value.amount),
       });
       if (!parsed.success) {
         toast.error("Revise os dados do pagamento", {
-          description: usesAccount
-            ? "Informe uma conta, pessoa e valor válidos."
-            : "Informe uma pessoa e um valor válidos.",
+          description: "Informe uma conta e um valor válidos.",
         });
         return;
       }
@@ -103,10 +75,10 @@ export function InvoicePaymentDialog({
           period: invoice.period,
           input: parsed.data,
         });
-        setPaymentResult({ accountAmount: result.accountAmount, status: result.status });
+        setPaymentResult({ status: result.status });
       } catch {
         toast.error("Não foi possível registrar o pagamento", {
-          description: "Confira o valor e o saldo restante da pessoa.",
+          description: "Confira o valor e o saldo restante da fatura.",
         });
       }
     },
@@ -126,13 +98,9 @@ export function InvoicePaymentDialog({
           <PaymentSuccess
             celebrate={paymentResult.status === "paid"}
             description={
-              paymentResult.accountAmount > 0
-                ? paymentResult.status === "paid"
-                  ? "A fatura foi quitada e a sua parte já foi registrada no extrato."
-                  : "A sua parte foi registrada no extrato. A fatura continua com saldo em aberto."
-                : paymentResult.status === "paid"
-                  ? "A fatura foi quitada sem movimentar suas contas."
-                  : "A parte da pessoa foi quitada sem movimentar suas contas."
+              paymentResult.status === "paid"
+                ? "A fatura foi quitada e o pagamento já está no extrato."
+                : "O pagamento está no extrato. A fatura continua com saldo em aberto."
             }
             onClose={() => {
               setPaymentResult(null);
@@ -198,14 +166,6 @@ export function InvoicePaymentDialog({
                       >
                         Fatura inteira
                       </TabsTrigger>
-                      {canPayByPerson ? (
-                        <TabsTrigger
-                          className="min-w-0 whitespace-normal px-1 py-2 text-center text-xs leading-tight group-data-[variant=line]/tabs-list:h-auto group-data-[variant=line]/tabs-list:flex-1 sm:px-3 sm:text-sm"
-                          value="person"
-                        >
-                          Registrar parte da pessoa
-                        </TabsTrigger>
-                      ) : null}
                       <TabsTrigger
                         className="min-w-0 whitespace-normal px-1 py-2 text-center text-xs leading-tight group-data-[variant=line]/tabs-list:h-auto group-data-[variant=line]/tabs-list:flex-1 sm:px-3 sm:text-sm"
                         value="manual"
@@ -216,44 +176,6 @@ export function InvoicePaymentDialog({
                   </Tabs>
                 )}
               </form.Field>
-              <form.Subscribe selector={(state) => state.values.mode}>
-                {(mode) =>
-                  mode !== "invoice" ? (
-                    <form.Field name="personId">
-                      {(field) => (
-                        <div className="grid gap-2">
-                          <Label htmlFor={`${id}-person`}>Pessoa</Label>
-                          <Select
-                            items={
-                              invoice?.people
-                                .filter((person) => person.remainingAmount > 0)
-                                .map((person) => ({
-                                  value: person.personId,
-                                  label: <PersonOption person={person} />,
-                                })) ?? []
-                            }
-                            onValueChange={(value) => value && field.handleChange(value)}
-                            value={field.state.value}
-                          >
-                            <SelectTrigger className="w-full" id={`${id}-person`}>
-                              <SelectValue placeholder="Selecione" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {invoice?.people
-                                .filter((person) => person.remainingAmount > 0)
-                                .map((person) => (
-                                  <SelectItem key={person.personId} value={person.personId}>
-                                    <PersonOption person={person} />
-                                  </SelectItem>
-                                ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      )}
-                    </form.Field>
-                  ) : null
-                }
-              </form.Subscribe>
               <form.Subscribe selector={(state) => state.values.mode}>
                 {(mode) =>
                   mode === "manual" ? (
@@ -273,44 +195,32 @@ export function InvoicePaymentDialog({
                   ) : null
                 }
               </form.Subscribe>
-              <form.Subscribe
-                selector={(state) => [state.values.mode, state.values.personId] as const}
-              >
-                {([mode, personId]) =>
-                  paymentUsesAccount(invoice, mode, personId) ? (
-                    <form.Field name="accountId">
-                      {(field) => (
-                        <div className="grid gap-2">
-                          <Label htmlFor={`${id}-account`}>Conta de pagamento</Label>
-                          <Select
-                            items={accounts.map((account) => ({
-                              value: account.id,
-                              label: <AccountOption account={account} />,
-                            }))}
-                            value={field.state.value}
-                            onValueChange={(value) => value && field.handleChange(value)}
-                          >
-                            <SelectTrigger className="w-full" id={`${id}-account`}>
-                              <SelectValue placeholder="Selecione uma conta" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {accounts.map((account) => (
-                                <SelectItem key={account.id} value={account.id}>
-                                  <AccountOption account={account} />
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      )}
-                    </form.Field>
-                  ) : (
-                    <p className="rounded-md bg-muted px-3 py-2 text-muted-foreground text-sm">
-                      Este pagamento quita somente a parte da pessoa e não movimenta suas contas.
-                    </p>
-                  )
-                }
-              </form.Subscribe>
+              <form.Field name="accountId">
+                {(field) => (
+                  <div className="grid gap-2">
+                    <Label htmlFor={`${id}-account`}>Conta de pagamento</Label>
+                    <Select
+                      items={accounts.map((account) => ({
+                        value: account.id,
+                        label: <AccountOption account={account} />,
+                      }))}
+                      value={field.state.value}
+                      onValueChange={(value) => value && field.handleChange(value)}
+                    >
+                      <SelectTrigger className="w-full" id={`${id}-account`}>
+                        <SelectValue placeholder="Selecione uma conta" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {accounts.map((account) => (
+                          <SelectItem key={account.id} value={account.id}>
+                            <AccountOption account={account} />
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+              </form.Field>
               <form.Field name="paidAt">
                 {(field) => (
                   <div className="grid gap-2">
@@ -334,20 +244,9 @@ export function InvoicePaymentDialog({
                 >
                   Cancelar
                 </Button>
-                <form.Subscribe
-                  selector={(state) =>
-                    [state.values.mode, state.values.personId, state.values.accountId] as const
-                  }
-                >
-                  {([mode, personId, accountId]) => (
-                    <Button
-                      disabled={
-                        mutation.isPending ||
-                        !invoice ||
-                        (paymentUsesAccount(invoice, mode, personId) && !accountId)
-                      }
-                      type="submit"
-                    >
+                <form.Subscribe selector={(state) => state.values.accountId}>
+                  {(accountId) => (
+                    <Button disabled={mutation.isPending || !invoice || !accountId} type="submit">
                       {mutation.isPending ? "Registrando…" : "Confirmar pagamento"}
                     </Button>
                   )}
@@ -358,36 +257,6 @@ export function InvoicePaymentDialog({
         )}
       </DialogContent>
     </Dialog>
-  );
-}
-
-function paymentUsesAccount(
-  invoice: DashboardInvoice | null,
-  mode: "invoice" | "person" | "manual",
-  personId: string,
-) {
-  if (!invoice) return false;
-  if (mode === "invoice") {
-    return invoice.people.some(
-      (person) => person.personRole === "admin" && person.remainingAmount > 0,
-    );
-  }
-  return invoice.people.some(
-    (person) => person.personId === personId && person.personRole === "admin",
-  );
-}
-
-function PersonOption({ person }: { person: DashboardInvoice["people"][number] }) {
-  return (
-    <span className="flex min-w-0 items-center gap-2">
-      <Avatar className="size-6 shrink-0">
-        <AvatarImage alt="" src={person.personAvatarUrl ?? undefined} />
-        <AvatarFallback className="text-[10px]">{person.personName.slice(0, 1)}</AvatarFallback>
-      </Avatar>
-      <span className="truncate">
-        {person.personName} · {formatCurrency(person.remainingAmount)}
-      </span>
-    </span>
   );
 }
 

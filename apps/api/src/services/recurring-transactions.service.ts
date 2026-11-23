@@ -17,7 +17,6 @@ export type RecurringRuleReportRecord = SettlementAwareRule & {
   paymentMethod: PaymentMethod;
   name: string;
   amount: string;
-  adminAmount: string | null;
   startDate: Date;
   endDate: Date | null;
   versionEndDate?: Date | null;
@@ -75,9 +74,7 @@ export function createRecurringTransactionsService(
       query: RecurringTransactionsReportQuery,
       userId: string,
     ): Promise<RecurringTransactionsReportOutput> {
-      const rules = (await repository.listForReport(userId, query.type)).filter(
-        (rule) => rule.adminAmount !== null,
-      );
+      const rules = await repository.listForReport(userId, query.type);
       const projection = buildRecurringTransactionsReport({
         period: query.period,
         today: getToday(),
@@ -97,9 +94,8 @@ export function createRecurringTransactionsService(
           recurrenceEndDate: rule.recurrenceEndDate ? date(rule.recurrenceEndDate) : null,
           anchorDate: date(rule.anchorDate),
           frequency: rule.frequency,
-          amount: rule.adminAmount as string,
+          amount: rule.amount,
           occurrenceOverrides: rule.occurrenceOverrides,
-          allocationPersonId: "admin",
 
           dueDate: rule.dueDate ? date(rule.dueDate) : null,
         })),
@@ -122,7 +118,7 @@ export function createRecurringTransactionsService(
               seriesId: item.seriesId,
               type: query.type,
               name: rule.name,
-              amount: Math.abs(Number(rule.adminAmount)),
+              amount: Math.abs(Number(rule.amount)),
               totalAmount: Math.abs(Number(rule.amount)),
               paymentMethod: rule.paymentMethod,
               frequency: rule.frequency,

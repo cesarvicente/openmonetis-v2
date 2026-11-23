@@ -16,7 +16,7 @@ export const dashboardWidgetIds = [
   "recurring-expenses",
   "installments",
   "inbox",
-  "person-settlements",
+  "reimbursements",
   "budgets",
   "goals",
   "income-expense-balance",
@@ -84,7 +84,8 @@ export type StoredDashboardWidgetPreferences = {
 
 const dashboardWidgetIdSet = new Set<string>(dashboardWidgetIds);
 const legacyDashboardWidgetIds: Readonly<Record<string, DashboardWidgetId>> = {
-  "external-expenses": "person-settlements",
+  "external-expenses": "reimbursements",
+  "person-settlements": "reimbursements",
 };
 
 export function createDefaultDashboardWidgetPreferences(): DashboardWidgetPreferences {
@@ -101,7 +102,10 @@ function normalizeDashboardWidgetLayouts(
 ): DashboardWidgetLayouts {
   return Object.fromEntries(
     dashboardWidgetIds.map((widgetId) => {
-      const layout = layouts[widgetId];
+      const legacyId = Object.keys(legacyDashboardWidgetIds).find(
+        (id) => legacyDashboardWidgetIds[id] === widgetId && layouts[id],
+      );
+      const layout = layouts[widgetId] ?? (legacyId ? layouts[legacyId] : undefined);
       return [
         widgetId,
         {
@@ -254,7 +258,7 @@ export type DashboardHistoryEntry = {
 };
 
 export type DashboardPaymentStatusEntry = {
-  adminAmount: number | null;
+  countedAmount: number | null;
   isSettled: boolean;
   origin: DashboardTransactionOrigin;
   period: string;
@@ -571,7 +575,7 @@ export function calculateDashboardPaymentStatus(
   for (const entry of entries) {
     if (
       entry.period !== period ||
-      entry.adminAmount === null ||
+      entry.countedAmount === null ||
       entry.type === "transfer" ||
       entry.origin === "invoicePayment" ||
       entry.origin === "accountBalanceAdjustment"
@@ -580,9 +584,9 @@ export function calculateDashboardPaymentStatus(
     }
 
     const status = entry.isSettled ? "confirmed" : "pending";
-    const amountCents = Math.abs(toCents(entry.adminAmount));
+    const amountCents = Math.abs(toCents(entry.countedAmount));
 
-    if (isExpenseReduction({ ...entry, amount: entry.adminAmount })) {
+    if (isExpenseReduction({ ...entry, amount: entry.countedAmount })) {
       cents.expenses[status] -= amountCents;
       continue;
     }

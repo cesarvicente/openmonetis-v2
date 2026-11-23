@@ -532,7 +532,7 @@ test("assembled API protects financial endpoints and persists transfers and refu
           333,
         );
         assert.deepEqual(detail.tagIds, [tag.id]);
-        assert.deepEqual(await balances(owner, f.source.id), [95.99]);
+        assert.deepEqual(await balances(owner, f.source.id), [93.32]);
       },
     );
 
@@ -697,7 +697,7 @@ test("assembled API protects financial endpoints and persists transfers and refu
         await request(`/invoices/${card.id}/${period}/payments`, owner, "POST", {
           accountId: f.source.id,
           paidAt: refundDate,
-          allocations: [{ personId: owner.personId, amount: 10.01 }],
+          amount: 10.01,
         }),
         201,
       );

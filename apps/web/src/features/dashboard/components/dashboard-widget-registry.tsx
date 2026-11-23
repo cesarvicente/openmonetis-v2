@@ -29,8 +29,8 @@ import { InboxWidget } from "@/features/inbox/components/inbox-widget";
 import { InstallmentExpensesWidget } from "@/features/installments/components/installment-expenses-widget";
 import { InvoicesWidget } from "@/features/invoices/components/invoices-widget";
 import { NotesWidget } from "@/features/notes/components/notes-widget";
-import { PersonSettlementsWidget } from "@/features/person-settlements/components/person-settlements-widget";
 import { RecurringExpensesWidget } from "@/features/recurring-expenses/components/recurring-expenses-widget";
+import { ReimbursementsWidget } from "@/features/reimbursements/components/reimbursements-widget";
 import { CategoryBreakdownWidget } from "./category-breakdown-widget";
 import { CategoryTransactionsWidget } from "./category-transactions-widget";
 import { IncomeExpenseBalanceWidget } from "./income-expense-balance-widget";
@@ -92,12 +92,12 @@ export const dashboardWidgetRegistry: readonly DashboardWidgetDefinition[] = [
     render: () => <InboxWidget />,
   },
   {
-    id: "person-settlements",
-    title: "Acertos por pessoas",
-    description: "Valores a receber e créditos do mês",
+    id: "reimbursements",
+    title: "Reembolsos por pessoa",
+    description: "O que cada pessoa ainda deve a você",
     icon: HandCoins,
     isList: true,
-    render: (period) => <PersonSettlementsWidget period={period} />,
+    render: (period) => <ReimbursementsWidget period={period} />,
   },
   {
     id: "income-expense-balance",

@@ -19,6 +19,8 @@ import {
   useDeleteTransactionMutation,
   useExportTransactionsMutation,
   useRecurringRuleActionMutation,
+  useRegisterPartialPaymentMutation,
+  useRegisterRecurringPartialPaymentMutation,
   useSettleRecurringOccurrenceMutation,
   useSettleTransactionsMutation,
 } from "../transactions.mutations";
@@ -59,8 +61,7 @@ type TransactionsScope = {
   allowCreate?: boolean;
   createDefaults?: TransactionCreateDefaults;
   createTypes?: readonly TransactionCreateType[];
-  adminPersonOnly?: boolean;
-  adminSettledOnly?: boolean;
+  settledOnly?: boolean;
   view?: "accountStatement";
   periodNavigationPlacement?: "afterPageHeader" | "afterSummary";
   contentNavigation?: ReactNode;
@@ -90,21 +91,14 @@ export function TransactionsContainer({
   );
   const accountsSlugMap = buildFilterSlugMap(accountsQuery.data ?? []);
   const cardsSlugMap = buildFilterSlugMap(cardsQuery.data ?? []);
-  const adminPerson = peopleQuery.data?.find((person) => person.role === "admin");
-  const restrictToAdminPerson = scope?.adminPersonOnly || scope?.adminSettledOnly;
   const transactionsSearch = {
     ...search,
     period: selectedPeriod,
     pageSize: effectivePageSize,
-    personIds:
-      scope?.personIds ??
-      (restrictToAdminPerson
-        ? adminPerson
-          ? [adminPerson.id]
-          : []
-        : resolveFilterIds(search.people, peopleSlugMap.slugToId)),
-    settlement: scope?.adminSettledOnly ? ("paid" as const) : search.settlement,
+    personIds: scope?.personIds ?? resolveFilterIds(search.people, peopleSlugMap.slugToId),
+    settlement: scope?.settledOnly ? ("paid" as const) : search.settlement,
     view: scope?.view,
+    includeOverdue: !scope || scope.personIds ? (true as const) : undefined,
     groupCardInvoices: !scope && shouldGroupCardInvoices(search) ? (true as const) : undefined,
     tagIds: parseFilterSlugs(search.tags),
     categoryIds:
@@ -121,6 +115,8 @@ export function TransactionsContainer({
   const deleteInvoiceAdjustment = useDeleteInvoiceAdjustmentMutation();
   const settleTransactions = useSettleTransactionsMutation();
   const settleRecurringOccurrence = useSettleRecurringOccurrenceMutation();
+  const registerPartialPayment = useRegisterPartialPaymentMutation();
+  const registerRecurringPartialPayment = useRegisterRecurringPartialPaymentMutation();
   const recurringStatus = useRecurringRuleActionMutation();
   const [settlementTarget, setSettlementTarget] = useState<SettlementTarget | null>(null);
   const [unsettleTarget, setUnsettleTarget] = useState<UnsettleTarget | null>(null);
@@ -149,7 +145,7 @@ export function TransactionsContainer({
         return;
       }
       toast.error("Não foi possível remover o lançamento", {
-        description: "O lançamento permanece salvo. Tente novamente em instantes.",
+        description: getTransactionMutationErrorMessage(error),
       });
     }
   }
@@ -215,6 +211,9 @@ export function TransactionsContainer({
               plannedAmount: item.plannedAmount ?? item.displayAmount,
               accountId: item.accountId,
               divided: selected.some((entry) => entry.isDivided),
+              reimbursementId:
+                ids.length === 1 && item.origin === "reimbursement" ? ids[0] : undefined,
+              partiallyPaid: Boolean(item.partialPayment),
             });
             return;
           }
@@ -425,6 +424,21 @@ export function TransactionsContainer({
               settlementTarget.type === "income"
                 ? "Recebimento registrado"
                 : "Pagamento registrado",
+            );
+          }}
+          onPartial={async (values) => {
+            const [id] = settlementTarget.ids ?? [];
+            if (id) await registerPartialPayment.mutateAsync({ id, data: values });
+            else if (settlementTarget.recurringRuleId && settlementTarget.purchaseDate)
+              await registerRecurringPartialPayment.mutateAsync({
+                recurringRuleId: settlementTarget.recurringRuleId,
+                purchaseDate: settlementTarget.purchaseDate,
+                ...values,
+              });
+            toast.success(
+              settlementTarget.type === "income"
+                ? "Recebimento parcial registrado"
+                : "Pagamento parcial registrado",
             );
           }}
         />

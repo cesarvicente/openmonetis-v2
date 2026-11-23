@@ -19,17 +19,9 @@ export const UpdateInvoiceDatesInputSchema = z
   .openapi("UpdateInvoiceDatesInput");
 export const CreateInvoicePaymentInputSchema = z
   .object({
-    accountId: z.uuid().nullable().optional(),
+    accountId: z.uuid(),
     paidAt: z.iso.date(),
-    allocations: z
-      .array(
-        z.object({
-          personId: z.uuid(),
-          amount: z.number().positive().multipleOf(0.01).max(9999999999.99),
-        }),
-      )
-      .min(1)
-      .max(100),
+    amount: z.number().positive().multipleOf(0.01).max(9999999999.99),
   })
   .openapi("CreateInvoicePaymentInput");
 export const AdjustInvoiceInputSchema = z
@@ -50,8 +42,6 @@ export const InvoicePersonBalanceSchema = z.object({
   personAvatarUrl: z.string().nullable(),
   personRole: z.enum(["admin", "external"]),
   amount: z.number().nonnegative(),
-  paidAmount: z.number().nonnegative(),
-  remainingAmount: z.number().nonnegative(),
 });
 export const InvoicePaymentSummarySchema = z.object({
   id: z.uuid(),

@@ -19,7 +19,6 @@ function recurringRule(id: string, amount: string): RecurringExpenseRuleRecord {
     paymentMethod: "pix",
     name: `Recorrência ${id}`,
     amount,
-    adminAmount: amount,
     startDate: new Date("2026-01-01T00:00:00.000Z"),
     endDate: null,
     frequency: "monthly",

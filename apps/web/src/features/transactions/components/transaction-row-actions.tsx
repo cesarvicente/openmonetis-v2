@@ -104,7 +104,7 @@ export function TransactionRowActions({
           >
             <Trash2 />
             {isRefund
-              ? "Remover reembolso"
+              ? "Remover estorno"
               : isInvoiceAdjustment
                 ? "Remover ajuste de fatura"
                 : isBalanceAdjustment

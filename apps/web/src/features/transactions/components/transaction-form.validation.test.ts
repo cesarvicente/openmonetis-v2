@@ -4,6 +4,7 @@ import { getCurrentDateInBrazil } from "@openmonetis/shared/date-time";
 import {
   getChangedTransactionInput,
   getDefaultTransactionFormValues,
+  getReimbursementFormState,
   isSettledByDefault,
   normalizeTransactionInput,
   type TransactionFormValues,
@@ -11,6 +12,8 @@ import {
 } from "./transaction-form.validation";
 
 const paidBoleto = {
+  isGuaranteed: false,
+  reimbursementDueDate: "",
   type: "expense",
   condition: "single",
   paymentMethod: "boleto",
@@ -172,5 +175,54 @@ test("tag edits preserve unchanged scopes and send explicit removals", () => {
   assert.equal(
     validateTransactionForm({ value: { ...defaults, tagIds: [tagId, tagId] } })?.fields.tagIds,
     "Selecione até 20 etiquetas.",
+  );
+});
+
+test("an expense of someone else without a due date needs the promised date", () => {
+  const people = [
+    { id: paidBoleto.personId, role: "admin" as const },
+    { id: "40000000-0000-4000-8000-000000000004", role: "external" as const },
+  ];
+  const dinner: TransactionFormValues = {
+    ...paidBoleto,
+    paymentMethod: "pix",
+    dueDate: "",
+    personId: "40000000-0000-4000-8000-000000000004",
+  };
+  assert.deepEqual(validateTransactionForm({ value: dinner, people }), {
+    fields: { reimbursementDueDate: "Informe a previsão do reembolso." },
+  });
+  const promised = { ...dinner, reimbursementDueDate: "2026-09-20", isGuaranteed: true };
+  assert.equal(validateTransactionForm({ value: promised, people }), undefined);
+  assert.equal(normalizeTransactionInput(promised).reimbursementDueDate, "2026-09-20");
+  assert.equal(normalizeTransactionInput(promised).isGuaranteed, true);
+  // The invoice or the expense's own due date already says when.
+  assert.equal(
+    validateTransactionForm({ value: { ...dinner, dueDate: "2026-09-20" }, people }),
+    undefined,
+  );
+  assert.equal(
+    validateTransactionForm({ value: { ...dinner, personId: paidBoleto.personId }, people }),
+    undefined,
+  );
+});
+
+test("a split with someone else also creates a reimbursement, and income is never split", () => {
+  const people = [
+    { id: "a", role: "admin" as const },
+    { id: "b", role: "external" as const },
+  ];
+  const split = {
+    ...paidBoleto,
+    splitShares: [
+      { personId: "a", amount: "60" },
+      { personId: "b", amount: "40" },
+    ],
+  };
+  assert.equal(getReimbursementFormState(split, people, null)?.kind, "expense");
+  assert.equal(getReimbursementFormState({ ...split, splitShares: [] }, people, null), null);
+  assert.equal(
+    getReimbursementFormState({ ...split, type: "income", personId: "b" }, people, null)?.kind,
+    "income",
   );
 });

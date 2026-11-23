@@ -10,25 +10,16 @@ import {
   people,
   recurringTransactionOccurrences,
   recurringTransactionRules,
-  recurringTransactionSplits,
-  transactionSplits,
   transactions,
 } from "@openmonetis/db";
 import { balanceAdjustmentCategoryName, yieldCategoryName } from "@openmonetis/domain/categories";
 import { and, asc, eq, inArray, isNull, lte, ne, or, sql } from "drizzle-orm";
-import { alias } from "drizzle-orm/pg-core";
 import type { AccountsRepository } from "../services/accounts.service";
 import { effectiveRecurringEndDateSql } from "./recurring-transactions.repository";
 import {
-  effectiveSplitAmountSql,
   effectiveTransactionAmountSql,
   recurringOccurrenceOverridesSql,
 } from "./settlements.repository";
-
-const transactionPeople = alias(people, "account_balance_transaction_people");
-const splitPeople = alias(people, "account_balance_split_people");
-const recurringPeople = alias(people, "account_balance_recurring_people");
-const recurringSplitPeople = alias(people, "account_balance_recurring_split_people");
 
 export const accountsRepository = {
   async insert(data) {
@@ -347,30 +338,12 @@ export const accountsRepository = {
         paymentMethod: transactions.paymentMethod,
         boletoPaymentDate: transactions.boletoPaymentDate,
         settledDate: transactions.settledDate,
-        amount:
-          sql<string>`sum(case when ${transactionSplits.id} is not null then ${effectiveSplitAmountSql} else ${effectiveTransactionAmountSql} end)`.as(
-            "amount",
-          ),
+        amount: sql<string>`sum(${effectiveTransactionAmountSql})`.as("amount"),
         includeInSummary: sql<boolean>`${transactions.origin} <> 'accountBalanceAdjustment'`.as(
           "include_in_summary",
         ),
       })
       .from(transactions)
-      .innerJoin(
-        transactionPeople,
-        and(eq(transactions.personId, transactionPeople.id), eq(transactionPeople.userId, userId)),
-      )
-      .leftJoin(
-        transactionSplits,
-        and(
-          eq(transactionSplits.transactionId, transactions.id),
-          eq(transactionSplits.userId, userId),
-        ),
-      )
-      .leftJoin(
-        splitPeople,
-        and(eq(transactionSplits.personId, splitPeople.id), eq(splitPeople.userId, userId)),
-      )
       .where(
         and(
           eq(transactions.userId, userId),
@@ -382,10 +355,6 @@ export const accountsRepository = {
               sql`coalesce(to_char(${transactions.settledDate}, 'YYYY-MM'), ${transactions.period}) <= ${period}`,
             ),
             and(eq(transactions.paymentMethod, "boleto"), eq(transactions.type, "expense")),
-          ),
-          or(
-            and(isNull(transactionSplits.id), eq(transactionPeople.role, "admin")),
-            eq(splitPeople.role, "admin"),
           ),
           ...(accountId ? [eq(transactions.accountId, accountId)] : []),
         ),
@@ -422,10 +391,7 @@ export const accountsRepository = {
           accountId: recurringTransactionRules.accountId,
           sourceAccountId: recurringTransactionRules.sourceAccountId,
           destinationAccountId: recurringTransactionRules.destinationAccountId,
-          amount:
-            sql<string>`case when ${recurringTransactionSplits.id} is not null then ${recurringTransactionSplits.amount} else ${recurringTransactionRules.amount} end`.as(
-              "amount",
-            ),
+          amount: recurringTransactionRules.amount,
           type: recurringTransactionRules.type,
           paymentMethod: recurringTransactionRules.paymentMethod,
           anchorDate: recurringTransactionRules.anchorDate,
@@ -438,36 +404,11 @@ export const accountsRepository = {
             "configured_end_date",
           ),
           occurrenceOverrides: recurringOccurrenceOverridesSql,
-          allocationPersonId:
-            sql<string>`coalesce(${recurringTransactionSplits.personId}, ${recurringTransactionRules.personId})`.as(
-              "allocation_person_id",
-            ),
           dueDate: recurringTransactionRules.dueDate,
           frequency: recurringTransactionRules.frequency,
           isSettled: recurringTransactionRules.isSettled,
         })
         .from(recurringTransactionRules)
-        .innerJoin(
-          recurringPeople,
-          and(
-            eq(recurringTransactionRules.personId, recurringPeople.id),
-            eq(recurringPeople.userId, userId),
-          ),
-        )
-        .leftJoin(
-          recurringTransactionSplits,
-          and(
-            eq(recurringTransactionSplits.recurringRuleId, recurringTransactionRules.id),
-            eq(recurringTransactionSplits.userId, userId),
-          ),
-        )
-        .leftJoin(
-          recurringSplitPeople,
-          and(
-            eq(recurringTransactionSplits.personId, recurringSplitPeople.id),
-            eq(recurringSplitPeople.userId, userId),
-          ),
-        )
         .where(
           and(
             eq(recurringTransactionRules.userId, userId),
@@ -476,10 +417,6 @@ export const accountsRepository = {
             or(
               lte(recurringTransactionRules.startDate, periodEnd),
               sql`exists(select 1 from recurring_transaction_occurrences o where o.user_id = ${userId} and o.recurring_series_id = ${recurringTransactionRules.seriesId} and o.settled_date <= ${periodEnd})`,
-            ),
-            or(
-              and(isNull(recurringTransactionSplits.id), eq(recurringPeople.role, "admin")),
-              eq(recurringSplitPeople.role, "admin"),
             ),
           ),
         ),
@@ -490,10 +427,7 @@ export const accountsRepository = {
           accountId: recurringTransactionRules.accountId,
           sourceAccountId: recurringTransactionRules.sourceAccountId,
           destinationAccountId: recurringTransactionRules.destinationAccountId,
-          amount:
-            sql<string>`case when ${recurringTransactionSplits.id} is not null then ${recurringTransactionSplits.amount} else ${recurringTransactionRules.amount} end`.as(
-              "amount",
-            ),
+          amount: recurringTransactionRules.amount,
           type: recurringTransactionRules.type,
           paymentMethod: recurringTransactionRules.paymentMethod,
           anchorDate: recurringTransactionRules.anchorDate,
@@ -506,36 +440,11 @@ export const accountsRepository = {
             "configured_end_date",
           ),
           occurrenceOverrides: recurringOccurrenceOverridesSql,
-          allocationPersonId:
-            sql<string>`coalesce(${recurringTransactionSplits.personId}, ${recurringTransactionRules.personId})`.as(
-              "allocation_person_id",
-            ),
           dueDate: recurringTransactionRules.dueDate,
           frequency: recurringTransactionRules.frequency,
           isSettled: recurringTransactionRules.isSettled,
         })
         .from(recurringTransactionRules)
-        .innerJoin(
-          recurringPeople,
-          and(
-            eq(recurringTransactionRules.personId, recurringPeople.id),
-            eq(recurringPeople.userId, userId),
-          ),
-        )
-        .leftJoin(
-          recurringTransactionSplits,
-          and(
-            eq(recurringTransactionSplits.recurringRuleId, recurringTransactionRules.id),
-            eq(recurringTransactionSplits.userId, userId),
-          ),
-        )
-        .leftJoin(
-          recurringSplitPeople,
-          and(
-            eq(recurringTransactionSplits.personId, recurringSplitPeople.id),
-            eq(recurringSplitPeople.userId, userId),
-          ),
-        )
         // A boleto occurrence can affect the account before its scheduled month when paid early.
         .where(
           and(
@@ -543,10 +452,6 @@ export const accountsRepository = {
             eq(recurringTransactionRules.status, "active"),
             eq(recurringTransactionRules.type, "expense"),
             eq(recurringTransactionRules.paymentMethod, "boleto"),
-            or(
-              and(isNull(recurringTransactionSplits.id), eq(recurringPeople.role, "admin")),
-              eq(recurringSplitPeople.role, "admin"),
-            ),
           ),
         ),
     ]);

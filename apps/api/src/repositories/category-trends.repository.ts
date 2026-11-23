@@ -14,10 +14,13 @@ import { and, asc, eq, gte, inArray, isNull, lte, ne, or, sql } from "drizzle-or
 import { alias } from "drizzle-orm/pg-core";
 import type { CategoryTrendsRepository } from "../services/category-trends.service";
 import { effectiveRecurringEndDateSql } from "./recurring-transactions.repository";
+import { listCategoryReimbursementsForUser } from "./reimbursements.repository";
 import {
+  countedTransactionSql,
   effectiveSplitAmountSql,
   effectiveTransactionAmountSql,
   recurringOccurrenceOverridesSql,
+  requiresSettlementSql,
 } from "./settlements.repository";
 
 const transactionPeople = alias(people, "category_trend_transaction_people");
@@ -54,6 +57,7 @@ export const categoryTrendsRepository = {
     categoryIds,
     personScope = "admin",
   ) {
+    const ownTotals = personScope === "admin";
     const rows = await db
       .select({
         categoryId: categories.id,
@@ -76,6 +80,7 @@ export const categoryTrendsRepository = {
         and(
           eq(transactionSplits.transactionId, transactions.id),
           eq(transactionSplits.userId, userId),
+          ownTotals ? sql`false` : undefined,
         ),
       )
       .leftJoin(
@@ -93,27 +98,54 @@ export const categoryTrendsRepository = {
           or(ne(categories.name, invoicePaymentCategoryName), eq(categories.isSystem, false)),
           gte(transactions.period, startPeriod),
           lte(transactions.period, endPeriod),
-          personScope === "all"
-            ? undefined
-            : or(
-                and(
-                  isNull(transactionSplits.id),
-                  personScope === "admin"
-                    ? eq(transactionPeople.role, "admin")
-                    : eq(transactionPeople.id, personScope),
+          // Linked reimbursements reduce the expense's category instead of being an income of their own.
+          ownTotals
+            ? and(
+                countedTransactionSql(transactionPeople.role),
+                isNull(transactions.reimbursementPeriod),
+              )
+            : personScope === "all"
+              ? undefined
+              : and(
+                  isNull(transactions.reimbursementPeriod),
+                  or(
+                    and(isNull(transactionSplits.id), eq(transactionPeople.id, personScope)),
+                    eq(splitPeople.id, personScope),
+                  ),
                 ),
-                personScope === "admin"
-                  ? eq(splitPeople.role, "admin")
-                  : eq(splitPeople.id, personScope),
-              ),
           categoryIds.length ? inArray(categories.id, [...categoryIds]) : undefined,
         ),
       )
       .orderBy(asc(transactions.period), asc(categories.name), asc(categories.id));
-    return rows;
+    if (!ownTotals) return rows;
+    const reimbursements = await listCategoryReimbursementsForUser(userId, startPeriod, endPeriod);
+    return [
+      ...rows,
+      ...reimbursements
+        .filter(
+          (entry) =>
+            !categoryIds.length ||
+            (entry.categoryId !== null && categoryIds.includes(entry.categoryId)),
+        )
+        .flatMap((entry) =>
+          entry.categoryId === null
+            ? []
+            : [
+                {
+                  categoryId: entry.categoryId,
+                  origin: entry.origin,
+                  transactionType: entry.type,
+                  type: "expense" as const,
+                  period: entry.period,
+                  amount: entry.amount,
+                },
+              ],
+        ),
+    ];
   },
 
   async listRecurringRulesForUser(userId, periodEnd, categoryIds, personScope = "admin") {
+    const ownTotals = personScope === "admin";
     const rows = await db
       .select({
         categoryId: categories.id,
@@ -136,6 +168,7 @@ export const categoryTrendsRepository = {
           sql<string>`coalesce(${recurringTransactionSplits.personId}, ${recurringTransactionRules.personId})`.as(
             "allocation_person_id",
           ),
+        requiresSettlement: requiresSettlementSql(recurringPeople.role),
         frequency: recurringTransactionRules.frequency,
         paymentMethod: recurringTransactionRules.paymentMethod,
         dueDate: recurringTransactionRules.dueDate,
@@ -160,6 +193,7 @@ export const categoryTrendsRepository = {
         and(
           eq(recurringTransactionSplits.recurringRuleId, recurringTransactionRules.id),
           eq(recurringTransactionSplits.userId, userId),
+          ownTotals ? sql`false` : undefined,
         ),
       )
       .leftJoin(
@@ -183,18 +217,11 @@ export const categoryTrendsRepository = {
           ne(recurringTransactionRules.type, "transfer"),
           or(ne(categories.name, invoicePaymentCategoryName), eq(categories.isSystem, false)),
           lte(recurringTransactionRules.startDate, new Date(periodEnd.getTime() + 32 * 86_400_000)),
-          personScope === "all"
+          ownTotals || personScope === "all"
             ? undefined
             : or(
-                and(
-                  isNull(recurringTransactionSplits.id),
-                  personScope === "admin"
-                    ? eq(recurringPeople.role, "admin")
-                    : eq(recurringPeople.id, personScope),
-                ),
-                personScope === "admin"
-                  ? eq(recurringSplitPeople.role, "admin")
-                  : eq(recurringSplitPeople.id, personScope),
+                and(isNull(recurringTransactionSplits.id), eq(recurringPeople.id, personScope)),
+                eq(recurringSplitPeople.id, personScope),
               ),
           categoryIds.length ? inArray(categories.id, [...categoryIds]) : undefined,
         ),
@@ -209,7 +236,9 @@ export const categoryTrendsRepository = {
       startDate: row.startDate.toISOString().slice(0, 10),
       endDate: row.endDate?.toISOString().slice(0, 10) ?? null,
       occurrenceOverrides: row.occurrenceOverrides,
-      allocationPersonId: row.allocationPersonId,
+      // Whole occurrences count in the user's own totals.
+      allocationPersonId: ownTotals ? undefined : row.allocationPersonId,
+      requiresSettlement: ownTotals && row.requiresSettlement,
 
       configuredEndDate: row.configuredEndDate,
       frequency: row.frequency,

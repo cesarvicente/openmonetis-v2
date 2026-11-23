@@ -1,11 +1,16 @@
+import type { ReimbursementSurplusDestination } from "@openmonetis/domain/reimbursements";
 import type {
   CreateTransactionRefundInput,
   ExportTransactionsQuery,
   ImportTransactionsInput,
   InstallmentOptionsOutput,
+  LinkedReimbursementsOutput,
   PaginatedTransactionsOutput,
+  PartialPaymentInput,
+  PartialPaymentsOutput,
   RecentEstablishmentsOutput,
   RecurringOccurrenceActionInput,
+  RecurringPartialPaymentInput,
   TransactionActionScope,
   TransactionExportOutput,
   TransactionImportPreview,
@@ -13,6 +18,7 @@ import type {
   TransactionInput,
   TransactionOutput,
   TransactionRefundOutput,
+  UpdateReimbursementInput,
   UpdateTransactionInput,
 } from "@openmonetis/validators/transactions";
 import { ApiClientError, requestApi } from "@/lib/api-client";
@@ -24,6 +30,7 @@ export type TransactionsApiSearch = Omit<
 > & {
   view?: "accountStatement";
   groupCardInvoices?: true;
+  includeOverdue?: true;
   personIds?: string[];
   categoryIds?: string[];
   tagIds?: string[];
@@ -56,6 +63,7 @@ function transactionsSearchParams(search: TransactionsApiSearch) {
     settlement: search.settlement,
     view: search.view,
     groupCardInvoices: search.groupCardInvoices,
+    includeOverdue: search.includeOverdue,
     sort: search.sort,
     minAmount: search.minAmount,
     maxAmount: search.maxAmount,
@@ -205,6 +213,7 @@ export const settleTransactions = (input: {
   settledDate?: string;
   settledAmount?: number;
   accountId?: string;
+  surplusDestination?: ReimbursementSurplusDestination;
 }) =>
   request<{ ids: string[]; isSettled: boolean }>("/transactions/settlement", {
     method: "PATCH",
@@ -234,3 +243,45 @@ export const applyRecurringRuleAction = (input: {
       body: JSON.stringify({ action: input.action, occurrenceDate: input.occurrenceDate }),
     },
   );
+
+export function getLinkedReimbursements(id: string) {
+  return request<LinkedReimbursementsOutput>(`/transactions/${id}/reimbursements`);
+}
+
+export function getRecurringLinkedReimbursements(recurringRuleId: string, occurrenceDate: string) {
+  const params = new URLSearchParams({ occurrenceDate });
+  return request<LinkedReimbursementsOutput>(
+    `/transactions/recurring-rules/${recurringRuleId}/reimbursements?${params}`,
+  );
+}
+
+export function updateReimbursement({ id, data }: { id: string; data: UpdateReimbursementInput }) {
+  return request<TransactionOutput>(`/transactions/${id}/reimbursement`, {
+    method: "PATCH",
+    body: JSON.stringify(data),
+  });
+}
+
+export function getPartialPayments(id: string) {
+  return request<PartialPaymentsOutput>(`/transactions/${id}/partial-payments`);
+}
+
+export function registerPartialPayment({ id, data }: { id: string; data: PartialPaymentInput }) {
+  return request<PartialPaymentsOutput>(`/transactions/${id}/partial-payments`, {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export function registerRecurringPartialPayment(data: RecurringPartialPaymentInput) {
+  return request<PartialPaymentsOutput>("/transactions/recurring-occurrences/partial-payments", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export function removePartialPayment({ id, paymentId }: { id: string; paymentId: string }) {
+  return request<PartialPaymentsOutput>(`/transactions/${id}/partial-payments/${paymentId}`, {
+    method: "DELETE",
+  });
+}

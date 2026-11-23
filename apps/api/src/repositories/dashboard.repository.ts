@@ -4,7 +4,6 @@ import {
   dashboardPreferences,
   db,
   financialAccounts,
-  invoicePaymentAllocations,
   invoicePayments,
   invoices,
   people,
@@ -20,10 +19,13 @@ import { and, eq, gte, lte, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import type { DashboardRepository } from "../services/dashboard.service";
 import { effectiveRecurringEndDateSql } from "./recurring-transactions.repository";
+import { listCategoryReimbursementsForUser } from "./reimbursements.repository";
 import {
+  countedTransactionSql,
   effectiveSplitAmountSql,
   effectiveTransactionAmountSql,
   recurringOccurrenceOverridesSql,
+  requiresSettlementSql,
 } from "./settlements.repository";
 
 const transactionAccounts = alias(financialAccounts, "dashboard_transaction_accounts");
@@ -110,25 +112,11 @@ export const dashboardRepository = {
           string | null
         >`(select p.icon from categories p where p.id = ${transactionCategories.parentId} and p.user_id = ${userId})`,
         categoryIcon: transactionCategories.icon,
-        adminAmount: sql<string | null>`case
-          when exists (
-            select 1 from ${transactionSplits}
-            where ${transactionSplits.userId} = ${userId}
-              and ${transactionSplits.transactionId} = ${transactions.id}
-          ) then (
-            select ${effectiveSplitAmountSql}
-            from ${transactionSplits}
-            inner join ${people}
-              on ${people.id} = ${transactionSplits.personId}
-              and ${people.userId} = ${userId}
-              and ${people.role} = 'admin'
-            where ${transactionSplits.userId} = ${userId}
-              and ${transactionSplits.transactionId} = ${transactions.id}
-            limit 1
-          )
-          when ${transactionPeople.role} = 'admin' then ${effectiveTransactionAmountSql}
-          else null
-        end`.as("admin_amount"),
+        countedAmount: sql<
+          string | null
+        >`case when ${countedTransactionSql(transactionPeople.role)} then ${effectiveTransactionAmountSql} end`.as(
+          "counted_amount",
+        ),
         condition: transactions.condition,
         isSettled:
           sql<boolean>`case when ${transactions.cardId} is not null then coalesce(${invoices.paymentStatus} = 'paid', false) else coalesce(${transactions.isSettled}, false) end`.as(
@@ -228,25 +216,7 @@ export const dashboardRepository = {
           string | null
         >`(select p.icon from categories p where p.id = ${recurringCategories.parentId} and p.user_id = ${userId})`,
         categoryIcon: recurringCategories.icon,
-        adminAmount: sql<string | null>`case
-          when exists (
-            select 1 from ${recurringTransactionSplits}
-            where ${recurringTransactionSplits.userId} = ${userId}
-              and ${recurringTransactionSplits.recurringRuleId} = ${recurringTransactionRules.id}
-          ) then (
-            select ${recurringTransactionSplits.amount}
-            from ${recurringTransactionSplits}
-            inner join ${people}
-              on ${people.id} = ${recurringTransactionSplits.personId}
-              and ${people.userId} = ${userId}
-              and ${people.role} = 'admin'
-            where ${recurringTransactionSplits.userId} = ${userId}
-              and ${recurringTransactionSplits.recurringRuleId} = ${recurringTransactionRules.id}
-            limit 1
-          )
-          when ${recurringPeople.role} = 'admin' then ${recurringTransactionRules.amount}
-          else null
-        end`.as("admin_amount"),
+        requiresSettlement: requiresSettlementSql(recurringPeople.role),
         cardId: recurringTransactionRules.cardId,
         isSettled: recurringTransactionRules.isSettled,
         type: recurringTransactionRules.type,
@@ -355,7 +325,7 @@ export const dashboardRepository = {
       categoryParentName: row.categoryParentName,
       categoryParentIcon: row.categoryParentIcon,
       categoryIcon: row.categoryIcon,
-      adminAmount: row.adminAmount,
+      requiresSettlement: row.requiresSettlement,
       occurrenceOverrides: row.occurrenceOverrides,
 
       configuredEndDate: row.configuredEndDate,
@@ -502,31 +472,20 @@ export const dashboardRepository = {
     }));
   },
 
-  listAdminInvoicePaymentAllocations(userId, period) {
+  listInvoicePayments(userId, period) {
     return db
       .select({
-        amount: invoicePaymentAllocations.amount,
+        amount: invoicePayments.amount,
         cardId: invoicePayments.cardId,
         period: invoicePayments.period,
       })
-      .from(invoicePaymentAllocations)
-      .innerJoin(
-        invoicePayments,
-        and(
-          eq(invoicePaymentAllocations.paymentId, invoicePayments.id),
-          eq(invoicePayments.userId, userId),
-        ),
-      )
-      .innerJoin(
-        people,
-        and(
-          eq(invoicePaymentAllocations.personId, people.id),
-          eq(people.userId, userId),
-          eq(people.role, "admin"),
-        ),
-      )
-      .where(
-        and(eq(invoicePaymentAllocations.userId, userId), lte(invoicePayments.period, period)),
-      );
+      .from(invoicePayments)
+      .where(and(eq(invoicePayments.userId, userId), lte(invoicePayments.period, period)));
+  },
+
+  listCategoryReimbursements(userId, startPeriod, endPeriod) {
+    return listCategoryReimbursementsForUser(userId, startPeriod, endPeriod, {
+      includePurchasePeriod: true,
+    });
   },
 } satisfies DashboardRepository;

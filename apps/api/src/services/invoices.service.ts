@@ -14,8 +14,9 @@ import {
 } from "@openmonetis/domain/due-date-rules";
 import {
   calculateInvoicePersonBalances,
+  calculateInvoiceTotals,
   createInvoiceAdjustmentDraft,
-  validateInvoicePaymentAllocations,
+  isValidInvoicePaymentAmount,
 } from "@openmonetis/domain/invoices";
 import {
   addMonthsToPeriod,
@@ -56,7 +57,6 @@ type InvoiceMovementRecord = {
   personRole: "admin" | "external";
   amount: string;
 };
-type InvoiceAllocationRecord = { cardId: string; personId: string; amount: string };
 type InvoicePaymentRecord = {
   id: string;
   cardId: string;
@@ -94,18 +94,16 @@ export type InvoicesRepository = {
     userId: string,
     periodEnd: Date,
   ): Promise<InvoiceRecurringMovementRecord[]>;
-  listPaymentAllocations(userId: string, period: string): Promise<InvoiceAllocationRecord[]>;
   listPayments(userId: string, period: string): Promise<InvoicePaymentRecord[]>;
+  listUnpaidPeriods(userId: string, fromPeriod: string, beforePeriod: string): Promise<string[]>;
   listDates(userId: string, period: string): Promise<InvoiceDateRecord[]>;
   findOwnedContext(
     userId: string,
     cardId: string,
-    accountId: string | null,
-    personIds: string[],
+    accountId: string,
   ): Promise<{
     card: { id: string; name: string } | null;
     account: { id: string; name: string } | null;
-    people: { id: string; name: string }[];
     adminPersonId: string | null;
     paymentCategoryId: string | null;
   }>;
@@ -113,18 +111,16 @@ export type InvoicesRepository = {
     userId: string;
     cardId: string;
     cardName: string;
-    accountId: string | null;
+    accountId: string;
     adminPersonId: string;
     period: string;
     paidAt: string;
     amount: number;
-    adminAmount: number;
     expectedPaidAmount: number;
     expectedDueDateRuleExcluded: boolean;
     remainingAmount: number;
-    paymentCategoryId: string | null;
+    paymentCategoryId: string;
     note: string;
-    allocations: { personId: string; amount: number }[];
     closingDate: string;
     dueDate: string;
     originalDueDate?: string;
@@ -189,13 +185,12 @@ export function createInvoicesService(
 ) {
   async function get(period: string, userId: string): Promise<DashboardInvoicesOutput> {
     const dueDateRuleVersions = await dueDateRules.listVersions(userId);
-    const [cards, accounts, persistedMovements, recurringMovements, allocations, payments, dates] =
+    const [cards, accounts, persistedMovements, recurringMovements, payments, dates] =
       await Promise.all([
         repository.listCards(userId),
         repository.listAccounts(userId),
         repository.listMovements(userId, period),
         repository.listRecurringMovements(userId, getPeriodEndDate(period)),
-        repository.listPaymentAllocations(userId, period),
         repository.listPayments(userId, period),
         repository.listDates(userId, period),
       ]);
@@ -207,15 +202,13 @@ export function createInvoicesService(
       const cardMovements = movements.filter((item) => item.cardId === card.id);
       const people = calculateInvoicePersonBalances(
         cardMovements.map((item) => ({ ...item, amount: Number(item.amount) })),
-        allocations
-          .filter((item) => item.cardId === card.id)
-          .map((item) => ({ personId: item.personId, amount: Number(item.amount) })),
       );
-      const amount = people.reduce((sum, item) => sum + item.amount, 0);
-      if (amount <= 0) return [];
-      const paidAmount = people.reduce((sum, item) => sum + item.paidAmount, 0);
-      const remainingAmount = people.reduce((sum, item) => sum + item.remainingAmount, 0);
       const cardPayments = payments.filter((item) => item.cardId === card.id);
+      const { amount, paidAmount, remainingAmount } = calculateInvoiceTotals(
+        cardMovements.map((item) => ({ amount: Number(item.amount) })),
+        cardPayments.map((item) => ({ amount: Number(item.amount) })),
+      );
+      if (amount <= 0) return [];
       const effectiveDates = dates.find((item) => item.cardId === card.id);
       const summary = calculateCardInvoiceSummary({
         period,
@@ -282,6 +275,14 @@ export function createInvoicesService(
 
   return {
     get,
+    /** Invoices of previous months still to be paid, oldest first. */
+    async listOverdue(userId: string, fromPeriod: string, beforePeriod: string) {
+      const periods = await repository.listUnpaidPeriods(userId, fromPeriod, beforePeriod);
+      const snapshots = await Promise.all(periods.map((period) => get(period, userId)));
+      return snapshots.flatMap((snapshot) =>
+        snapshot.items.filter((invoice) => invoice.status === "overdue"),
+      );
+    },
     async pay(
       cardId: string,
       period: string,
@@ -293,68 +294,34 @@ export function createInvoicesService(
       const snapshot = await get(period, userId);
       const invoice = snapshot.items.find((item) => item.cardId === cardId);
       if (!invoice) throw notFound("Invoice not found", "invoice_not_found");
-      let totalAmount: number;
-      try {
-        totalAmount = validateInvoicePaymentAllocations(
-          invoice.people,
-          input.allocations,
-        ).totalAmount;
-      } catch {
+      if (!isValidInvoicePaymentAmount(input.amount, invoice.remainingAmount))
         throw badRequest("Invalid payment amount", "invalid_invoice_payment_amount");
-      }
-      const context = await repository.findOwnedContext(
-        userId,
-        cardId,
-        input.accountId ?? null,
-        input.allocations.map((item) => item.personId),
-      );
+      const context = await repository.findOwnedContext(userId, cardId, input.accountId);
       if (!context.card) throw notFound("Card not found", "card_not_found");
-      if (
-        !context.adminPersonId ||
-        context.people.length !== new Set(input.allocations.map((item) => item.personId)).size
-      )
-        throw notFound("Person not found", "person_not_found");
-      const adminAmount = money(
-        input.allocations
-          .filter((allocation) => allocation.personId === context.adminPersonId)
-          .reduce((sum, allocation) => sum + allocation.amount, 0),
-      );
-      if (input.accountId && !context.account)
-        throw notFound("Account not found", "account_not_found");
-      if (adminAmount > 0 && !context.account) {
-        throw badRequest(
-          "Payment account is required for the primary person allocation",
-          "invoice_payment_account_required",
-        );
-      }
-      if (adminAmount > 0 && !context.paymentCategoryId)
+      if (!context.adminPersonId) throw notFound("Person not found", "person_not_found");
+      if (!context.account) throw notFound("Account not found", "account_not_found");
+      if (!context.paymentCategoryId)
         throw notFound("Payment category not found", "payment_category_not_found");
-      const paymentAccount = adminAmount > 0 ? context.account : null;
-      const remainingAmount = money(invoice.remainingAmount - totalAmount);
+      const remainingAmount = money(invoice.remainingAmount - input.amount);
       const payment = await repository.insertPayment({
         userId,
         cardId,
         cardName: context.card.name,
-        accountId: paymentAccount?.id ?? null,
+        accountId: context.account.id,
         adminPersonId: context.adminPersonId,
         period,
         paidAt: input.paidAt,
-        amount: totalAmount,
-        adminAmount,
+        amount: input.amount,
         expectedPaidAmount: invoice.paidAmount,
         expectedDueDateRuleExcluded: invoice.dueDateRuleExcluded ?? false,
         remainingAmount,
         paymentCategoryId: context.paymentCategoryId,
         note: createInvoicePaymentNote({
           cardName: context.card.name,
-          accountName: paymentAccount?.name ?? null,
-          accountAmount: adminAmount,
-          allocations: input.allocations,
-          people: context.people,
-          totalAmount,
+          accountName: context.account.name,
+          amount: input.amount,
           remainingAmount,
         }),
-        allocations: input.allocations,
         closingDate: invoice.closingDate,
         dueDate: invoice.dueDate,
         originalDueDate: invoice.originalDueDate ?? invoice.dueDate,
@@ -368,8 +335,8 @@ export function createInvoicesService(
       }
       return {
         id: payment.id,
-        amount: totalAmount,
-        accountAmount: adminAmount,
+        amount: input.amount,
+        accountAmount: input.amount,
         remainingAmount,
         status: remainingAmount === 0 ? "paid" : invoice.status,
       };
@@ -405,12 +372,6 @@ export function createInvoicesService(
       }
       const previousAmount = money(invoice?.amount ?? 0);
       const currentAmount = money(input.amount);
-      if (currentAmount < (invoice?.paidAmount ?? 0)) {
-        throw badRequest(
-          "Adjusted amount cannot be lower than the paid amount",
-          "invoice_adjustment_below_paid_amount",
-        );
-      }
       const adjustment = createInvoiceAdjustmentDraft(previousAmount, currentAmount);
       if (!adjustment) {
         return { id: null, previousAmount, currentAmount, adjustmentAmount: 0, type: null };
@@ -512,29 +473,13 @@ function money(value: number) {
 
 function createInvoicePaymentNote(input: {
   cardName: string;
-  accountName: string | null;
-  accountAmount: number;
-  allocations: { personId: string; amount: number }[];
-  people: { id: string; name: string }[];
-  totalAmount: number;
+  accountName: string;
+  amount: number;
   remainingAmount: number;
 }) {
-  const peopleById = new Map(input.people.map((person) => [person.id, person.name]));
-  const paymentKind = input.remainingAmount === 0 ? "total" : "parcial";
-  const allocations = input.allocations
-    .map(
-      (allocation) =>
-        `${peopleById.get(allocation.personId) ?? "Pessoa"}: ${formatCurrency(allocation.amount)}`,
-    )
-    .join("; ");
-
   return [
-    `Pagamento ${paymentKind} da fatura ${input.cardName}.`,
-    input.accountName && input.accountAmount > 0
-      ? `Parcela da pessoa principal movimentada pela conta ${input.accountName}: ${formatCurrency(input.accountAmount)}.`
-      : "Pagamento de pessoa externa, sem movimentação em conta financeira.",
-    `Rateio: ${allocations}.`,
-    `Valor pago: ${formatCurrency(input.totalAmount)}.`,
+    `Pagamento ${input.remainingAmount === 0 ? "total" : "parcial"} da fatura ${input.cardName}.`,
+    `Valor pago pela conta ${input.accountName}: ${formatCurrency(input.amount)}.`,
     input.remainingAmount > 0
       ? `Saldo restante da fatura: ${formatCurrency(input.remainingAmount)}.`
       : "Fatura quitada integralmente.",

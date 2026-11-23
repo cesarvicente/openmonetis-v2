@@ -13,6 +13,7 @@ import {
 import { InstallmentActionDialog } from "./installment-action-dialog";
 import { RecurringStatusDialog } from "./recurring-status-dialog";
 import type { TransactionDetailsSheetProps } from "./transaction-details-sheet.types";
+import { TransactionRemovalWarnings } from "./transaction-removal-warnings";
 export function TransactionDetailsActionDialogs({
   detail,
   mobileActions,
@@ -45,6 +46,7 @@ export function TransactionDetailsActionDialogs({
                 <AlertDialogDescription>
                   O lançamento “{detail.name}” será removido desta base.
                 </AlertDialogDescription>
+                <TransactionRemovalWarnings transaction={detail} />
               </AlertDialogHeader>
               <AlertDialogFooter>
                 <AlertDialogCancel>Cancelar</AlertDialogCancel>

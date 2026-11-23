@@ -26,7 +26,6 @@ const recurringBoleto: DashboardRecurringRuleRecord = {
   id: recurringRuleId,
   seriesId: recurringSeriesId,
   accountId,
-  adminAmount: "-186.40",
   amount: "-186.40",
   categoryId: "40000000-0000-4000-8000-000000000004",
   categoryIcon: "zap",
@@ -57,7 +56,8 @@ const recurringBoleto: DashboardRecurringRuleRecord = {
 const repository: DashboardRepository = {
   deleteWidgetPreferences: async () => undefined,
   findWidgetPreferences: async () => null,
-  listAdminInvoicePaymentAllocations: async () => [],
+  listCategoryReimbursements: async () => [],
+  listInvoicePayments: async () => [],
   listInvoiceStatuses: async () => [],
   listRecurringOccurrenceStates: async () => [
     {
@@ -95,7 +95,7 @@ function boletoRecord(isSettled: boolean): DashboardTransactionRecord {
   return {
     id: "60000000-0000-4000-8000-000000000006",
     accountId,
-    adminAmount: "-100.00",
+    countedAmount: "-100.00",
     amount: "-100.00",
     cardId: null,
     categoryId: "40000000-0000-4000-8000-000000000004",
@@ -232,7 +232,7 @@ test("forecast ignores pending expenses assigned only to an external person", as
   const externalExpense = {
     ...adminExpense,
     id: "80000000-0000-4000-8000-000000000008",
-    adminAmount: null,
+    countedAmount: null,
     amount: "-22222.22",
     personId: "90000000-0000-4000-8000-000000000009",
     personName: "Pessoa externa",
@@ -258,7 +258,7 @@ test("forecast uses only the admin allocation from a split expense", async () =>
   const splitExpense = {
     ...boletoRecord(false),
     id: "a0000000-0000-4000-8000-00000000000a",
-    adminAmount: "-250.00",
+    countedAmount: "-250.00",
     amount: "-1000.00",
     paymentMethod: "credit_card" as const,
     cardId,
@@ -278,7 +278,7 @@ test("forecast uses only the admin allocation from a split expense", async () =>
 test("paying a split boleto preserves the admin-scoped forecast", async () => {
   const pendingBoleto = {
     ...boletoRecord(false),
-    adminAmount: "-400.00",
+    countedAmount: "-400.00",
     amount: "-1000.00",
   };
   const paidBoleto = {
@@ -302,11 +302,11 @@ test("paying a split boleto preserves the admin-scoped forecast", async () => {
   assert.equal(paid.projected.current, 600);
 });
 
-test("forecast subtracts a partial payment of the admin invoice allocation", async () => {
+test("forecast subtracts a partial payment of the invoice", async () => {
   const invoiceExpense = {
     ...boletoRecord(false),
     cardId,
-    adminAmount: "-1000.00",
+    countedAmount: "-1000.00",
     amount: "-10999.99",
     paymentMethod: "credit_card" as const,
     purchaseDate: "2026-09-01",
@@ -316,9 +316,7 @@ test("forecast subtracts a partial payment of the admin invoice allocation", asy
   const service = createDashboardService(
     {
       ...scenarioRepository(invoiceExpense),
-      listAdminInvoicePaymentAllocations: async () => [
-        { amount: "500.00", cardId, period: "2026-09" },
-      ],
+      listInvoicePayments: async () => [{ amount: "500.00", cardId, period: "2026-09" }],
     },
     {
       list: async (_userId, period) => [accountBalance(period, 500)],
@@ -352,7 +350,7 @@ test("invoice reductions decrease expenses instead of contributing to income", a
   const purchase = {
     ...boletoRecord(false),
     id: "b0000000-0000-4000-8000-00000000000b",
-    adminAmount: "-100.00",
+    countedAmount: "-100.00",
     amount: "-100.00",
     cardId,
     paymentMethod: "credit_card" as const,
@@ -362,7 +360,7 @@ test("invoice reductions decrease expenses instead of contributing to income", a
   const reduction = {
     ...purchase,
     id: "c0000000-0000-4000-8000-00000000000c",
-    adminAmount: "20.00",
+    countedAmount: "20.00",
     amount: "20.00",
     categoryName: "Outras receitas",
     origin: "invoiceAdjustment" as const,
@@ -371,7 +369,7 @@ test("invoice reductions decrease expenses instead of contributing to income", a
   const increase = {
     ...purchase,
     id: "d0000000-0000-4000-8000-00000000000d",
-    adminAmount: "-10.00",
+    countedAmount: "-10.00",
     amount: "-10.00",
     categoryName: "Outras despesas",
     origin: "invoiceAdjustment" as const,
@@ -430,12 +428,10 @@ test("dashboard upgrades only the old default order without hiding widgets", () 
   ];
   const result = normalizeDashboardWidgetPreferences({ order: previous, hidden: [] });
   assert.deepEqual(result.order, createDefaultDashboardWidgetPreferences().order);
-  assert.equal(result.order.includes("person-settlements"), true);
+  assert.equal(result.order.includes("reimbursements"), true);
   assert.deepEqual(result.hidden, []);
   const custom = [...previous].reverse();
-  const expectedCustom = custom.map((id) =>
-    id === "external-expenses" ? "person-settlements" : id,
-  );
+  const expectedCustom = custom.map((id) => (id === "external-expenses" ? "reimbursements" : id));
   expectedCustom.splice(expectedCustom.indexOf("budgets") + 1, 0, "goals");
   assert.deepEqual(
     normalizeDashboardWidgetPreferences({ order: custom, hidden: ["external-expenses"] }),
@@ -443,22 +439,22 @@ test("dashboard upgrades only the old default order without hiding widgets", () 
       columns: 3,
       layouts: createDefaultDashboardWidgetPreferences().layouts,
       order: expectedCustom,
-      hidden: ["person-settlements"],
+      hidden: ["reimbursements"],
     },
   );
 });
 
-test("payment status includes only admin allocations, regardless of transaction owner", async () => {
+test("payment status counts whole transactions and skips what is neither received nor guaranteed", async () => {
   const records: DashboardTransactionRecord[] = [
-    { ...boletoRecord(true), amount: "-500.00", adminAmount: "-125.25" },
-    { ...boletoRecord(false), amount: "-800.00", adminAmount: "-250.50", personRole: "external" },
-    { ...boletoRecord(false), amount: "-900.00", adminAmount: null },
-    { ...boletoRecord(true), type: "income", amount: "600.00", adminAmount: "200.00" },
+    { ...boletoRecord(true), amount: "-500.00", countedAmount: "-125.25" },
+    { ...boletoRecord(false), amount: "-800.00", countedAmount: "-250.50", personRole: "external" },
+    { ...boletoRecord(false), amount: "-900.00", countedAmount: null },
+    { ...boletoRecord(true), type: "income", amount: "600.00", countedAmount: "200.00" },
     {
       ...boletoRecord(false),
       type: "income",
       amount: "400.00",
-      adminAmount: "100.00",
+      countedAmount: "100.00",
       personRole: "external",
     },
     {
@@ -466,12 +462,12 @@ test("payment status includes only admin allocations, regardless of transaction 
       type: "income",
       origin: "refund",
       amount: "50.00",
-      adminAmount: "25.00",
+      countedAmount: "25.00",
     },
-    { ...boletoRecord(true), origin: "invoicePayment", adminAmount: "-1000.00" },
-    { ...boletoRecord(true), origin: "accountBalanceAdjustment", adminAmount: "-1000.00" },
-    { ...boletoRecord(true), type: "transfer", adminAmount: "-1000.00" },
-    { ...boletoRecord(true), period: "2026-08", adminAmount: "-1000.00" },
+    { ...boletoRecord(true), origin: "invoicePayment", countedAmount: "-1000.00" },
+    { ...boletoRecord(true), origin: "accountBalanceAdjustment", countedAmount: "-1000.00" },
+    { ...boletoRecord(true), type: "transfer", countedAmount: "-1000.00" },
+    { ...boletoRecord(true), period: "2026-08", countedAmount: "-1000.00" },
   ];
   const service = createDashboardService(scenarioRepository(...records), { list: async () => [] });
   assert.deepEqual(await service.getPaymentStatus("2026-09", userId), {
@@ -481,35 +477,35 @@ test("payment status includes only admin allocations, regardless of transaction 
   });
 });
 
-test("payment status counts admin recurring shares and preserves occurrence payment state", async () => {
+test("payment status counts whole recurrences and waits for money that is not guaranteed", async () => {
   const service = createDashboardService(
     {
       ...repository,
       listRecurringRules: async () => [
-        { ...recurringBoleto, amount: "-500.00", adminAmount: "-125.25" },
+        { ...recurringBoleto, amount: "-125.25" },
         {
           ...recurringBoleto,
           id: "external-owner",
           seriesId: "external-owner-series",
-          amount: "-800.00",
-          adminAmount: "-250.50",
+          amount: "-250.50",
           personRole: "external",
-        },
-        {
-          ...recurringBoleto,
-          id: "external-only",
-          seriesId: "external-only-series",
-          amount: "-900.00",
-          adminAmount: null,
         },
         {
           ...recurringBoleto,
           id: "income",
           seriesId: "income-series",
           type: "income",
-          amount: "600.00",
-          adminAmount: "200.00",
+          amount: "200.00",
           personRole: "external",
+        },
+        {
+          ...recurringBoleto,
+          id: "unguaranteed-income",
+          seriesId: "unguaranteed-income-series",
+          type: "income",
+          amount: "999.00",
+          personRole: "external",
+          requiresSettlement: true,
         },
       ],
     },
@@ -520,6 +516,56 @@ test("payment status counts admin recurring shares and preserves occurrence paym
     expenses: { confirmed: 125.25, pending: 250.5, total: 375.75 },
     income: { confirmed: 0, pending: 200, total: 200 },
   });
+});
+
+test("a reimbursement is income of the month it arrives and reduces the expense's category", async () => {
+  const dinner = {
+    ...boletoRecord(true),
+    paymentMethod: "pix" as const,
+    amount: "-200.00",
+    countedAmount: "-200.00",
+    period: "2026-09",
+    purchaseDate: "2026-09-05",
+  };
+  const reimbursement = {
+    ...dinner,
+    id: "reimbursement",
+    type: "income" as const,
+    origin: "reimbursement" as const,
+    personRole: "external" as const,
+    categoryId: "40000000-0000-4000-8000-000000000009",
+    categoryName: "Reembolso",
+    amount: "100.00",
+    countedAmount: "100.00",
+  };
+  const service = createDashboardService(
+    {
+      ...scenarioRepository(dinner, reimbursement),
+      listCategoryReimbursements: async () => [
+        {
+          amount: "100.00",
+          categoryId: dinner.categoryId,
+          categoryIcon: null,
+          categoryName: dinner.categoryName,
+          categoryParentId: null,
+          categoryParentName: null,
+          categoryParentIcon: null,
+          expensePaymentMethod: "pix",
+          expensePurchaseDate: "2026-09-05",
+          origin: "refund",
+          period: "2026-09",
+          type: "income",
+        },
+      ],
+    },
+    { list: async () => [] },
+  );
+  const snapshot = await service.getSnapshot("2026-09", userId);
+  assert.equal(snapshot.metrics.expenses.current, 200);
+  assert.equal(snapshot.metrics.income.current, 100);
+  assert.equal(snapshot.metrics.balance.current, -100);
+  assert.equal(snapshot.categoryBreakdown.expensesTotal, 100);
+  assert.equal(snapshot.categoryBreakdown.incomeTotal, 100);
 });
 
 test("dashboard migrates the recent default order and retains hidden widgets", () => {

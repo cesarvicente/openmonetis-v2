@@ -23,6 +23,11 @@ import {
   isActiveRecurringOccurrence,
   RecurringTransitionError,
 } from "@openmonetis/domain/recurring-transactions";
+import {
+  allocateReimbursementSurplus,
+  canChangeReimbursementDueDate,
+  type ReimbursementSurplusDestination,
+} from "@openmonetis/domain/reimbursements";
 import { getOccurrenceAmount, SettlementError } from "@openmonetis/domain/settlements";
 import { matchesTransactionTags } from "@openmonetis/domain/tags";
 import type { ImportedStatement, ImportedTransaction } from "@openmonetis/domain/transactions";
@@ -47,11 +52,13 @@ import {
   groupCardInvoiceItems,
   InsufficientTransferBalanceError,
   isAutoSettleDue,
+  isOverdueTransaction,
   listRecurrenceDatesInPeriod,
   normalizeImportedAmount,
   normalizeImportedDescriptionKey,
   normalizeImportedType,
   normalizeTransactionAmount,
+  overdueLookbackMonths,
   parseOfxStatement,
   previewInstallmentOptions,
   projectTransactionAllocations,
@@ -69,14 +76,21 @@ import type {
   ExportTransactionsQuery,
   ImportTransactionsInput,
   InstallmentOptionsQuery,
+  LinkedReimbursementsOutput,
   ListTransactionsQuery,
+  PartialPaymentInput,
+  PartialPaymentsOutput,
   PreviewTransactionImportInput,
   RecurringOccurrenceActionInput,
+  RecurringPartialPaymentInput,
+  ReimbursementSource,
+  ReimbursementSummary,
   TransactionActionScope,
   TransactionInput,
   TransactionOutput,
   TransactionRefundOutput,
   UpdateRecurringRuleQuery,
+  UpdateReimbursementInput,
   UpdateTransactionInput,
 } from "@openmonetis/validators/transactions";
 import {
@@ -86,6 +100,8 @@ import {
 import ExcelJS from "exceljs";
 import type {
   RecurringRuleWithRelations,
+  ReimbursementSourceRecord,
+  ReimbursementSummaryRecord,
   TransactionCreateRecord,
   TransactionUpdateRecord,
   TransactionWithRelations,
@@ -93,7 +109,9 @@ import type {
 import { badRequest, conflict, notFound } from "../utils/errors";
 import { createTransactionsExport } from "../utils/transactions-export";
 import type { AttachmentsService } from "./attachments.service";
+import type { InvoicesService } from "./invoices.service";
 
+type PartialPaymentsRepositoryModule = typeof import("../repositories/partial-payments.repository");
 type TransactionsRepositoryModule = typeof import("../repositories/transactions.repository");
 
 export type TransactionsServiceDependencies = Pick<
@@ -129,6 +147,7 @@ export type TransactionsServiceDependencies = Pick<
   | "listTransactionSplitsForUser"
   | "listTransactionsByPeriod"
   | "listTransactionsByDueDateRange"
+  | "listOverdueTransactionsBeforePeriod"
   | "listAccountStatementTransactionsForUser"
   | "listTransactionsByPurchaseDateRange"
   | "listSettledRecurringBoletoOccurrencesByPaymentDateForUser"
@@ -141,25 +160,41 @@ export type TransactionsServiceDependencies = Pick<
   | "updateTransactionSeriesRangeWithSplitsForUser"
   | "updateTransactionWithSplitsForUser"
   | "updateTransferPairForUser"
-> & {
-  dueDateRules?: DueDateRulesReader;
-  transitionRecurringRuleForUser: typeof import("../repositories/recurring-transactions.repository").transitionRecurringRuleForUser;
-  listTagsByIdsForUser?: (ids: string[], userId: string) => Promise<Array<{ id: string }>>;
-  getAccountBalanceSnapshotForUser: (
-    accountId: string,
-    userId: string,
-    period: string,
-  ) => Promise<{ displayed: number; persisted: number }>;
-  findAccountByIdForUser: typeof import("../repositories/accounts.repository").findAccountByIdForUser;
-  findCardByIdForUser: typeof import("../repositories/cards.repository").findCardByIdForUser;
-  findCategoryByIdForUser: typeof import("../repositories/categories.repository").findCategoryByIdForUser;
-  findSystemCategoryByNameForUser: typeof import("../repositories/categories.repository").findSystemCategoryByNameForUser;
-  listCategoriesByIdsForUser: typeof import("../repositories/categories.repository").listCategoriesByIdsForUser;
-  listCategoryFamilyIdsForUser: typeof import("../repositories/categories.repository").listCategoryFamilyIdsForUser;
-  findAdminPersonByUserId: typeof import("../repositories/people.repository").findAdminPersonByUserId;
-  findPersonByIdForUser: typeof import("../repositories/people.repository").findPersonByIdForUser;
-  listPeopleByIdsForUser: typeof import("../repositories/people.repository").listPeopleByIdsForUser;
-};
+> &
+  Pick<
+    PartialPaymentsRepositoryModule,
+    | "deletePartialPaymentForUser"
+    | "hasPartialPaymentsForUser"
+    | "hasReceivedReimbursementsForUser"
+    | "insertPartialPaymentForUser"
+    | "insertReimbursementSurplusForUser"
+    | "listLinkedReimbursementsForUser"
+    | "listPartialPaymentsForUser"
+    | "listRecurringLinkedReimbursementsForUser"
+    | "listSiblingReimbursementsForUser"
+    | "materializeRecurringOccurrenceForUser"
+    | "updateReimbursementForUser"
+    | "updateReimbursementsOfExpensesForUser"
+  > & {
+    dueDateRules?: DueDateRulesReader;
+    listOverdueInvoices?: InvoicesService["listOverdue"];
+    transitionRecurringRuleForUser: typeof import("../repositories/recurring-transactions.repository").transitionRecurringRuleForUser;
+    listTagsByIdsForUser?: (ids: string[], userId: string) => Promise<Array<{ id: string }>>;
+    getAccountBalanceSnapshotForUser: (
+      accountId: string,
+      userId: string,
+      period: string,
+    ) => Promise<{ displayed: number; persisted: number }>;
+    findAccountByIdForUser: typeof import("../repositories/accounts.repository").findAccountByIdForUser;
+    findCardByIdForUser: typeof import("../repositories/cards.repository").findCardByIdForUser;
+    findCategoryByIdForUser: typeof import("../repositories/categories.repository").findCategoryByIdForUser;
+    findSystemCategoryByNameForUser: typeof import("../repositories/categories.repository").findSystemCategoryByNameForUser;
+    listCategoriesByIdsForUser: typeof import("../repositories/categories.repository").listCategoriesByIdsForUser;
+    listCategoryFamilyIdsForUser: typeof import("../repositories/categories.repository").listCategoryFamilyIdsForUser;
+    findAdminPersonByUserId: typeof import("../repositories/people.repository").findAdminPersonByUserId;
+    findPersonByIdForUser: typeof import("../repositories/people.repository").findPersonByIdForUser;
+    listPeopleByIdsForUser: typeof import("../repositories/people.repository").listPeopleByIdsForUser;
+  };
 
 type OwnershipContext = {
   person: { id: string; name: string };
@@ -207,6 +242,42 @@ function assertBoletoPaymentDateIsNotFuture(data: TransactionInput) {
 
 const recentEstablishmentsLookbackMonths = 2;
 const recentEstablishmentsLimit = 100;
+
+function toReimbursementSummary(
+  record: ReimbursementSummaryRecord | null | undefined,
+): ReimbursementSummary | null {
+  if (!record) return null;
+  const totalAmount = Number(record.totalAmount);
+  const receivedAmount = Number(record.receivedAmount);
+  return {
+    count: record.count,
+    totalAmount,
+    receivedAmount,
+    pendingAmount: (Math.round(totalAmount * 100) - Math.round(receivedAmount * 100)) / 100,
+    isGuaranteed: record.isGuaranteed,
+    dueDate: record.dueDate,
+    dueDateEditable: canChangeReimbursementDueDate({
+      expenseDueDate: record.expenseDueDate,
+      today: getCurrentDateInBrazil(),
+      isSettled: !record.hasPending,
+    }),
+  };
+}
+
+function toReimbursementSource(
+  record: ReimbursementSourceRecord | null | undefined,
+  isSettled: boolean | null,
+): ReimbursementSource | null {
+  if (!record) return null;
+  return {
+    ...record,
+    dueDateEditable: canChangeReimbursementDueDate({
+      expenseDueDate: record.dueDate,
+      today: getCurrentDateInBrazil(),
+      isSettled: isSettled === true,
+    }),
+  };
+}
 
 async function translateTransferBalanceError<T>(operation: () => Promise<T>) {
   try {
@@ -276,6 +347,19 @@ export function createTransactionsService(
     ? dependencies.dueDateRules
     : emptyDueDateRulesReader;
   const {
+    deletePartialPaymentForUser,
+    hasPartialPaymentsForUser,
+    hasReceivedReimbursementsForUser,
+    insertPartialPaymentForUser,
+    insertReimbursementSurplusForUser,
+    listLinkedReimbursementsForUser,
+    listOverdueTransactionsBeforePeriod,
+    listPartialPaymentsForUser,
+    listRecurringLinkedReimbursementsForUser,
+    listSiblingReimbursementsForUser,
+    materializeRecurringOccurrenceForUser,
+    updateReimbursementForUser,
+    updateReimbursementsOfExpensesForUser,
     copyTransactionAttachmentLinksForUser,
     deleteTransactionForUser,
     deleteTransactionImportBatchForUser,
@@ -370,10 +454,6 @@ export function createTransactionsService(
     return new Date(Date.UTC(year, month - 1, 1));
   }
 
-  function getPreviousPeriod(period: string) {
-    return addMonthsToPeriod(period, -1);
-  }
-
   function getEarlierPeriod(period: string) {
     return addMonthsToPeriod(period, -2);
   }
@@ -463,8 +543,28 @@ export function createTransactionsService(
           ? Math.max(0, Math.abs(amount) - Math.abs(Number(transaction.refundedAmount)))
           : 0,
       hasAttachments: false,
+      isGuaranteed: transaction.isGuaranteed ?? false,
+      reimbursementDueDate: transaction.reimbursementDueDate
+        ? toDateString(transaction.reimbursementDueDate)
+        : null,
+      reimbursementSummary: toReimbursementSummary(transaction.reimbursementSummary),
+      reimbursementSource: toReimbursementSource(
+        transaction.reimbursementSource,
+        transaction.isSettled,
+      ),
+      parentTransactionId: transaction.parentTransactionId ?? null,
+      partialPayment: toPartialPayment(transaction),
       createdAt: toIsoString(transaction.createdAt),
       updatedAt: toIsoString(transaction.updatedAt),
+    };
+  }
+
+  function toPartialPayment(transaction: TransactionWithRelations) {
+    const paidCents = Math.round(Math.abs(Number(transaction.partialPaidAmount ?? 0)) * 100);
+    if (paidCents === 0) return null;
+    return {
+      paidAmount: paidCents / 100,
+      totalAmount: (Math.round(Math.abs(Number(transaction.amount)) * 100) + paidCents) / 100,
     };
   }
 
@@ -547,6 +647,12 @@ export function createTransactionsService(
       refundedAmount: 0,
       refundableAmount: 0,
       hasAttachments: false,
+      isGuaranteed: rule.isGuaranteed ?? false,
+      reimbursementDueDate: null,
+      reimbursementSummary: toReimbursementSummary(rule.occurrenceReimbursements?.[purchaseDate]),
+      reimbursementSource: null,
+      parentTransactionId: null,
+      partialPayment: null,
       createdAt: toIsoString(rule.createdAt),
       updatedAt: toIsoString(rule.updatedAt),
     };
@@ -665,6 +771,8 @@ export function createTransactionsService(
       transferId: null,
       recurringRuleId: null,
       isSettled: isCreditCard ? null : (data.isSettled ?? false),
+      isGuaranteed: data.isGuaranteed ?? false,
+      reimbursementDueDate: data.reimbursementDueDate ? toDate(data.reimbursementDueDate) : null,
       note: normalizeNullableText(data.note),
       importSourceFingerprint: null,
       importExternalId: null,
@@ -1170,6 +1278,7 @@ export function createTransactionsService(
           dueDateRuleExcluded: base.dueDateRuleExcluded,
           autoSettleFrom: base.autoSettleFrom,
           isSettled: data.paymentMethod === "credit_card" ? null : false,
+          isGuaranteed: base.isGuaranteed,
           note: base.note,
           status: "active",
         },
@@ -1206,6 +1315,10 @@ export function createTransactionsService(
         currentInstallment: installment.currentInstallment,
         seriesId,
         isSettled: installment.isSettled,
+        reimbursementDueDate:
+          base.reimbursementDueDate && data.reimbursementDueDate
+            ? toDate(addMonthsToDate(data.reimbursementDueDate, index))
+            : null,
         frozenDueDate: installment.isSettled ? base.frozenDueDate : null,
       }));
       const splitShares = data.splitShares ?? [];
@@ -1354,7 +1467,22 @@ export function createTransactionsService(
       hasAttachments: query.hasAttachments,
       isDivided: query.isDivided,
     };
-    const [transactions, scheduledRecurringRules, paidBoletoOccurrences] = await Promise.all([
+    const today = getCurrentDateInBrazil();
+    // Only the real current month brings what was left behind.
+    const includeOverdue =
+      query.includeOverdue === true &&
+      !accountStatement &&
+      !query.payables &&
+      !query.dateStart &&
+      !query.dateEnd &&
+      period === currentPeriod();
+    const overdueFromPeriod = addMonthsToPeriod(period, -overdueLookbackMonths);
+    const [
+      periodTransactions,
+      scheduledRecurringRules,
+      paidBoletoOccurrences,
+      overdueTransactions,
+    ] = await Promise.all([
       accountStatement
         ? listAccountStatementTransactionsForUser(
             userId,
@@ -1390,7 +1518,17 @@ export function createTransactionsService(
             periodEnd,
           )
         : Promise.resolve([]),
+      includeOverdue
+        ? listOverdueTransactionsBeforePeriod(
+            userId,
+            period,
+            overdueFromPeriod,
+            today,
+            persistedFilters,
+          )
+        : Promise.resolve([]),
     ]);
+    const transactions = [...periodTransactions, ...overdueTransactions];
     const scheduledRuleIds = new Set(scheduledRecurringRules.map((rule) => rule.id));
     const additionalRuleIds = [
       ...new Set(paidBoletoOccurrences.map((occurrence) => occurrence.recurringRuleId)),
@@ -1410,12 +1548,10 @@ export function createTransactionsService(
                 : getPeriodFromDate(periodStart),
               addMonthsToPeriod(getPeriodFromDate(periodEnd), 1),
             )
-          : [
-              getEarlierPeriod(period),
-              getPreviousPeriod(period),
-              period,
+          : listPeriodsBetween(
+              includeOverdue ? overdueFromPeriod : getEarlierPeriod(period),
               addMonthsToPeriod(period, 1),
-            ];
+            );
     const scheduledOccurrences = scheduledRecurringRules.flatMap((rule) => {
       const occurrenceDates = occurrencePeriods.flatMap((occurrencePeriod) =>
         listRecurrenceDatesInPeriod({
@@ -1462,7 +1598,9 @@ export function createTransactionsService(
           return (
             query.dateStart || query.dateEnd
               ? accountStatement || isInDateRange
-              : query.payables || occurrencePeriod === period
+              : query.payables ||
+                occurrencePeriod === period ||
+                (includeOverdue && occurrencePeriod < period)
           )
             ? toRecurringOccurrenceOutput(rule, purchaseDate, occurrencePeriod, dueDate)
             : null;
@@ -1512,7 +1650,11 @@ export function createTransactionsService(
           : query.dateStart || query.dateEnd
             ? periodStart
             : getPeriodStart(
-                query.payables ? addMonthsToPeriod(period, -13) : getEarlierPeriod(period),
+                query.payables
+                  ? addMonthsToPeriod(period, -13)
+                  : includeOverdue
+                    ? overdueFromPeriod
+                    : getEarlierPeriod(period),
               ),
         query.payables ? getPeriodEndDate(addMonthsToPeriod(period, 13)) : periodEnd,
         userId,
@@ -1614,14 +1756,14 @@ export function createTransactionsService(
         hasAttachments: item.recordId ? attachedTransactions.has(item.recordId) : false,
       };
     });
-    const presentedTransactions = hydratedTransactions.map((item) => {
+    const presentedTransactions = hydratedTransactions.flatMap((item) => {
       const occurrence = item.recurringRuleId
         ? occurrenceStates.get(`${seriesByRuleId.get(item.recurringRuleId)}:${item.purchaseDate}`)
         : undefined;
       const persisted = item.recordId
         ? transactions.find((row) => row.id === item.recordId)
         : undefined;
-      return {
+      const presented = {
         ...item,
         dueDateRuleExcluded: occurrence?.dueDateRuleExcluded ?? item.dueDateRuleExcluded,
         ...resolveDueDate(
@@ -1644,6 +1786,9 @@ export function createTransactionsService(
           dueDateVersions,
         ),
       };
+      const isOverdue = isOverdueTransaction({ ...presented, today });
+      const isCarriedOver = includeOverdue && item.period < period;
+      return isCarriedOver && !isOverdue ? [] : [{ ...presented, isOverdue, isCarriedOver }];
     });
     const output = presentedTransactions.flatMap((item) =>
       projectTransactionAllocations({
@@ -1686,6 +1831,7 @@ export function createTransactionsService(
       })
       .sort(
         (a, b) =>
+          Number(b.isCarriedOver) - Number(a.isCarriedOver) ||
           (query.sort === "oldest"
             ? (accountStatement ? (a.postingDate ?? a.purchaseDate) : a.purchaseDate).localeCompare(
                 accountStatement ? (b.postingDate ?? b.purchaseDate) : b.purchaseDate,
@@ -1709,7 +1855,21 @@ export function createTransactionsService(
     const { others: listed, invoices } = query.groupCardInvoices
       ? groupCardInvoiceItems(filtered)
       : { others: filtered, invoices: [] };
-    const cardInvoices = invoices
+    const overdueInvoices =
+      query.groupCardInvoices &&
+      includeOverdue &&
+      !query.q &&
+      (!query.type || query.type === "expense") &&
+      !query.condition &&
+      !query.paymentMethod &&
+      !query.personIds.length &&
+      !query.categoryIds.length &&
+      !query.accountIds.length &&
+      !query.tagIds?.length &&
+      query.settlement !== "paid"
+        ? ((await dependencies.listOverdueInvoices?.(userId, overdueFromPeriod, period)) ?? [])
+        : [];
+    const periodInvoices = invoices
       .map(({ cardId, items, amount }) => ({
         cardId,
         cardName: items[0]?.cardName ?? null,
@@ -1718,12 +1878,26 @@ export function createTransactionsService(
         dueDate: items.find((item) => item.dueDate)?.dueDate ?? null,
         amount,
         transactionCount: items.length,
+        isOverdue: false,
       }))
       .sort(
         (a, b) =>
           Math.abs(b.amount) - Math.abs(a.amount) ||
           (a.cardName ?? "").localeCompare(b.cardName ?? ""),
       );
+    const cardInvoices = [
+      ...overdueInvoices.map((invoice) => ({
+        cardId: invoice.cardId,
+        cardName: invoice.cardName,
+        cardLogo: invoice.logo,
+        period: invoice.period,
+        dueDate: invoice.dueDate,
+        amount: -invoice.remainingAmount,
+        transactionCount: 0,
+        isOverdue: true,
+      })),
+      ...periodInvoices,
+    ];
     // Paginate purchases/occurrences, keeping every matching allocation together.
     const groups = new Map<string, TransactionOutput[]>();
     for (const item of listed) {
@@ -1808,6 +1982,8 @@ export function createTransactionsService(
         (data.boletoPaymentDate != null && data.boletoPaymentDate === date(current.settledDate)),
       installmentCount: data.installmentCount === current.installmentCount,
       isSettled: data.isSettled === current.isSettled,
+      isGuaranteed: data.isGuaranteed === (current.isGuaranteed ?? false),
+      reimbursementDueDate: data.reimbursementDueDate === date(current.reimbursementDueDate),
       note: (data.note?.trim() || null) === current.note,
       tagIds:
         data.tagIds !== undefined &&
@@ -2002,6 +2178,7 @@ export function createTransactionsService(
 
     return {
       ...output,
+      isOverdue: isOverdueTransaction({ ...output, today: getCurrentDateInBrazil() }),
       splitShares: splits.map((split) => ({
         personId: split.personId,
         personName: split.personName,
@@ -2075,7 +2252,7 @@ export function createTransactionsService(
         origin: "refund",
         condition: "single",
         paymentMethod: source.paymentMethod,
-        name: `Reembolso · ${source.name}`,
+        name: `Estorno · ${source.name}`,
         amount: calculation.refundAmount.toFixed(2),
         purchaseDate: toDate(input.receivedAt),
         period,
@@ -2093,7 +2270,7 @@ export function createTransactionsService(
         transferId: null,
         recurringRuleId: null,
         isSettled: source.cardId ? null : true,
-        note: normalizeNullableText(input.note) ?? `Reembolso de “${source.name}”.`,
+        note: normalizeNullableText(input.note) ?? `Estorno de “${source.name}”.`,
         importSourceFingerprint: null,
         importExternalId: null,
         importBatchId: null,
@@ -2134,8 +2311,42 @@ export function createTransactionsService(
         "GENERATED_TRANSACTION_IMMUTABLE",
       );
     }
+    if (current.parentTransactionId) {
+      throw badRequest(
+        "Partial payments are managed by their transaction",
+        "PARTIAL_PAYMENT_LOCKED",
+      );
+    }
     const currentSplits = await listTransactionSplitsForUser([id], userId);
     data = omitUnchangedTransactionFields(data, current, currentSplits);
+    const financialChange = [
+      "amount",
+      "type",
+      "condition",
+      "paymentMethod",
+      "cardId",
+      "personId",
+      "splitShares",
+    ].some((key) => key in data);
+    if (financialChange && (await hasPartialPaymentsForUser([id], userId)))
+      throw badRequest("Undo the partial payments first", "PARTIAL_PAYMENT_REQUIRES_UNDO");
+    if (financialChange)
+      await assertNoReceivedReimbursements(
+        scope === "single" || !current.seriesId
+          ? [id]
+          : (await listTransactionSeriesForUser(current.seriesId, userId)).flatMap((target) =>
+              scope === "series" ||
+              (target.currentInstallment ?? 0) >= (current.currentInstallment ?? 0)
+                ? [target.id]
+                : [],
+            ),
+        userId,
+      );
+    if (data.reimbursementDueDate && !canPromiseReimbursementDate(current, data))
+      throw badRequest(
+        "The reimbursement date follows the expense until it is overdue",
+        "REIMBURSEMENT_DATE_LOCKED",
+      );
 
     if (
       current.settledDate &&
@@ -2227,17 +2438,26 @@ export function createTransactionsService(
       installmentCount: data.installmentCount ?? current.installmentCount,
       recurrenceFrequency: data.recurrenceFrequency,
       isSettled: data.isSettled === undefined ? current.isSettled : data.isSettled,
+      isGuaranteed: data.isGuaranteed ?? current.isGuaranteed ?? false,
+      reimbursementDueDate:
+        data.reimbursementDueDate === undefined
+          ? current.reimbursementDueDate
+            ? toDateString(current.reimbursementDueDate)
+            : null
+          : data.reimbursementDueDate,
       note: data.note === undefined ? current.note : data.note,
       tagIds: data.tagIds ?? current.tagIds,
       splitShares:
-        data.splitShares === undefined
-          ? currentSplits.length
-            ? currentSplits.map((split) => ({
-                personId: split.personId,
-                amount: Math.abs(Number(split.plannedAmount ?? split.amount)),
-              }))
-            : null
-          : data.splitShares,
+        (data.type ?? current.type) !== "expense"
+          ? null
+          : data.splitShares === undefined
+            ? currentSplits.length
+              ? currentSplits.map((split) => ({
+                  personId: split.personId,
+                  amount: Math.abs(Number(split.plannedAmount ?? split.amount)),
+                }))
+              : null
+            : data.splitShares,
     };
     const validatedMerged = TransactionInputSchema.parse(merged);
     assertBoletoPaymentDateIsNotFuture(validatedMerged);
@@ -2388,6 +2608,14 @@ export function createTransactionsService(
                   : target.boletoPaymentDate,
                 currentInstallment: target.currentInstallment,
                 isSettled: data.isSettled === undefined ? target.isSettled : values.isSettled,
+                isGuaranteed:
+                  data.isGuaranteed === undefined ? target.isGuaranteed : data.isGuaranteed,
+                reimbursementDueDate:
+                  data.reimbursementDueDate === undefined
+                    ? target.reimbursementDueDate
+                    : data.reimbursementDueDate
+                      ? toDate(addMonthsToDate(data.reimbursementDueDate, offset))
+                      : null,
                 settledDate: target.settledDate ?? null,
               },
               splits:
@@ -2407,6 +2635,7 @@ export function createTransactionsService(
       if (!updated.includes(id)) {
         throw notFound("Transaction not found", "TRANSACTION_NOT_FOUND");
       }
+      await repeatReimbursementSettings(userId, updated, data);
       return getTransactionById(id, userId);
     }
     if (validatedMerged.type === "transfer" && current.transferId) {
@@ -2452,7 +2681,258 @@ export function createTransactionsService(
       throw notFound("Transaction not found", "TRANSACTION_NOT_FOUND");
     }
 
+    await repeatReimbursementSettings(userId, [transaction.id], data);
     return getTransactionById(transaction.id, userId);
+  }
+
+  async function assertNoReceivedReimbursements(transactionIds: string[], userId: string) {
+    if (await hasReceivedReimbursementsForUser(userId, { transactionIds }))
+      throw conflict("Undo the received reimbursement first", "REIMBURSEMENT_RECEIVED");
+  }
+
+  function canPromiseReimbursementDate(
+    current: TransactionWithRelations,
+    data: UpdateTransactionInput,
+  ) {
+    const summary = current.reimbursementSummary;
+    if (summary)
+      return canChangeReimbursementDueDate({
+        expenseDueDate: summary.expenseDueDate,
+        today: getCurrentDateInBrazil(),
+        isSettled: !summary.hasPending,
+      });
+    return !(data.cardId ?? current.cardId) && !(data.dueDate ?? current.dueDate);
+  }
+
+  async function repeatReimbursementSettings(
+    userId: string,
+    transactionIds: string[],
+    data: UpdateTransactionInput,
+  ) {
+    if (data.isGuaranteed === undefined && data.reimbursementDueDate === undefined) return;
+    await updateReimbursementsOfExpensesForUser(
+      userId,
+      {
+        dueDatesByTransaction: transactionIds.map((transactionId) => ({
+          transactionId,
+          dueDate: data.reimbursementDueDate,
+        })),
+      },
+      { isGuaranteed: data.isGuaranteed },
+    );
+  }
+
+  async function updateReimbursement(id: string, userId: string, input: UpdateReimbursementInput) {
+    const current = await findTransactionByIdForUser(id, userId);
+    if (current?.origin !== "reimbursement" || current.parentTransactionId)
+      throw notFound("Reimbursement not found", "REIMBURSEMENT_NOT_FOUND");
+    if (current.isSettled)
+      throw badRequest("Undo settlement before changing it", "SETTLEMENT_REQUIRES_UNDO");
+    if (
+      input.dueDate !== undefined &&
+      !canChangeReimbursementDueDate({
+        expenseDueDate: current.reimbursementSource?.dueDate ?? null,
+        today: getCurrentDateInBrazil(),
+        isSettled: false,
+      })
+    )
+      throw badRequest(
+        "The reimbursement date follows the expense until it is overdue",
+        "REIMBURSEMENT_DATE_LOCKED",
+      );
+    await updateReimbursementForUser(id, userId, input);
+    return getTransactionById(id, userId);
+  }
+
+  async function listLinkedReimbursements(
+    target: { transactionId: string } | { recurringRuleId: string; occurrenceDate: string },
+    userId: string,
+  ): Promise<LinkedReimbursementsOutput> {
+    const transactionId =
+      "transactionId" in target
+        ? target.transactionId
+        : (await listRecurringLinkedReimbursementsForUser(target.recurringRuleId, userId))[0]?.id;
+    if (!transactionId) return { items: [] };
+    const rows = await listLinkedReimbursementsForUser(transactionId, userId);
+    const today = getCurrentDateInBrazil();
+    const current = rows.find((row) => row.id === transactionId);
+    return {
+      items: rows.map((row) => {
+        const amountCents = Math.round(Math.abs(Number(row.amount)) * 100);
+        const partialCents = Math.round(Math.abs(Number(row.partialAmount)) * 100);
+        const isSettled = row.isSettled === true;
+        const dueDate = row.dueDate ? toDateString(row.dueDate) : null;
+        return {
+          id: row.id,
+          personId: row.personId,
+          personName: row.personName,
+          personAvatarUrl: row.personAvatarUrl,
+          name: row.name,
+          totalAmount: (amountCents + partialCents) / 100,
+          receivedAmount: (partialCents + (isSettled ? amountCents : 0)) / 100,
+          pendingAmount: isSettled ? 0 : amountCents / 100,
+          dueDate,
+          period: row.period,
+          isSettled,
+          isGuaranteed: row.isGuaranteed,
+          isOverdue: !isSettled && dueDate !== null && dueDate < today,
+          occurrenceDate: row.occurrenceDate ? toDateString(row.occurrenceDate) : null,
+          currentInstallment: row.currentInstallment,
+          installmentCount: row.installmentCount,
+          isCurrent:
+            "transactionId" in target
+              ? row.id === transactionId || row.sourceId === transactionId
+              : row.occurrenceDate !== null &&
+                toDateString(row.occurrenceDate) === target.occurrenceDate,
+          isNext:
+            current !== undefined &&
+            !isSettled &&
+            row.id !== current.id &&
+            row.personId === current.personId &&
+            dueDate !== null &&
+            current.dueDate !== null &&
+            dueDate > toDateString(current.dueDate),
+        };
+      }),
+    };
+  }
+
+  async function listPartialPayments(id: string, userId: string): Promise<PartialPaymentsOutput> {
+    const current = await findTransactionByIdForUser(id, userId);
+    if (!current) throw notFound("Transaction not found", "TRANSACTION_NOT_FOUND");
+    const payments = await listPartialPaymentsForUser(id, userId);
+    const cents = (value: string) => Math.round(Math.abs(Number(value)) * 100);
+    const partialCents = payments.reduce((total, payment) => total + cents(payment.amount), 0);
+    const ownCents = cents(current.amount);
+    return {
+      transactionId: id,
+      totalAmount: (ownCents + partialCents) / 100,
+      paidAmount: (partialCents + (current.isSettled ? ownCents : 0)) / 100,
+      remainingAmount: current.isSettled ? 0 : ownCents / 100,
+      isSettled: current.isSettled === true,
+      payments: payments.map((payment) => ({
+        id: payment.id,
+        amount: cents(payment.amount) / 100,
+        date: payment.settledDate ? toDateString(payment.settledDate) : null,
+        accountId: payment.accountId,
+        accountName: payment.accountName,
+        accountLogo: payment.accountLogo,
+      })),
+    };
+  }
+
+  async function registerPartialPayment(id: string, input: PartialPaymentInput, userId: string) {
+    const payment = await translateTransferBalanceError(() =>
+      insertPartialPaymentForUser({ ...input, transactionId: id, userId }),
+    );
+    if (!payment) throw notFound("Transaction not found", "TRANSACTION_NOT_FOUND");
+    return listPartialPayments(id, userId);
+  }
+
+  async function removePartialPayment(id: string, paymentId: string, userId: string) {
+    const removed = await translateTransferBalanceError(() =>
+      deletePartialPaymentForUser(id, paymentId, userId),
+    );
+    if (!removed) throw notFound("Partial payment not found", "PARTIAL_PAYMENT_NOT_FOUND");
+    return listPartialPayments(id, userId);
+  }
+
+  /** The occurrence becomes a transaction of its own, which then takes the payment. */
+  async function registerRecurringPartialPayment(
+    input: RecurringPartialPaymentInput,
+    userId: string,
+  ) {
+    const occurrence = await getRecurringRuleOccurrence(
+      input.recurringRuleId,
+      input.purchaseDate,
+      userId,
+    );
+    if (input.amount >= Math.abs(occurrence.amount))
+      throw badRequest("Invalid settlement", "PARTIAL_PAYMENT_NOT_PARTIAL");
+    if (input.date > getCurrentDateInBrazil())
+      throw badRequest("Invalid settlement", "SETTLEMENT_DATE_FUTURE");
+    const rule = await findRecurringRuleByIdForUser(input.recurringRuleId, userId);
+    if (!rule) throw notFound("Recurring rule not found", "RECURRING_RULE_NOT_FOUND");
+    await assertNoReceivedRecurringReimbursements(
+      rule.seriesId,
+      userId,
+      input.purchaseDate,
+      input.purchaseDate,
+    );
+    const materialized = await translateTransferBalanceError(() =>
+      materializeRecurringOccurrenceForUser({
+        recurringRuleId: input.recurringRuleId,
+        purchaseDate: input.purchaseDate,
+        period: occurrence.period,
+        dueDate: occurrence.originalDueDate ?? occurrence.dueDate,
+        userId,
+      }),
+    );
+    if (!materialized) throw notFound("Recurring rule not found", "RECURRING_RULE_NOT_FOUND");
+    try {
+      await applyRecurringRuleAction(input.recurringRuleId, userId, {
+        action: "skip",
+        occurrenceDate: input.purchaseDate,
+      });
+    } catch (error) {
+      await deleteTransactionForUser(materialized.id, userId);
+      throw error;
+    }
+    return registerPartialPayment(
+      materialized.id,
+      { amount: input.amount, date: input.date, accountId: input.accountId },
+      userId,
+    );
+  }
+
+  /** A received amount above the reimbursement settles it and the rest goes where the user chose. */
+  async function settleReimbursementWithSurplus(
+    id: string,
+    userId: string,
+    input: {
+      amount: number;
+      remainingAmount: number;
+      date: string;
+      accountId: string;
+      surplusDestination?: ReimbursementSurplusDestination;
+    },
+  ) {
+    const siblings = await listSiblingReimbursementsForUser(id, userId);
+    const position = siblings.findIndex((sibling) => sibling.id === id);
+    const next = siblings.slice(position + 1).filter((sibling) => sibling.isSettled !== true);
+    if (next.length && !input.surplusDestination)
+      throw badRequest("Choose where the surplus goes", "REIMBURSEMENT_SURPLUS_CHOICE_REQUIRED");
+    const surplus =
+      (Math.round(input.amount * 100) - Math.round(input.remainingAmount * 100)) / 100;
+    const { allocations, incomeAmount } = allocateReimbursementSurplus(
+      surplus,
+      next.map((sibling) => Math.abs(Number(sibling.amount))),
+      input.surplusDestination ?? "income",
+    );
+    const settled = await settleTransactions(
+      [id],
+      userId,
+      true,
+      input.date,
+      input.remainingAmount,
+      input.accountId,
+    );
+    await insertReimbursementSurplusForUser({
+      transactionId: id,
+      userId,
+      date: input.date,
+      accountId: input.accountId,
+      incomeAmount,
+      payments: allocations.map((amount, index) => {
+        const sibling = next[index] as (typeof next)[number];
+        return {
+          transactionId: sibling.id,
+          amount,
+          settles: Math.round(amount * 100) === Math.round(Math.abs(Number(sibling.amount)) * 100),
+        };
+      }),
+    });
+    return settled;
   }
 
   async function deleteTransaction(
@@ -2462,6 +2942,12 @@ export function createTransactionsService(
   ) {
     const current = await findTransactionByIdForUser(id, userId);
     if (!current) throw notFound("Transaction not found", "TRANSACTION_NOT_FOUND");
+    if (current.parentTransactionId) {
+      throw badRequest(
+        "Partial payments are managed by their transaction",
+        "PARTIAL_PAYMENT_LOCKED",
+      );
+    }
     if (!canDeleteTransactionOrigin(current.origin)) {
       throw badRequest(
         "Generated transaction must be removed through its owning workflow",
@@ -2522,13 +3008,33 @@ export function createTransactionsService(
     settledDate?: string,
     settledAmount?: number,
     settlementAccountId?: string,
-  ) {
+    surplusDestination?: ReimbursementSurplusDestination,
+  ): Promise<{ ids: string[]; isSettled: boolean }> {
     if (settlementAccountId) {
       const account = await findAccountByIdForUser(settlementAccountId, userId);
       if (!account || account.isArchived) throw notFound("Account not found", "ACCOUNT_NOT_FOUND");
     }
     if (settledDate && settledDate > getCurrentDateInBrazil())
       throw badRequest("Settlement date cannot be in the future", "SETTLEMENT_DATE_FUTURE");
+    const [singleId] = ids;
+    if (isSettled && ids.length === 1 && singleId && settledAmount !== undefined) {
+      const current = await findTransactionByIdForUser(singleId, userId);
+      const accountId = settlementAccountId ?? current?.accountId;
+      const remainingAmount = Math.abs(Number(current?.amount ?? 0));
+      if (
+        current?.origin === "reimbursement" &&
+        !current.isSettled &&
+        accountId &&
+        Math.round(settledAmount * 100) > Math.round(remainingAmount * 100)
+      )
+        return settleReimbursementWithSurplus(singleId, userId, {
+          amount: settledAmount,
+          remainingAmount,
+          date: settledDate ?? getCurrentDateInBrazil(),
+          accountId,
+          surplusDestination,
+        });
+    }
     const balancePeriod = currentPeriod();
     const balanceSnapshots = isSettled
       ? Object.fromEntries(
@@ -2735,6 +3241,18 @@ export function createTransactionsService(
     return { settled, failed };
   }
 
+  async function assertNoReceivedRecurringReimbursements(
+    recurringSeriesId: string,
+    userId: string,
+    fromDate: string,
+    throughDate: string | null,
+  ) {
+    if (
+      await hasReceivedReimbursementsForUser(userId, { recurringSeriesId, fromDate, throughDate })
+    )
+      throw conflict("Undo the received reimbursement first", "REIMBURSEMENT_RECEIVED");
+  }
+
   async function changeRecurringRuleStatus(
     id: string,
     userId: string,
@@ -2755,6 +3273,13 @@ export function createTransactionsService(
   ) {
     const current = await findRecurringRuleByIdForUser(id, userId);
     if (!current) throw notFound("Recurring rule not found", "RECURRING_RULE_NOT_FOUND");
+    if (input.action === "skip" || input.action === "pause" || input.action === "stop")
+      await assertNoReceivedRecurringReimbursements(
+        current.seriesId,
+        userId,
+        input.occurrenceDate,
+        input.action === "skip" ? input.occurrenceDate : null,
+      );
     try {
       const updated = await dependencies.transitionRecurringRuleForUser(
         id,
@@ -2927,11 +3452,26 @@ export function createTransactionsService(
         ? { dueDateRuleExcluded: base.dueDateRuleExcluded }
         : {}),
       ...(base.note !== current.note ? { note: base.note } : {}),
+      ...(input.isGuaranteed !== undefined && input.isGuaranteed !== current.isGuaranteed
+        ? { isGuaranteed: input.isGuaranteed }
+        : {}),
       ...(input.tagIds !== undefined ? { tagIds: input.tagIds } : {}),
       ...(nextAutoSettleFrom?.getTime() !== current.autoSettleFrom?.getTime()
         ? { autoSettleFrom: nextAutoSettleFrom }
         : {}),
     };
+    if (
+      splitsChanged ||
+      "personId" in changedFields ||
+      "type" in changedFields ||
+      "paymentMethod" in changedFields
+    )
+      await assertNoReceivedRecurringReimbursements(
+        current.seriesId,
+        userId,
+        query.scope === "series" ? "0001-01-01" : selectedDate,
+        query.scope === "single" ? selectedDate : null,
+      );
     const rule = await translateTransferBalanceError(() =>
       updateRecurringRuleWithSplitsForUser(
         id,
@@ -2984,6 +3524,16 @@ export function createTransactionsService(
     if ("conflict" in rule) {
       throw conflict("Recurring rule changed", "RECURRING_RULE_CHANGED");
     }
+    if ("isGuaranteed" in changedFields)
+      await updateReimbursementsOfExpensesForUser(
+        userId,
+        {
+          recurringSeriesId: current.seriesId,
+          fromDate: query.scope === "series" ? null : selectedDate,
+          throughDate: query.scope === "single" ? selectedDate : null,
+        },
+        { isGuaranteed: input.isGuaranteed },
+      );
     const output = toRecurringOccurrenceOutput(
       rule,
       validated.purchaseDate,
@@ -3030,6 +3580,12 @@ export function createTransactionsService(
   async function copyTransaction(id: string, userId: string) {
     const current = await findTransactionByIdForUser(id, userId);
     if (!current) throw notFound("Transaction not found", "TRANSACTION_NOT_FOUND");
+    if (current.parentTransactionId) {
+      throw badRequest(
+        "Partial payments are managed by their transaction",
+        "PARTIAL_PAYMENT_LOCKED",
+      );
+    }
     if (current.paymentMethod === null) {
       throw badRequest("Balance adjustments cannot be copied", "BALANCE_ADJUSTMENT_IMMUTABLE");
     }
@@ -3081,6 +3637,7 @@ export function createTransactionsService(
       installmentCount: current.installmentCount,
       recurrenceFrequency: null,
       isSettled: current.isSettled,
+      isGuaranteed: current.isGuaranteed,
       note: current.note,
       splitShares,
     });
@@ -3127,6 +3684,7 @@ export function createTransactionsService(
 
       recurrenceEndDate: rule.recurrenceEndDate ? toDateString(rule.recurrenceEndDate) : null,
       isSettled: rule.isSettled,
+      isGuaranteed: rule.isGuaranteed,
       note: rule.note,
       splitShares: splits.map((share) => ({
         personId: share.personId,
@@ -3180,13 +3738,19 @@ export function createTransactionsService(
     getTransactionById,
     getRecurringRuleOccurrence,
     importTransactions,
+    listLinkedReimbursements,
+    listPartialPayments,
     listRecentEstablishments,
     listTransactions,
     previewTransactionImport,
+    registerPartialPayment,
+    registerRecurringPartialPayment,
+    removePartialPayment,
     settleRecurringOccurrence,
     settleTransactions,
     undoTransactionImport,
     updateRecurringRule,
+    updateReimbursement,
     updateTransaction,
   };
 }

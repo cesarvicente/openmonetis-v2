@@ -49,7 +49,8 @@ import type {
 export type DashboardTransactionRecord = SettlementAwareRule & {
   id: string;
   accountId: string | null;
-  adminAmount: string | null;
+  /** What counts for the user: null while someone else's money is neither received nor guaranteed. */
+  countedAmount: string | null;
   amount: string;
   cardId: string | null;
   categoryId: string | null;
@@ -79,7 +80,6 @@ export type DashboardTransactionRecord = SettlementAwareRule & {
 export type DashboardRecurringRuleRecord = SettlementAwareRule & {
   seriesId: string;
   accountId: string | null;
-  adminAmount: string | null;
   amount: string;
   categoryId: string | null;
   categoryIcon: string | null;
@@ -118,10 +118,15 @@ export type DashboardRepository = {
     userId: string,
     period: string,
   ): Promise<Array<{ cardId: string; isPaid: boolean; period: string }>>;
-  listAdminInvoicePaymentAllocations(
+  listInvoicePayments(
     userId: string,
     period: string,
   ): Promise<Array<{ amount: string; cardId: string; period: string }>>;
+  listCategoryReimbursements(
+    userId: string,
+    startPeriod: string,
+    endPeriod: string,
+  ): Promise<DashboardCategoryReimbursementRecord[]>;
   listRecurringOccurrenceStates(
     userId: string,
     periodEnd: Date,
@@ -152,6 +157,21 @@ export type DashboardRepository = {
     userId: string,
     preferences: DashboardWidgetPreferencesOutput,
   ): Promise<void>;
+};
+
+export type DashboardCategoryReimbursementRecord = {
+  amount: string;
+  categoryId: string | null;
+  categoryIcon: string | null;
+  categoryName: string | null;
+  categoryParentId: string | null;
+  categoryParentName: string | null;
+  categoryParentIcon: string | null;
+  expensePaymentMethod: PaymentMethod | null;
+  expensePurchaseDate: string;
+  origin: "refund";
+  period: string;
+  type: "income";
 };
 
 type DashboardPersonSplitRecord = {
@@ -247,7 +267,7 @@ function expandRecurringRules(
               }).map((posting) => ({
                 id: rule.id,
                 accountId: posting.accountId,
-                adminAmount: rule.adminAmount,
+                countedAmount: rule.amount,
                 amount: posting.amount.toFixed(2),
                 cardId: null,
                 categoryId: rule.categoryId,
@@ -283,11 +303,15 @@ function expandRecurringRules(
             id: rule.id,
             occurrenceOverrides: rule.occurrenceOverrides,
             accountId: rule.accountId,
-            adminAmount:
-              rule.adminAmount == null
+            countedAmount:
+              rule.requiresSettlement && !isSettled
                 ? null
-                : getOccurrenceAmount(rule, purchaseDate, rule.adminAmount, "admin").toFixed(2),
-            amount: getOccurrenceAmount(rule, purchaseDate, rule.amount).toFixed(2),
+                : getOccurrenceAmount(rule, purchaseDate, rule.amount).toFixed(2),
+            amount: getOccurrenceAmount(
+              { ...rule, requiresSettlement: false },
+              purchaseDate,
+              rule.amount,
+            ).toFixed(2),
             cardId: rule.cardId,
             categoryId: rule.categoryId,
             categoryIcon: rule.categoryIcon,
@@ -373,10 +397,7 @@ function expandRecurringPaymentStatusEntries(input: {
         if (period !== input.period) continue;
 
         entries.push({
-          adminAmount:
-            rule.adminAmount === null
-              ? null
-              : getOccurrenceAmount(rule, purchaseDate, rule.adminAmount, "admin"),
+          countedAmount: getOccurrenceAmount(rule, purchaseDate, rule.amount),
           isSettled:
             rule.paymentMethod === "credit_card"
               ? Boolean(rule.cardId && invoiceStatusByCard.get(`${rule.cardId}:${period}`))
@@ -406,7 +427,6 @@ function expandRecurringExpenseDistributionEntries(
   ];
 
   return rules.flatMap((rule) => {
-    if (rule.adminAmount === null) return [];
     const entries: DashboardExpenseDistributionEntry[] = [];
 
     for (const purchasePeriod of purchasePeriods) {
@@ -435,7 +455,7 @@ function expandRecurringExpenseDistributionEntries(
         if (competencePeriod !== period) continue;
 
         entries.push({
-          amount: getOccurrenceAmount(rule, purchaseDate, rule.adminAmount, "admin"),
+          amount: getOccurrenceAmount(rule, purchaseDate, rule.amount),
           condition: "recurring",
           origin: rule.origin,
           paymentMethod: rule.paymentMethod,
@@ -450,15 +470,13 @@ function expandRecurringExpenseDistributionEntries(
   });
 }
 
-function buildPrimaryPersonMetricEntries(
-  transactions: DashboardTransactionRecord[],
-): DashboardMetricEntry[] {
+function buildMetricEntries(transactions: DashboardTransactionRecord[]): DashboardMetricEntry[] {
   return transactions.map((transaction) => {
-    const adminAmount = Number(transaction.adminAmount ?? 0);
+    const countedAmount = Number(transaction.countedAmount ?? 0);
     const amount =
       transaction.type === "transfer" || transaction.origin === "invoiceAdjustment"
-        ? Math.sign(Number(transaction.amount)) * Math.abs(adminAmount)
-        : normalizeTransactionAmount(transaction.type, adminAmount);
+        ? Math.sign(Number(transaction.amount)) * Math.abs(countedAmount)
+        : normalizeTransactionAmount(transaction.type, countedAmount);
     const forecastPeriod = deriveTransactionForecastPeriod({
       dueDate: transaction.dueDate,
       isSettled: transaction.isSettled,
@@ -479,7 +497,7 @@ function buildPrimaryPersonMetricEntries(
         period: transaction.period,
         purchaseDate: transaction.purchaseDate,
       }),
-      personRole: transaction.adminAmount === null ? transaction.personRole : ("admin" as const),
+      personRole: transaction.countedAmount === null ? transaction.personRole : ("admin" as const),
       type: transaction.type,
     };
   });
@@ -537,7 +555,7 @@ export function createDashboardService(
       let invoiceStatusesPromise:
         | Promise<Array<{ cardId: string; isPaid: boolean; period: string }>>
         | undefined;
-      let adminInvoicePaymentsPromise:
+      let invoicePaymentsPromise:
         | Promise<Array<{ amount: string; cardId: string; period: string }>>
         | undefined;
       let transactionSplitsPromise: Promise<DashboardTransactionPersonSplitRecord[]> | undefined;
@@ -571,12 +589,9 @@ export function createDashboardService(
           invoiceStatusesPromise ??= repository.listInvoiceStatuses(userId, period);
           return invoiceStatusesPromise;
         },
-        listAdminInvoicePaymentAllocations() {
-          adminInvoicePaymentsPromise ??= repository.listAdminInvoicePaymentAllocations(
-            userId,
-            period,
-          );
-          return adminInvoicePaymentsPromise;
+        listInvoicePayments() {
+          invoicePaymentsPromise ??= repository.listInvoicePayments(userId, period);
+          return invoicePaymentsPromise;
         },
         listTransactionPersonSplits() {
           transactionSplitsPromise ??= repository.listTransactionPersonSplits(userId, period);
@@ -634,7 +649,7 @@ export function createDashboardService(
         recurringRules,
         occurrenceStates,
         invoiceStatuses,
-        adminInvoicePayments,
+        invoicePayments,
         currentAccounts,
         previousAccounts,
       ] = await Promise.all([
@@ -642,12 +657,12 @@ export function createDashboardService(
         repository.listRecurringRules(userId, getPeriodEndDate(period)),
         repository.listRecurringOccurrenceStates(userId, getPeriodEndDate(period)),
         repository.listInvoiceStatuses(userId, period),
-        repository.listAdminInvoicePaymentAllocations(userId, period),
+        repository.listInvoicePayments(userId, period),
         accountsReader.list(userId, period),
         accountsReader.list(userId, previousPeriod),
       ]);
       const entries = applyInvoicePaymentsToDashboardForecast(
-        buildPrimaryPersonMetricEntries([
+        buildMetricEntries([
           ...transactions,
           ...expandRecurringRules(
             recurringRules,
@@ -657,7 +672,7 @@ export function createDashboardService(
             invoiceStatuses,
           ),
         ]),
-        adminInvoicePayments.map((payment) => ({ ...payment, amount: Number(payment.amount) })),
+        invoicePayments.map((payment) => ({ ...payment, amount: Number(payment.amount) })),
       );
 
       return {
@@ -714,7 +729,8 @@ export function createDashboardService(
       ]);
       const entries: DashboardPaymentStatusEntry[] = [
         ...transactions.map((transaction) => ({
-          adminAmount: transaction.adminAmount === null ? null : Number(transaction.adminAmount),
+          countedAmount:
+            transaction.countedAmount === null ? null : Number(transaction.countedAmount),
           isSettled: transaction.isSettled,
           origin: transaction.origin,
           period: transaction.period,
@@ -741,11 +757,11 @@ export function createDashboardService(
       ]);
       const entries: DashboardExpenseDistributionEntry[] = [
         ...transactions.flatMap((transaction) =>
-          transaction.adminAmount === null || transaction.paymentMethod === null
+          transaction.countedAmount === null || transaction.paymentMethod === null
             ? []
             : [
                 {
-                  amount: Number(transaction.adminAmount),
+                  amount: Number(transaction.countedAmount),
                   condition: transaction.condition,
                   origin: transaction.origin,
                   paymentMethod: transaction.paymentMethod,
@@ -770,9 +786,10 @@ export function createDashboardService(
       userId: string,
     ): Promise<DashboardCategoryBreakdownOutput> {
       const previousPeriod = addMonthsToPeriod(period, -1);
-      const [transactions, recurringRules] = await Promise.all([
+      const [transactions, recurringRules, reimbursements] = await Promise.all([
         repository.listTransactionsThroughPeriod(userId, period, previousPeriod),
         repository.listRecurringRules(userId, getPeriodEndDate(period)),
+        repository.listCategoryReimbursements(userId, previousPeriod, period),
       ]);
       const recurringTransactions = expandRecurringRules(
         recurringRules,
@@ -784,7 +801,7 @@ export function createDashboardService(
         ...recurringTransactions,
       ].flatMap((transaction) => {
         if (
-          transaction.adminAmount === null ||
+          transaction.countedAmount === null ||
           transaction.categoryId === null ||
           transaction.categoryName === null
         ) {
@@ -793,7 +810,7 @@ export function createDashboardService(
 
         return [
           {
-            amount: Number(transaction.adminAmount),
+            amount: Number(transaction.countedAmount),
             categoryId: transaction.categoryId,
             categoryIcon: transaction.categoryIcon,
             categoryName: transaction.categoryName,
@@ -811,11 +828,31 @@ export function createDashboardService(
           },
         ];
       });
+      // What others paid back reduces the expense's category in the month of the expense.
+      const reductions: DashboardCategoryBreakdownEntry[] = reimbursements.flatMap(
+        ({ categoryId, categoryName, ...entry }) =>
+          categoryId === null || categoryName === null
+            ? []
+            : [
+                {
+                  ...entry,
+                  amount: Number(entry.amount),
+                  categoryId,
+                  categoryName,
+                  period: deriveTransactionCompetencePeriod({
+                    paymentMethod: entry.expensePaymentMethod,
+                    period: entry.period,
+                    purchaseDate: entry.expensePurchaseDate,
+                  }),
+                  personRole: "admin" as const,
+                },
+              ],
+      );
 
       return {
         period,
         previousPeriod,
-        ...calculateDashboardCategoryBreakdown(entries, period, previousPeriod),
+        ...calculateDashboardCategoryBreakdown([...entries, ...reductions], period, previousPeriod),
       };
     },
 

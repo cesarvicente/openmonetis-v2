@@ -12,6 +12,7 @@ import {
 import type { Dispatch, SetStateAction } from "react";
 import { MoneyValue } from "@/components/money-value";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
 import { TransactionAttachments } from "@/features/attachments/components/transaction-attachments";
 import { CategoryIcon } from "@/features/categories/category-icons";
 import { TransactionTags } from "@/features/tags/components/transaction-tags";
@@ -30,6 +31,11 @@ import type { TransactionDetailsSheetProps } from "./transaction-details-sheet.t
 import { TransactionSummary } from "./transaction-details-summary";
 import { TransactionDueDate } from "./transaction-due-date";
 import { FinancialRelation } from "./transaction-financial-relation";
+import { TransactionPartialPaymentsSection } from "./transaction-partial-payments-section";
+import {
+  ExpenseReimbursementsSection,
+  ReimbursementSourceSection,
+} from "./transaction-reimbursements-section";
 import { TransactionTypeBadge } from "./transaction-type-badge";
 export function TransactionDetailsContent({
   detail,
@@ -40,8 +46,10 @@ export function TransactionDetailsContent({
   setDeleteOpen,
   setInstallmentDeleteOpen,
   setRecurringAction,
+  onOpenLinked,
 }: {
   detail: TransactionOutput;
+  onOpenLinked: (id: string) => void;
   detailQuery: { isError: boolean };
   mobileActions: TransactionDetailsSheetProps["mobileActions"];
   hasMobileActions: string | boolean | null | undefined;
@@ -73,9 +81,32 @@ export function TransactionDetailsContent({
         setRecurringAction={setRecurringAction}
       />
 
+      {detail.recordId && detail.partialPayment ? (
+        <TransactionPartialPaymentsSection transaction={detail} />
+      ) : null}
+      {detail.parentTransactionId ? (
+        <Button
+          className="justify-start"
+          onClick={() => onOpenLinked(detail.parentTransactionId as string)}
+          type="button"
+          variant="outline"
+        >
+          Ver o lançamento principal
+        </Button>
+      ) : null}
+      {detail.reimbursementSummary ? (
+        <ExpenseReimbursementsSection onOpen={onOpenLinked} transaction={detail} />
+      ) : null}
+      {detail.reimbursementSource ? (
+        <ReimbursementSourceSection onOpen={onOpenLinked} transaction={detail} />
+      ) : null}
+
       <DetailsSection icon={<ReceiptText />} title="Informações">
         <DetailRow label="Tipo" value={<TransactionTypeBadge type={detail.type} />} />
-        <DetailRow label="Data da compra" value={formatDate(detail.purchaseDate)} />
+        <DetailRow
+          label={detail.type === "income" ? "Data" : "Data da compra"}
+          value={formatDate(detail.purchaseDate)}
+        />
         <DetailRow label="Competência" value={formatPeriod(detail.period)} />
         {detail.plannedAmount != null ? (
           <DetailRow
@@ -127,7 +158,7 @@ export function TransactionDetailsContent({
           }
         />
         <DetailRow
-          label="Responsável"
+          label={detail.type === "income" ? "De quem você recebeu" : "De quem é"}
           value={
             <span className="inline-flex items-center gap-2">
               <Avatar size="sm">
@@ -262,13 +293,13 @@ export function TransactionDetailsContent({
       ) : null}
 
       {detail.refundedAmount > 0 ? (
-        <DetailsSection icon={<RefreshCw />} title="Reembolsos">
+        <DetailsSection icon={<RefreshCw />} title="Estornos">
           <DetailRow
-            label="Valor reembolsado"
+            label="Valor estornado"
             value={<MoneyValue amount={detail.refundedAmount} />}
           />
           <DetailRow
-            label="Ainda reembolsável"
+            label="Ainda estornável"
             value={<MoneyValue amount={detail.refundableAmount} />}
           />
         </DetailsSection>

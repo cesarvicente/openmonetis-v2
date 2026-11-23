@@ -3,6 +3,7 @@ import test from "node:test";
 import { RecurringTransitionError } from "@openmonetis/domain/recurring-transactions";
 import { SettlementError } from "@openmonetis/domain/settlements";
 import { InsufficientTransferBalanceError } from "@openmonetis/domain/transactions";
+import { getCurrentPeriodInBrazil } from "@openmonetis/shared/date-time";
 import {
   ExportTransactionsQuerySchema,
   InstallmentOptionsOutputSchema,
@@ -24,6 +25,13 @@ import {
   createTransactionsService,
   type TransactionsServiceDependencies,
 } from "./transactions.service";
+
+/** No partial payment nor reimbursement, unless the test says otherwise. */
+const reimbursementDefaults = {
+  hasPartialPaymentsForUser: async () => false,
+  hasReceivedReimbursementsForUser: async () => false,
+  updateReimbursementsOfExpensesForUser: async () => undefined,
+};
 
 const userId = "10000000-0000-4000-8000-000000000001";
 const transactionId = "20000000-0000-4000-8000-000000000002";
@@ -47,9 +55,25 @@ function regularInput(patch: Partial<TransactionInput> = {}): TransactionInput {
   });
 }
 
+/** Columns of reimbursements and partial payments, which most tests do not use. */
+const reimbursementColumns = {
+  isGuaranteed: false,
+  reimbursementDueDate: null,
+  parentTransactionId: null,
+  partialPaidAmount: "0",
+  reimbursementSummary: null,
+  reimbursementSource: null,
+};
+
 function persistedTransaction(source: TransactionWithRelations) {
   return {
     ...source,
+    isGuaranteed: source.isGuaranteed ?? false,
+    reimbursementDueDate: source.reimbursementDueDate ?? null,
+    parentTransactionId: source.parentTransactionId ?? null,
+    partialPaidAmount: source.partialPaidAmount ?? "0",
+    reimbursementSummary: source.reimbursementSummary ?? null,
+    reimbursementSource: source.reimbursementSource ?? null,
     tagIds: source.tagIds ?? [],
     plannedAmount: source.plannedAmount ?? source.amount,
     settledAmount: source.settledAmount ?? null,
@@ -779,7 +803,7 @@ test("card refunds require a target invoice and never settle against a financial
     assert.equal(draft.record.isSettled, null);
     assert.equal(draft.record.accountId, null);
     assert.equal(draft.record.period, "2026-10");
-    assert.match(draft.record.note ?? "", /Reembolso/);
+    assert.match(draft.record.note ?? "", /Estorno/);
     return persistedTransaction({ ...f.source, id: "refund" });
   };
   assert.equal(
@@ -1025,6 +1049,7 @@ test("an installment series cannot change payment structure or already-settled f
     currentInstallment: 2,
     seriesId: "b0000000-0000-4000-8000-00000000000b",
   });
+  Object.assign(f.dependencies, { listTransactionSeriesForUser: async () => [] });
   await assert.rejects(
     f.service.updateTransaction(transactionId, userId, { paymentMethod: "cash" }, "future"),
     { code: "INSTALLMENT_STRUCTURE_IMMUTABLE" },
@@ -1334,6 +1359,8 @@ test("closing-day purchases shift new singles and installments while existing an
   const dependencies = new Proxy(overrides, {
     get(target, property) {
       if (property in target) return target[property as keyof typeof target];
+      if (property in reimbursementDefaults)
+        return reimbursementDefaults[property as keyof typeof reimbursementDefaults];
       return async () => {
         throw new Error(`Unexpected dependency call: ${String(property)}`);
       };
@@ -1489,6 +1516,8 @@ test("editing a transfer preserves the pair identity in both persistence payload
   const dependencies = new Proxy(overrides, {
     get(target, property) {
       if (property in target) return target[property as keyof typeof target];
+      if (property in reimbursementDefaults)
+        return reimbursementDefaults[property as keyof typeof reimbursementDefaults];
       return async () => {
         throw new Error(`Unexpected dependency call: ${String(property)}`);
       };
@@ -1535,6 +1564,8 @@ test("card invoice grouping replaces card purchases with one summary per card", 
     {
       get(target, property) {
         if (property in target) return target[property as keyof typeof target];
+        if (property in reimbursementDefaults)
+          return reimbursementDefaults[property as keyof typeof reimbursementDefaults];
         return async () => {
           throw new Error(`Unexpected dependency call: ${String(property)}`);
         };
@@ -1570,6 +1601,7 @@ test("card invoice grouping replaces card purchases with one summary per card", 
       dueDate: "2026-09-10",
       amount: -100.05,
       transactionCount: 2,
+      isOverdue: false,
     },
   ]);
   assert.equal(ungrouped.total, 3);
@@ -1601,6 +1633,8 @@ test("account statement lists a paid boleto in its payment month while transacti
     {
       get(target, property) {
         if (property in target) return target[property as keyof typeof target];
+        if (property in reimbursementDefaults)
+          return reimbursementDefaults[property as keyof typeof reimbursementDefaults];
         return async () => {
           throw new Error(`Unexpected dependency call: ${String(property)}`);
         };
@@ -1712,6 +1746,8 @@ test("account statement includes an early recurring boleto payment before the ru
     {
       get(target, property) {
         if (property in target) return target[property as keyof typeof target];
+        if (property in reimbursementDefaults)
+          return reimbursementDefaults[property as keyof typeof reimbursementDefaults];
         return async () => {
           throw new Error(`Unexpected dependency call: ${String(property)}`);
         };
@@ -1834,6 +1870,8 @@ test("a recurring series can switch from boleto to credit card", async () => {
     {
       get(target, property) {
         if (property in target) return target[property as keyof typeof target];
+        if (property in reimbursementDefaults)
+          return reimbursementDefaults[property as keyof typeof reimbursementDefaults];
         return async () => {
           throw new Error(`Unexpected dependency call: ${String(property)}`);
         };
@@ -1977,6 +2015,8 @@ test("editing a recurring boleto preserves the rule settlement state", async () 
     {
       get(target, property) {
         if (property in target) return target[property as keyof typeof target];
+        if (property in reimbursementDefaults)
+          return reimbursementDefaults[property as keyof typeof reimbursementDefaults];
         return async () => {
           throw new Error(`Unexpected dependency call: ${String(property)}`);
         };
@@ -2134,6 +2174,8 @@ test("divided transactions become allocation rows linked to the same editable re
     {
       get(target, property) {
         if (property in target) return target[property as keyof typeof target];
+        if (property in reimbursementDefaults)
+          return reimbursementDefaults[property as keyof typeof reimbursementDefaults];
         return async () => {
           throw new Error(`Unexpected dependency call: ${String(property)}`);
         };
@@ -2326,6 +2368,8 @@ test("installment series reallocates divided shares proportionally for each targ
     {
       get(target, property) {
         if (property in target) return target[property as keyof typeof target];
+        if (property in reimbursementDefaults)
+          return reimbursementDefaults[property as keyof typeof reimbursementDefaults];
         return async () => {
           throw new Error(`Unexpected dependency call: ${String(property)}`);
         };
@@ -2407,6 +2451,8 @@ test("invoice adjustments can only be removed through the invoice workflow", asy
     {
       get(target, property) {
         if (property in target) return target[property as keyof typeof target];
+        if (property in reimbursementDefaults)
+          return reimbursementDefaults[property as keyof typeof reimbursementDefaults];
         return async () => {
           throw new Error(`Unexpected dependency call: ${String(property)}`);
         };
@@ -2465,6 +2511,8 @@ test("settlement preserves the chosen boleto payment date and rejects future dat
     {
       get(target, property) {
         if (property in target) return target[property as keyof typeof target];
+        if (property in reimbursementDefaults)
+          return reimbursementDefaults[property as keyof typeof reimbursementDefaults];
         return async () => {
           throw new Error(`Unexpected dependency call: ${String(property)}`);
         };
@@ -2770,6 +2818,8 @@ function copyFixture(overrides: Partial<TransactionWithRelations> = {}) {
     {
       get(target, property) {
         if (property in target) return target[property as keyof typeof target];
+        if (property in reimbursementDefaults)
+          return reimbursementDefaults[property as keyof typeof reimbursementDefaults];
         return async () => {
           throw new Error(`Unexpected dependency call: ${String(property)}`);
         };
@@ -3110,6 +3160,7 @@ test("copying an installment purchase creates an independent series with conserv
     return args[1].map((record, index) => ({
       ...f.source,
       ...record,
+      ...reimbursementColumns,
       tagIds: record.tagIds ?? [],
       plannedAmount: record.amount,
       settledAmount: null,
@@ -3191,6 +3242,7 @@ for (const selectedAmount of ["-33.34", "-33.33"]) {
       return records.map((record, index) => ({
         ...f.source,
         ...record,
+        ...reimbursementColumns,
         tagIds: record.tagIds ?? [],
         plannedAmount: record.amount,
         settledAmount: null,
@@ -3225,3 +3277,185 @@ for (const missingSeries of [false, true]) {
     assert.deepEqual(f.links, []);
   });
 }
+
+test("an expense already reimbursed keeps its value and person until the reimbursement is undone", async () => {
+  const f = copyFixture();
+  const checked: unknown[] = [];
+  Object.assign(f.dependencies, {
+    hasReceivedReimbursementsForUser: async (_owner: string, target: unknown) => {
+      checked.push(target);
+      return true;
+    },
+  });
+  await assert.rejects(f.service.updateTransaction(transactionId, userId, { amount: 50 }), {
+    status: 409,
+    code: "REIMBURSEMENT_RECEIVED",
+  });
+  assert.deepEqual(checked, [{ transactionIds: [transactionId] }]);
+});
+
+test("partial payments and their transaction cannot be edited or removed on their own", async () => {
+  const child = copyFixture({ parentTransactionId: "c0000000-0000-4000-8000-00000000000c" });
+  await assert.rejects(child.service.updateTransaction(transactionId, userId, { name: "x" }), {
+    code: "PARTIAL_PAYMENT_LOCKED",
+  });
+  await assert.rejects(child.service.deleteTransaction(transactionId, userId), {
+    code: "PARTIAL_PAYMENT_LOCKED",
+  });
+  const parent = copyFixture();
+  Object.assign(parent.dependencies, { hasPartialPaymentsForUser: async () => true });
+  await assert.rejects(parent.service.updateTransaction(transactionId, userId, { amount: 50 }), {
+    code: "PARTIAL_PAYMENT_REQUIRES_UNDO",
+  });
+});
+
+test("a reimbursement keeps its date until the expense is overdue", async () => {
+  const source = {
+    transactionId: "c0000000-0000-4000-8000-00000000000c",
+    recurringRuleId: null,
+    occurrenceDate: null,
+    name: "Jantar",
+    period: "2999-01",
+    dueDate: "2999-01-10",
+    currentInstallment: null,
+    installmentCount: null,
+  };
+  const f = copyFixture({
+    type: "income",
+    origin: "reimbursement",
+    isSettled: false,
+    reimbursementSource: source,
+  });
+  const updates: unknown[] = [];
+  Object.assign(f.dependencies, {
+    listTransactionIdsWithAttachmentsForUser: async () => [],
+    updateReimbursementForUser: async (...args: unknown[]) => {
+      updates.push(args);
+      return { id: transactionId };
+    },
+  });
+  await assert.rejects(
+    f.service.updateReimbursement(transactionId, userId, { dueDate: "2999-02-10" }),
+    { code: "REIMBURSEMENT_DATE_LOCKED" },
+  );
+  await f.service.updateReimbursement(transactionId, userId, { isGuaranteed: true });
+  f.source.reimbursementSource = { ...source, dueDate: "2020-01-10" };
+  await f.service.updateReimbursement(transactionId, userId, { dueDate: "2999-02-10" });
+  assert.deepEqual(updates, [
+    [transactionId, userId, { isGuaranteed: true }],
+    [transactionId, userId, { dueDate: "2999-02-10" }],
+  ]);
+});
+
+test("receiving more than a reimbursement settles it and places the surplus", async () => {
+  const f = copyFixture({
+    type: "income",
+    origin: "reimbursement",
+    isSettled: false,
+    amount: "758.00",
+    accountId: "50000000-0000-4000-8000-000000000005",
+  });
+  const nextId = "c0000000-0000-4000-8000-00000000000c";
+  const settlements: unknown[] = [];
+  const surpluses: unknown[] = [];
+  Object.assign(f.dependencies, {
+    listSiblingReimbursementsForUser: async () => [
+      { id: transactionId, amount: "758.00", isSettled: false },
+      { id: nextId, amount: "758.00", isSettled: false },
+    ],
+    settleTransactionsForUser: async (...args: unknown[]) => {
+      settlements.push(args[6]);
+      return [{ id: transactionId }];
+    },
+    insertReimbursementSurplusForUser: async (input: unknown) => {
+      surpluses.push(input);
+      return { id: transactionId };
+    },
+  });
+  await assert.rejects(
+    f.service.settleTransactions([transactionId], userId, true, "2026-01-02", 800),
+    { code: "REIMBURSEMENT_SURPLUS_CHOICE_REQUIRED" },
+  );
+  await f.service.settleTransactions(
+    [transactionId],
+    userId,
+    true,
+    "2026-01-02",
+    800,
+    undefined,
+    "next",
+  );
+  assert.deepEqual(settlements, [758]);
+  assert.deepEqual(surpluses, [
+    {
+      transactionId,
+      userId,
+      date: "2026-01-02",
+      accountId: "50000000-0000-4000-8000-000000000005",
+      incomeAmount: 0,
+      payments: [{ transactionId: nextId, amount: 42, settles: false }],
+    },
+  ]);
+});
+
+test("the current month also lists what is still pending from previous months, once", async () => {
+  const currentPeriodValue = getCurrentPeriodInBrazil();
+  const overdue = transactionFixture({
+    id: "c1000000-0000-4000-8000-00000000000c",
+    name: "Conta esquecida",
+    isSettled: false,
+    period: "2026-01",
+    purchaseDate: new Date("2026-01-05T00:00:00.000Z"),
+    dueDate: new Date("2026-01-10T00:00:00.000Z"),
+  });
+  const requested: unknown[][] = [];
+  const dependencies = new Proxy(
+    {
+      listTransactionsByPeriod: async () => [],
+      listOverdueTransactionsBeforePeriod: async (...args: unknown[]) => {
+        requested.push(args);
+        return [overdue];
+      },
+      listRecurringRulesForPeriod: async () => [],
+      listRecurringSplitsForUser: async () => [],
+      listRecurringOccurrencesForUser: async () => [],
+      listTransactionSplitsForUser: async () => [],
+      listTransactionIdsWithAttachmentsForUser: async () => [],
+      listInstallmentSeriesAmountsForUser: async () => [],
+    },
+    {
+      get(target, property) {
+        if (property in target) return target[property as keyof typeof target];
+        return async () => {
+          throw new Error(`Unexpected dependency call: ${String(property)}`);
+        };
+      },
+    },
+  ) as unknown as TransactionsServiceDependencies;
+  const service = createTransactionsService(dependencies, {
+    cleanupOrphans: async () => ({ deletedCount: 0 }),
+  });
+  const list = (query: Record<string, string>) =>
+    service.listTransactions(userId, ListTransactionsQuerySchema.parse(query));
+
+  const current = await list({ period: currentPeriodValue, includeOverdue: "true" });
+  assert.deepEqual(
+    current.items.map(({ name, isOverdue, isCarriedOver, dueDate }) => ({
+      name,
+      isOverdue,
+      isCarriedOver,
+      dueDate,
+    })),
+    [
+      {
+        name: "Conta esquecida",
+        isOverdue: true,
+        isCarriedOver: true,
+        dueDate: current.items[0]?.dueDate,
+      },
+    ],
+  );
+  assert.equal((await list({ period: "2026-01", includeOverdue: "true" })).items.length, 0);
+  assert.equal((await list({ period: currentPeriodValue })).items.length, 0);
+  assert.equal(requested.length, 1);
+});

@@ -216,25 +216,6 @@ export async function listRecurringRulesForReport(
           where ${recurringTransactionSplits.userId} = ${userId}
             and ${recurringTransactionSplits.recurringRuleId} = ${recurringTransactionRules.id}
         )`.as("has_splits"),
-      adminAmount: sql<string | null>`case
-          when exists (
-            select 1 from ${recurringTransactionSplits}
-            where ${recurringTransactionSplits.userId} = ${userId}
-              and ${recurringTransactionSplits.recurringRuleId} = ${recurringTransactionRules.id}
-          ) then (
-            select ${recurringTransactionSplits.amount}
-            from ${recurringTransactionSplits}
-            inner join ${people}
-              on ${people.id} = ${recurringTransactionSplits.personId}
-              and ${people.userId} = ${userId}
-              and ${people.role} = 'admin'
-            where ${recurringTransactionSplits.userId} = ${userId}
-              and ${recurringTransactionSplits.recurringRuleId} = ${recurringTransactionRules.id}
-            limit 1
-          )
-          when ${people.role} = 'admin' then ${recurringTransactionRules.amount}
-          else null
-        end`.as("admin_amount"),
     })
     .from(recurringTransactionRules)
     .innerJoin(

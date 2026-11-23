@@ -5,6 +5,7 @@ import {
 } from "@openmonetis/shared/date-time";
 import type {
   InstallmentOptionOutput,
+  LinkedReimbursementOutput,
   TransactionInput,
   TransactionOutput,
 } from "@openmonetis/validators/transactions";
@@ -209,10 +210,11 @@ export const transactionConditionLabels: Record<TransactionCondition, string> = 
 export const transactionOriginLabels: Record<TransactionOrigin, string> = {
   regular: "Lançamento manual",
   invoicePayment: "Pagamento de fatura",
-  refund: "Reembolso",
+  refund: "Estorno",
   accountBalanceAdjustment: "Ajuste de saldo",
   invoiceAdjustment: "Ajuste de fatura",
   personSettlement: "Repasse de pessoa",
+  reimbursement: "Reembolso de pessoa",
 };
 
 export const paymentMethodLabels: Record<PaymentMethod, string> = {
@@ -369,6 +371,18 @@ const transactionMutationErrorMessages: Record<string, string> = {
   SETTLEMENT_ACCOUNT_NOT_FOUND: "Escolha uma conta ativa para registrar a baixa.",
   INVALID_SETTLEMENT_AMOUNT: "Informe um valor maior que zero, com até duas casas decimais.",
   RECURRING_NO_FUTURE_OCCURRENCE: "Não há próximas ocorrências dentro da data final configurada.",
+  REIMBURSEMENT_RECEIVED:
+    "O reembolso desta despesa já foi recebido. Desfaça o recebimento antes de alterar.",
+  REIMBURSEMENT_DATE_LOCKED:
+    "A previsão acompanha o vencimento da despesa e só pode mudar depois de atrasar.",
+  REIMBURSEMENT_SURPLUS_CHOICE_REQUIRED:
+    "Escolha se a sobra vira receita ou é descontada do próximo reembolso.",
+  PARTIAL_PAYMENT_LOCKED:
+    "Este pagamento parcial é controlado pelo lançamento principal. Abra-o para desfazer.",
+  PARTIAL_PAYMENT_REQUIRES_UNDO:
+    "Há pagamentos parciais neste lançamento. Desfaça-os antes de alterar os dados financeiros.",
+  PARTIAL_PAYMENT_NOT_PARTIAL: "O valor parcial deve ser menor que o restante.",
+  TRANSACTION_HAS_REFUNDS: "Remova os estornos desta despesa antes de removê-la.",
   SETTLEMENT_DATE_FUTURE: "A data do pagamento não pode estar no futuro.",
   validation_error: "Revise os campos destacados e tente novamente.",
   CARD_LIMIT_EXCEEDED: "O valor ultrapassa o limite disponível do cartão.",
@@ -445,11 +459,19 @@ export function groupTransactionRows<
 }
 
 export function getTransactionSettlementLabel(
-  transaction: Pick<TransactionOutput, "type" | "isSettled" | "paymentMethod">,
+  transaction: Pick<TransactionOutput, "type" | "isSettled" | "paymentMethod"> &
+    Partial<Pick<TransactionOutput, "isOverdue" | "partialPayment">>,
 ) {
   if (transaction.paymentMethod === "credit_card" || transaction.isSettled === null)
     return "Pagamento pela fatura";
-  if (!transaction.isSettled) return "Em aberto";
+  if (!transaction.isSettled)
+    return transaction.partialPayment
+      ? transaction.type === "income"
+        ? "Recebido em parte"
+        : "Pago em parte"
+      : transaction.isOverdue
+        ? "Atrasado"
+        : "Em aberto";
   return transaction.type === "income"
     ? "Recebido"
     : transaction.type === "transfer"
@@ -490,4 +512,142 @@ export function formatTransactionFilterDate(value: string) {
     month: "2-digit",
     year: "numeric",
   });
+}
+
+/** Reimbursements and partial payments are kept in line with another transaction. */
+export function isTransactionLocked(
+  transaction: Pick<TransactionOutput, "origin" | "parentTransactionId">,
+) {
+  return transaction.origin === "reimbursement" || Boolean(transaction.parentTransactionId);
+}
+
+/** What removing a transaction takes along, so that nothing already paid is undone unnoticed. */
+export function getTransactionRemovalWarnings(
+  transaction: Pick<
+    TransactionOutput,
+    "type" | "isSettled" | "partialPayment" | "reimbursementSummary"
+  >,
+) {
+  const warnings: string[] = [];
+  const { partialPayment, reimbursementSummary: reimbursement } = transaction;
+  if (reimbursement)
+    warnings.push(
+      reimbursement.receivedAmount > 0
+        ? `O reembolso vinculado também será removido, com ${formatCurrency(reimbursement.receivedAmount)} já recebidos, que saem do saldo da conta.`
+        : "O reembolso vinculado também será removido.",
+    );
+  if (partialPayment)
+    warnings.push(
+      `Os pagamentos parciais (${formatCurrency(partialPayment.paidAmount)}) também serão desfeitos no saldo da conta.`,
+    );
+  if (transaction.isSettled && transaction.type !== "transfer")
+    warnings.push(
+      transaction.type === "income"
+        ? "O valor recebido sai do saldo da conta."
+        : "O valor pago volta ao saldo da conta.",
+    );
+  return warnings;
+}
+
+/** A smaller amount settles the whole transaction, so it needs confirmation. */
+export function getLowerSettlementConfirmation(input: {
+  type: "income" | "expense";
+  amount: number;
+  plannedAmount: number;
+}) {
+  const income = input.type === "income";
+  const amount = formatCurrency(input.amount);
+  return {
+    title: income ? "Você está recebendo um valor menor" : "Você está pagando um valor menor",
+    description: `O previsto é ${formatCurrency(input.plannedAmount)} e você informou ${amount}. Se quitar, o lançamento será reajustado para ${amount} e nada ficará em aberto. Se o restante ainda será ${income ? "recebido" : "pago"}, registre como parcial.`,
+    confirm: `Quitar com ${amount}`,
+    partial: "Registrar como parcial",
+  };
+}
+
+export function getReimbursementSurplusQuestion(input: {
+  surplus: number;
+  next: Pick<LinkedReimbursementOutput, "personName" | "pendingAmount" | "period">;
+}) {
+  return {
+    title: `Sobraram ${formatCurrency(input.surplus)}`,
+    description: `${input.next.personName} pagou mais do que devia neste reembolso. O próximo é de ${formatCurrency(input.next.pendingAmount)}, em ${formatPeriod(input.next.period)}. Quer descontar a sobra dele ou registrá-la como receita comum?`,
+  };
+}
+
+type TransactionStatusTag = {
+  kind: "overdue" | "partial" | "partialParent" | "guaranteed" | "reimbursement";
+  label: string;
+  tone: "danger" | "info" | "muted" | "success" | "warning";
+};
+
+export function getTransactionStatusTags(
+  transaction: Pick<
+    TransactionOutput,
+    | "allocation"
+    | "isGuaranteed"
+    | "isOverdue"
+    | "isSettled"
+    | "origin"
+    | "parentTransactionId"
+    | "partialPayment"
+    | "personId"
+    | "reimbursementSource"
+    | "reimbursementSummary"
+    | "type"
+  >,
+): TransactionStatusTag[] {
+  const tags: TransactionStatusTag[] = [];
+  const source = transaction.reimbursementSource;
+  if (source?.currentInstallment && source.installmentCount)
+    tags.push({
+      kind: "reimbursement",
+      label: `${source.currentInstallment} de ${source.installmentCount}`,
+      tone: "muted",
+    });
+  if (transaction.isOverdue) tags.push({ kind: "overdue", label: "Atrasado", tone: "danger" });
+  if (transaction.parentTransactionId)
+    tags.push({
+      kind: "partial",
+      label: transaction.type === "income" ? "Recebimento parcial" : "Pagamento parcial",
+      tone: "info",
+    });
+  else if (transaction.partialPayment && transaction.isSettled === false)
+    tags.push({
+      kind: "partialParent",
+      label: `Restante de ${formatCurrency(transaction.partialPayment.totalAmount)}`,
+      tone: "warning",
+    });
+  if (transaction.type === "income" && transaction.isGuaranteed && transaction.isSettled === false)
+    tags.push({ kind: "guaranteed", label: "Garantido", tone: "success" });
+  const summary = transaction.reimbursementSummary;
+  // In a split, the owner's own share is not paid back.
+  const isOwnShare = transaction.allocation?.personId === transaction.personId;
+  if (summary && !transaction.parentTransactionId && !isOwnShare)
+    tags.push(
+      summary.pendingAmount <= 0
+        ? { kind: "reimbursement", label: "Reembolsado", tone: "success" }
+        : summary.receivedAmount > 0
+          ? { kind: "reimbursement", label: "Reembolso parcial", tone: "warning" }
+          : { kind: "reimbursement", label: "A reembolsar", tone: "muted" },
+    );
+  return tags;
+}
+
+export function getLinkedReimbursementStatus(
+  item: Pick<
+    LinkedReimbursementOutput,
+    "dueDate" | "isGuaranteed" | "isOverdue" | "isSettled" | "pendingAmount" | "receivedAmount"
+  >,
+): { label: string; tone: "danger" | "muted" | "success" | "warning" } {
+  if (item.isSettled) return { label: "Recebido", tone: "success" };
+  const date = item.dueDate ? ` · previsto para ${formatDate(item.dueDate)}` : "";
+  const guaranteed = item.isGuaranteed ? " · garantido" : "";
+  if (item.receivedAmount > 0)
+    return {
+      label: `Falta ${formatCurrency(item.pendingAmount)}${item.isOverdue ? " · atrasado" : date}${guaranteed}`,
+      tone: item.isOverdue ? "danger" : "warning",
+    };
+  if (item.isOverdue) return { label: `Atrasado${date}${guaranteed}`, tone: "danger" };
+  return { label: `A receber${date}${guaranteed}`, tone: "muted" };
 }

@@ -87,7 +87,7 @@ export function TransactionsDialogs({
         }
         createDescription={
           createType === "income" && createDefaults?.paymentMethod === "credit_card"
-            ? "Registre um crédito recebido no cartão. Para reembolsar uma despesa específica, use a ação de reembolso desse lançamento."
+            ? "Registre um crédito recebido no cartão. Para estornar uma despesa específica, use a ação de estorno desse lançamento."
             : undefined
         }
         defaultType={createType}

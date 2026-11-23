@@ -10,6 +10,7 @@ export const transactionOrigins = [
   "accountBalanceAdjustment",
   "invoiceAdjustment",
   "personSettlement",
+  "reimbursement",
 ] as const;
 export const transactionConditions = ["single", "installment", "recurring"] as const;
 export const minimumInstallmentCount = 2;
@@ -196,6 +197,28 @@ export function isAutoSettleDue(input: {
   if (input.dueDate > input.today) return false;
   return input.dueDate < input.today || input.currentTime >= input.settleTime;
 }
+
+/** Anything still to pay or receive after its date, so that it is never left behind. */
+export function isOverdueTransaction(input: {
+  type: TransactionType;
+  origin: TransactionOrigin;
+  cardId: string | null;
+  isSettled: boolean | null;
+  dueDate: string | null;
+  purchaseDate: string;
+  today: string;
+}) {
+  return (
+    input.type !== "transfer" &&
+    (input.origin === "regular" || input.origin === "reimbursement") &&
+    input.cardId === null &&
+    input.isSettled === false &&
+    (input.dueDate ?? input.purchaseDate) < input.today
+  );
+}
+
+/** How many months back pending items are still brought to the current month. */
+export const overdueLookbackMonths = 12;
 
 export function canDeleteTransactionOrigin(origin: TransactionOrigin) {
   return origin === "regular" || origin === "refund" || origin === "accountBalanceAdjustment";

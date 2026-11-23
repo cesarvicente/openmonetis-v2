@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { transactionConditionLabels } from "../transactions.presentation";
 
+import { TransactionStatusTags } from "./transaction-status-tags";
 import { TransactionTypeBadge } from "./transaction-type-badge";
 
 export function TransactionSummary({ transaction }: { transaction: TransactionOutput }) {
@@ -25,7 +26,14 @@ export function TransactionSummary({ transaction }: { transaction: TransactionOu
                   : "Pago",
             className: "bg-success/10 text-success",
           }
-        : { label: "Em aberto", className: "bg-warning/10 text-foreground" };
+        : transaction.partialPayment
+          ? {
+              label: transaction.type === "income" ? "Recebido em parte" : "Pago em parte",
+              className: "bg-warning/15 text-foreground",
+            }
+          : transaction.isOverdue
+            ? { label: "Atrasado", className: "bg-destructive/10 text-destructive" }
+            : { label: "Em aberto", className: "bg-warning/10 text-foreground" };
   const amountClassName =
     transaction.type === "income"
       ? "text-success"
@@ -38,7 +46,9 @@ export function TransactionSummary({ transaction }: { transaction: TransactionOu
       <div className="flex flex-col items-center gap-3 text-center sm:flex-row sm:items-start sm:justify-between sm:text-left">
         <div className="min-w-0">
           <p className="sr-only sm:not-sr-only sm:text-muted-foreground sm:text-xs">
-            Total do lançamento
+            {transaction.partialPayment && transaction.isSettled === false
+              ? "Restante do lançamento"
+              : "Total do lançamento"}
           </p>
           <MoneyValue
             amount={transaction.amount}
@@ -65,7 +75,8 @@ export function TransactionSummary({ transaction }: { transaction: TransactionOu
           <TransactionTypeBadge type={transaction.type} />
           <Badge variant="outline">{transactionConditionLabels[transaction.condition]}</Badge>
         </span>
-        {transaction.origin === "refund" ? <Badge variant="secondary">Reembolso</Badge> : null}
+        {transaction.origin === "refund" ? <Badge variant="secondary">Estorno</Badge> : null}
+        <TransactionStatusTags transaction={{ ...transaction, isOverdue: false }} />
         {transaction.anticipationId ? <Badge variant="secondary">Antecipada</Badge> : null}
         {transaction.isDivided ? <Badge variant="secondary">Dividido</Badge> : null}
       </div>

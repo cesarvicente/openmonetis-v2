@@ -1,5 +1,6 @@
 import { z } from "@hono/zod-openapi";
 import { recurringActions } from "@openmonetis/domain/recurring-transactions";
+import { reimbursementSurplusDestinations } from "@openmonetis/domain/reimbursements";
 import {
   maximumInstallmentCount,
   minimumInstallmentCount,
@@ -112,6 +113,16 @@ const TransactionFieldsSchema = z.object({
       "Inclusive optional last occurrence date. Null means no deadline; version boundaries are managed independently.",
   }),
   isSettled: z.boolean().nullable().optional().openapi({ example: true }),
+  isGuaranteed: z.boolean().optional().openapi({
+    example: true,
+    description:
+      "Income from another person: count it before it is received. Expense of another person: default for its reimbursements.",
+  }),
+  reimbursementDueDate: dateSchema.nullable().optional().openapi({
+    example: "2026-12-05",
+    description:
+      "Expense of another person: promised reimbursement date. Only for expenses without a due date or already overdue; null follows the expense.",
+  }),
   note: z.string().trim().max(1000).nullable().optional().openapi({
     example: "Contrato residencial",
   }),
@@ -129,11 +140,11 @@ const CreateTransactionFieldsSchema = TransactionFieldsSchema.extend({
 
 export const TransactionInputSchema = CreateTransactionFieldsSchema.superRefine((data, ctx) => {
   if (data.splitShares) {
-    if (data.type === "transfer") {
+    if (data.type !== "expense") {
       ctx.addIssue({
         code: "custom",
         path: ["splitShares"],
-        message: "Transfers cannot be split between people",
+        message: "Only expenses can be split between people",
       });
     } else if (!validateTransactionSplits(data.amount, data.splitShares)) {
       ctx.addIssue({
@@ -395,6 +406,14 @@ export const ListTransactionsQuerySchema = z
       .literal("true")
       .transform(() => true as const)
       .optional(),
+    includeOverdue: z
+      .literal("true")
+      .transform(() => true as const)
+      .optional()
+      .openapi({
+        description:
+          "In the current month, also lists what is still pending from previous months, marked as carried over.",
+      }),
     payables: z
       .literal("true")
       .transform(() => true as const)
@@ -513,7 +532,60 @@ export const SettleTransactionsInputSchema = BulkTransactionsInputSchema.extend(
   settledDate: dateSchema.optional(),
   settledAmount: z.number().positive().max(999_999_999.99).multipleOf(0.01).optional(),
   accountId: z.uuid().optional(),
+  surplusDestination: z.enum(reimbursementSurplusDestinations).optional().openapi({
+    description:
+      "Where the amount above a reimbursement goes: regular income or the next pending reimbursement of the same expense. Required only when there is a next one.",
+  }),
 });
+export const PartialPaymentInputSchema = z
+  .object({
+    amount: z.number().positive().max(999_999_999.99).multipleOf(0.01),
+    date: dateSchema,
+    accountId: z.uuid(),
+  })
+  .openapi("PartialPaymentInput");
+export const RecurringPartialPaymentInputSchema = PartialPaymentInputSchema.extend({
+  recurringRuleId: z.uuid(),
+  purchaseDate: dateSchema,
+}).openapi("RecurringPartialPaymentInput");
+export const PartialPaymentParamsSchema = z
+  .object({
+    id: z.uuid().openapi({ param: { name: "id", in: "path" } }),
+    paymentId: z.uuid().openapi({ param: { name: "paymentId", in: "path" } }),
+  })
+  .openapi("PartialPaymentParams");
+export const PartialPaymentOutputSchema = z
+  .object({
+    id: z.uuid(),
+    amount: z.number().positive(),
+    date: z.iso.date().nullable(),
+    accountId: z.uuid().nullable(),
+    accountName: z.string().nullable(),
+    accountLogo: z.string().nullable(),
+  })
+  .openapi("PartialPayment");
+export const PartialPaymentsOutputSchema = z
+  .object({
+    transactionId: z.uuid(),
+    totalAmount: z.number(),
+    paidAmount: z.number(),
+    remainingAmount: z.number(),
+    isSettled: z.boolean(),
+    payments: z.array(PartialPaymentOutputSchema),
+  })
+  .openapi("PartialPayments");
+export const UpdateReimbursementInputSchema = z
+  .object({ isGuaranteed: z.boolean().optional(), dueDate: dateSchema.optional() })
+  .strict()
+  .refine((data) => Object.keys(data).length > 0, {
+    message: "Provide at least one field to update",
+  })
+  .openapi("UpdateReimbursement");
+export type PartialPaymentInput = z.infer<typeof PartialPaymentInputSchema>;
+export type RecurringPartialPaymentInput = z.infer<typeof RecurringPartialPaymentInputSchema>;
+export type PartialPaymentsOutput = z.infer<typeof PartialPaymentsOutputSchema>;
+export type UpdateReimbursementInput = z.infer<typeof UpdateReimbursementInputSchema>;
+export type LinkedReimbursementOutput = z.infer<typeof LinkedReimbursementOutputSchema>;
 export const RecurringRuleActionInputSchema = z.object({
   status: z.enum(["active", "paused", "cancelled"]),
   occurrenceDate: dateSchema.optional(),
@@ -644,6 +716,63 @@ export const TransactionImportBatchParamsSchema = z.object({
     .openapi({ param: { name: "batchId", in: "path" } }),
 });
 
+export const ReimbursementSummarySchema = z
+  .object({
+    count: z.number().int().positive(),
+    totalAmount: z.number(),
+    receivedAmount: z.number(),
+    pendingAmount: z.number(),
+    isGuaranteed: z.boolean(),
+    dueDate: z.iso.date().nullable(),
+    dueDateEditable: z.boolean(),
+  })
+  .openapi("ReimbursementSummary");
+export const ReimbursementSourceSchema = z
+  .object({
+    transactionId: z.uuid().nullable(),
+    recurringRuleId: z.uuid().nullable(),
+    occurrenceDate: z.iso.date().nullable(),
+    name: z.string(),
+    period: periodSchema,
+    dueDate: z.iso.date().nullable(),
+    dueDateEditable: z.boolean(),
+    currentInstallment: z.number().int().nullable(),
+    installmentCount: z.number().int().nullable(),
+  })
+  .openapi("ReimbursementSource");
+export const LinkedReimbursementOutputSchema = z
+  .object({
+    id: z.uuid(),
+    personId: z.uuid(),
+    personName: z.string(),
+    personAvatarUrl: z.string().nullable(),
+    name: z.string(),
+    totalAmount: z.number(),
+    receivedAmount: z.number(),
+    pendingAmount: z.number(),
+    dueDate: z.iso.date().nullable(),
+    period: periodSchema,
+    isSettled: z.boolean(),
+    isGuaranteed: z.boolean(),
+    isOverdue: z.boolean(),
+    occurrenceDate: z.iso.date().nullable(),
+    currentInstallment: z.number().int().nullable(),
+    installmentCount: z.number().int().nullable(),
+    isCurrent: z.boolean().openapi({
+      description: "Belongs to the requested expense, or is the requested reimbursement itself.",
+    }),
+    isNext: z.boolean().openapi({
+      description: "Pending and due after the requested reimbursement, for the same person.",
+    }),
+  })
+  .openapi("LinkedReimbursement");
+export const LinkedReimbursementsOutputSchema = z
+  .object({ items: z.array(LinkedReimbursementOutputSchema) })
+  .openapi("LinkedReimbursements");
+export type ReimbursementSummary = z.infer<typeof ReimbursementSummarySchema>;
+export type ReimbursementSource = z.infer<typeof ReimbursementSourceSchema>;
+export type LinkedReimbursementsOutput = z.infer<typeof LinkedReimbursementsOutputSchema>;
+
 export const TransactionOutputSchema = z
   .object({
     id: z.string().openapi({ example: "3f6d2b84-6ed0-4a50-b257-8adf0b6178de" }),
@@ -732,6 +861,24 @@ export const TransactionOutputSchema = z
     refundedAmount: z.number().nonnegative(),
     refundableAmount: z.number().nonnegative(),
     hasAttachments: z.boolean(),
+    isGuaranteed: z.boolean().optional(),
+    reimbursementDueDate: z.iso.date().nullable().optional(),
+    reimbursementSummary: ReimbursementSummarySchema.nullable().optional(),
+    reimbursementSource: ReimbursementSourceSchema.nullable().optional(),
+    parentTransactionId: z.uuid().nullable().optional().openapi({
+      description: "Set on a partial payment: the transaction it belongs to.",
+    }),
+    partialPayment: z
+      .object({ totalAmount: z.number(), paidAmount: z.number() })
+      .nullable()
+      .optional()
+      .openapi({
+        description: "Set on a partially paid transaction, whose amount is what is left.",
+      }),
+    isOverdue: z.boolean().optional(),
+    isCarriedOver: z.boolean().optional().openapi({
+      description: "Listed in the current month although it belongs to a previous one.",
+    }),
     createdAt: z.string().nullable().openapi({ example: "2026-07-07T12:00:00.000Z" }),
     updatedAt: z.string().nullable().openapi({ example: "2026-07-07T12:00:00.000Z" }),
   })
@@ -745,7 +892,10 @@ export const TransactionCardInvoiceOutputSchema = z
     period: periodSchema.openapi({ example: "2026-07" }),
     dueDate: dateSchema.nullable(),
     amount: z.number().openapi({ example: -1250.4 }),
-    transactionCount: z.number().int().positive(),
+    transactionCount: z.number().int().nonnegative(),
+    isOverdue: z.boolean().optional().openapi({
+      description: "Unpaid invoice of a previous month, with what is left to pay.",
+    }),
   })
   .openapi("TransactionCardInvoice");
 

@@ -19,15 +19,31 @@ import {
   SettlementError,
 } from "@openmonetis/domain/settlements";
 import { getCurrentDateInBrazil } from "@openmonetis/shared/date-time";
-import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, type SQLWrapper, sql } from "drizzle-orm";
 import { synchronizePendingExternalExpensesForTransactions } from "./external-expenses.repository";
 import { lockRecurringVersionsForUser } from "./recurring-transactions.repository";
 
 export const effectiveTransactionAmountSql = sql<string>`case when ${transactions.isSettled} then coalesce(${transactions.settledAmount}, ${transactions.amount}) else ${transactions.amount} end`;
+// Payments already taken out of a pending transaction, whose own amount is only what is left.
+// The outer columns are spelled out: Drizzle drops their table name in queries without joins.
+export const partialPaymentsAmountSql = sql<string>`coalesce((select sum(coalesce(p.settled_amount, p.amount)) from transactions p where p.parent_transaction_id = "transactions"."id" and p.user_id = "transactions"."user_id"), 0)`;
+/**
+ * Money expected from someone else only counts once received, unless trusted ("garantido").
+ * Mirrors isCountedTransaction in the domain.
+ */
+export function countedTransactionSql(personRole: SQLWrapper) {
+  return sql<boolean>`not (${transactions.type} = 'income' and ${personRole} = 'external' and ${transactions.origin} in ('regular', 'reimbursement') and ${transactions.isSettled} is not true and not ${transactions.isGuaranteed})`;
+}
+/** Recurring counterpart: occurrences of these rules only count once settled. */
+export function requiresSettlementSql(personRole: SQLWrapper) {
+  return sql<boolean>`(${rules.type} = 'income' and ${personRole} = 'external' and not ${rules.isGuaranteed})`.as(
+    "requires_settlement",
+  );
+}
 export const effectiveSplitAmountSql = sql<string>`coalesce(${transactionSplits.settledAmount}, ${transactionSplits.amount})`;
 export const recurringOccurrenceOverridesSql = sql<
   Record<string, OccurrenceOverride>
->`coalesce((select jsonb_object_agg(to_char(o.purchase_date, 'YYYY-MM-DD'), jsonb_build_object('isSettled', o.is_settled, 'frozenDueDate', to_char(o.frozen_due_date, 'YYYY-MM-DD'), 'dueDateAdjustment', o.due_date_adjustment, 'dueDateRuleExcluded', o.due_date_rule_excluded, 'amount', o.settled_amount, 'settledDate', to_char(o.settled_date, 'YYYY-MM-DD'), 'accountId', o.account_id, 'allocations', o.settled_allocations)) from recurring_transaction_occurrences o where o.user_id = ${rules.userId} and o.recurring_series_id = ${rules.seriesId}), '{}'::jsonb)`.as(
+>`coalesce((select jsonb_object_agg(to_char(o.purchase_date, 'YYYY-MM-DD'), jsonb_build_object('isSettled', o.is_settled, 'frozenDueDate', to_char(o.frozen_due_date, 'YYYY-MM-DD'), 'dueDateAdjustment', o.due_date_adjustment, 'dueDateRuleExcluded', o.due_date_rule_excluded, 'amount', o.settled_amount, 'settledDate', to_char(o.settled_date, 'YYYY-MM-DD'), 'accountId', o.account_id, 'allocations', o.settled_allocations)) from recurring_transaction_occurrences o where o.user_id = "recurring_transaction_rules"."user_id" and o.recurring_series_id = "recurring_transaction_rules"."series_id"), '{}'::jsonb)`.as(
   "occurrence_overrides",
 );
 
@@ -53,8 +69,17 @@ export async function settlePersistedTransactions(input: {
     if (rows.length !== new Set(input.ids).size) return [];
     if (input.amount !== undefined && rows.length !== 1)
       throw new SettlementError("SETTLEMENT_AMOUNT_REQUIRES_SINGLE");
-    if (rows.some((row) => row.cardId || row.type === "transfer" || row.origin !== "regular"))
+    if (
+      rows.some(
+        (row) =>
+          row.cardId ||
+          row.type === "transfer" ||
+          (row.origin !== "regular" && row.origin !== "reimbursement"),
+      )
+    )
       throw new SettlementError("SETTLEMENT_UNSUPPORTED");
+    if (rows.some((row) => row.parentTransactionId))
+      throw new SettlementError("PARTIAL_PAYMENT_LOCKED");
     if (input.accountId) {
       const [account] = await tx
         .select({ id: financialAccounts.id })

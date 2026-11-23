@@ -885,7 +885,7 @@ test("financial mutations preserve cents, occurrence history and ownership", {
     );
 
     await t.test(
-      "invoice writes reject foreign cards, accounts and participants without changing balances",
+      "invoice writes reject foreign cards, accounts and excessive amounts without changing balances",
       async () => {
         const account = await api.account(owner);
         const card = await api.data<{ id: string }>(
@@ -919,7 +919,7 @@ test("financial mutations preserve cents, occurrence history and ownership", {
             {
               accountId: foreignAccount.id,
               paidAt: "2020-01-20",
-              allocations: [{ personId: stranger.personId, amount: 10 }],
+              amount: 10,
             },
           ],
         ] as const)
@@ -928,7 +928,7 @@ test("financial mutations preserve cents, occurrence history and ownership", {
           await api.request(`${path}/payments`, owner, "POST", {
             accountId: foreignAccount.id,
             paidAt: "2020-01-20",
-            allocations: [{ personId: owner.personId, amount: 10 }],
+            amount: 10,
           }),
           404,
         );
@@ -936,7 +936,7 @@ test("financial mutations preserve cents, occurrence history and ownership", {
           await api.request(`${path}/payments`, owner, "POST", {
             accountId: account.id,
             paidAt: "2020-01-20",
-            allocations: [{ personId: stranger.personId, amount: 10 }],
+            amount: 50.02,
           }),
           400,
           "invalid_invoice_payment_amount",

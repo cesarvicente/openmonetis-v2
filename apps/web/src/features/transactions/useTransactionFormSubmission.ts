@@ -53,13 +53,23 @@ export function useTransactionFormSubmission({
   const updateTransaction = useUpdateTransactionMutation();
   const updateRecurringRule = useUpdateRecurringRuleMutation();
   const queryClient = useQueryClient();
+  // Reimbursements may have been changed on their own; only what changed here is repeated on them.
+  function getChangedReimbursementInput(data: TransactionInput, value: TransactionFormValues) {
+    const changed = getChangedTransactionInput(data, value, defaultValues);
+    return {
+      isGuaranteed: changed.isGuaranteed,
+      reimbursementDueDate: changed.reimbursementDueDate,
+    };
+  }
   async function persistTransactionUpdate(
     data: TransactionInput,
     scope: TransactionActionScope,
     value?: TransactionFormValues,
   ) {
     const updateData: UpdateTransactionInput =
-      scope === "single" || !value ? data : getChangedTransactionInput(data, value, defaultValues);
+      scope === "single" || !value
+        ? { ...data, ...(value ? getChangedReimbursementInput(data, value) : {}) }
+        : getChangedTransactionInput(data, value, defaultValues);
     await updateTransaction.mutateAsync({
       id: transaction?.recordId as string,
       data: updateData,
@@ -83,6 +93,7 @@ export function useTransactionFormSubmission({
           recurrenceEndDate: getChangedTransactionInput(data, value, defaultValues)
             .recurrenceEndDate,
           tagIds: getChangedTransactionInput(data, value, defaultValues).tagIds,
+          isGuaranteed: getChangedTransactionInput(data, value, defaultValues).isGuaranteed,
         });
         return;
       }
@@ -91,7 +102,7 @@ export function useTransactionFormSubmission({
           setPendingInstallmentUpdate({ data, value });
           return;
         }
-        await persistTransactionUpdate(data, "single");
+        await persistTransactionUpdate(data, "single", value);
         return;
       }
 

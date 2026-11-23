@@ -102,7 +102,7 @@ export function useTransactionForm({
     defaultValues,
     onSubmitInvalid: showInvalidFormToast,
     validators: {
-      onSubmit: validateTransactionForm,
+      onSubmit: ({ value }) => validateTransactionForm({ value, people }),
     },
     onSubmit: submit,
   });
@@ -126,6 +126,7 @@ export function useTransactionForm({
     const previousType = form.getFieldValue("type");
     form.setFieldValue("type", value);
     form.setFieldValue("categoryId", "");
+    if (value !== "expense") form.setFieldValue("splitShares", []);
 
     if (previousType === "transfer" && value !== "transfer") {
       setDefaultSettlement(value, form.getFieldValue("paymentMethod"));
@@ -137,7 +138,6 @@ export function useTransactionForm({
       form.setFieldValue("personId", adminPerson?.id ?? "");
       form.setFieldValue("isSettled", "false");
       form.setFieldValue("boletoPaymentDate", "");
-      form.setFieldValue("splitShares", []);
       form.setFieldValue("accountId", "");
       form.setFieldValue("cardId", "");
       form.setFieldValue(

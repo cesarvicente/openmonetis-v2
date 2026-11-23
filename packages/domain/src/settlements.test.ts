@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { getOccurrenceAmount, planSettlement, SettlementError } from "./settlements";
+import {
+  getOccurrenceAmount,
+  planPartialPayment,
+  planSettlement,
+  SettlementError,
+} from "./settlements";
 import { deriveTransactionPostingDate, deriveTransactionPostingPeriod } from "./transactions";
 
 test("effective settlement preserves sign and allocates rounding cents exactly", () => {
@@ -132,4 +137,42 @@ test("settlement allocation failures use a typed domain error", () => {
       }),
     { code: "INVALID_SETTLEMENT_ALLOCATION" },
   );
+});
+
+test("a partial payment takes its share from each person and keeps the rest pending", () => {
+  assert.deepEqual(
+    planPartialPayment({
+      remainingAmount: "-200.00",
+      amount: 50,
+      date: "2026-11-20",
+      today: "2026-11-23",
+      splits: [
+        { personId: "admin", amount: "-120.00" },
+        { personId: "ket", amount: "-80.00" },
+      ],
+    }),
+    {
+      paidAmount: "-50.00",
+      remainingAmount: "-150.00",
+      splits: [
+        { personId: "admin", paidAmount: "-30.00", remainingAmount: "-90.00" },
+        { personId: "ket", paidAmount: "-20.00", remainingAmount: "-60.00" },
+      ],
+    },
+  );
+  const reject = (amount: number, date: string, code: string) =>
+    assert.throws(
+      () =>
+        planPartialPayment({
+          remainingAmount: "100.00",
+          amount,
+          date,
+          today: "2026-11-23",
+          splits: [],
+        }),
+      { code },
+    );
+  reject(100, "2026-11-20", "PARTIAL_PAYMENT_NOT_PARTIAL");
+  reject(0, "2026-11-20", "INVALID_SETTLEMENT_AMOUNT");
+  reject(10, "2026-11-24", "SETTLEMENT_DATE_FUTURE");
 });

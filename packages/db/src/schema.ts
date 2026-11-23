@@ -135,6 +135,7 @@ export const transactionOrigin = pgEnum("transaction_origin", [
   "accountBalanceAdjustment",
   "invoiceAdjustment",
   "personSettlement",
+  "reimbursement",
 ]);
 
 export const userRole = pgEnum("user_role", ["member", "admin"]);
@@ -711,6 +712,8 @@ export const recurringTransactionRules = pgTable(
     // Occurrences due from this date on are settled automatically; null disables it.
     autoSettleFrom: date("auto_settle_from", { mode: "date" }),
     isSettled: boolean("is_settled"),
+    // Expense: default for its reimbursements. Income from someone else: counted before received.
+    isGuaranteed: boolean("is_guaranteed").notNull().default(false),
     note: text("note"),
     status: recurringRuleStatus("status").notNull().default("active"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
@@ -854,6 +857,22 @@ export const transactions = pgTable(
     // Set once the worker settles it, so an undone settlement is not repeated.
     autoSettledAt: timestamp("auto_settled_at"),
     isSettled: boolean("is_settled"),
+    // Expense: default for its reimbursements. Income from someone else: counted before received.
+    isGuaranteed: boolean("is_guaranteed").notNull().default(false),
+    // Expense: promised date of its reimbursements, when it is not the expense's own due date.
+    reimbursementDueDate: date("reimbursement_due_date", { mode: "date" }),
+    // Reimbursement: the expense (or recurring occurrence) it pays back, kept in sync with it.
+    reimbursementSourceId: uuid("reimbursement_source_id"),
+    reimbursementSeriesId: uuid("reimbursement_series_id"),
+    reimbursementOccurrenceDate: date("reimbursement_occurrence_date", { mode: "date" }),
+    // Reimbursement: month of that expense, where it reduces the category and budget.
+    reimbursementPeriod: varchar("reimbursement_period", { length: 7 }),
+    // Reimbursement: when that expense is due, or null when it has no due date.
+    reimbursementExpenseDueDate: date("reimbursement_expense_due_date", { mode: "date" }),
+    // Reimbursement edited on its own, so the expense no longer overwrites its date and guarantee.
+    reimbursementCustomized: boolean("reimbursement_customized").notNull().default(false),
+    // Partial payment: the pending transaction it belongs to, whose amount is what is left.
+    parentTransactionId: uuid("parent_transaction_id"),
     note: text("note"),
     importSourceFingerprint: varchar("import_source_fingerprint", { length: 64 }),
     importExternalId: varchar("import_external_id", { length: 255 }),
@@ -941,6 +960,38 @@ export const transactions = pgTable(
       columns: [table.seriesId, table.userId],
       foreignColumns: [installmentSeries.id, installmentSeries.userId],
     }).onDelete("cascade"),
+    foreignKey({
+      name: "transactions_reimbursement_source_user_fk",
+      columns: [table.reimbursementSourceId, table.userId],
+      foreignColumns: [table.id, table.userId],
+    }).onDelete("cascade"),
+    foreignKey({
+      name: "transactions_reimbursement_series_user_fk",
+      columns: [table.reimbursementSeriesId, table.userId],
+      foreignColumns: [recurringTransactionSeries.id, recurringTransactionSeries.userId],
+    }).onDelete("cascade"),
+    foreignKey({
+      name: "transactions_parent_user_fk",
+      columns: [table.parentTransactionId, table.userId],
+      foreignColumns: [table.id, table.userId],
+    }).onDelete("cascade"),
+    uniqueIndex("transactions_reimbursement_source_person_unique")
+      .on(table.reimbursementSourceId, table.personId)
+      .where(
+        sql`${table.reimbursementSourceId} IS NOT NULL AND ${table.parentTransactionId} IS NULL`,
+      ),
+    uniqueIndex("transactions_reimbursement_occurrence_person_unique")
+      .on(table.reimbursementSeriesId, table.reimbursementOccurrenceDate, table.personId)
+      .where(
+        sql`${table.reimbursementSeriesId} IS NOT NULL AND ${table.parentTransactionId} IS NULL`,
+      ),
+    index("transactions_parent_transaction_idx")
+      .on(table.parentTransactionId)
+      .where(sql`${table.parentTransactionId} IS NOT NULL`),
+    check(
+      "transactions_reimbursement_occurrence_check",
+      sql`(${table.reimbursementSeriesId} IS NULL) = (${table.reimbursementOccurrenceDate} IS NULL) AND (${table.reimbursementSeriesId} IS NULL OR ${table.reimbursementSourceId} IS NULL) AND (${table.reimbursementPeriod} IS NOT NULL) = (${table.reimbursementSeriesId} IS NOT NULL OR ${table.reimbursementSourceId} IS NOT NULL)`,
+    ),
     index("transactions_recurring_rule_id_idx")
       .on(table.recurringRuleId)
       .where(sql`${table.recurringRuleId} IS NOT NULL`),
@@ -1888,57 +1939,6 @@ export const invoicePaymentAllocations = pgTable(
   ],
 );
 
-export const personSettlements = pgTable(
-  "person_settlements",
-  {
-    id: uuid("id").primaryKey().defaultRandom(),
-    userId: uuid("user_id")
-      .notNull()
-      .references(() => user.id, { onDelete: "cascade" }),
-    personId: uuid("person_id")
-      .notNull()
-      .references(() => people.id, { onDelete: "restrict" }),
-    invoicePaymentAllocationId: uuid("invoice_payment_allocation_id").references(
-      () => invoicePaymentAllocations.id,
-      { onDelete: "cascade" },
-    ),
-    amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
-    receivedAt: date("received_at", { mode: "date" }).notNull(),
-    note: text("note"),
-    createdAt: timestamp("created_at").notNull().defaultNow(),
-    updatedAt: timestamp("updated_at")
-      .notNull()
-      .defaultNow()
-      .$onUpdate(() => new Date()),
-  },
-  (table) => [
-    index("person_settlements_user_person_received_idx").on(
-      table.userId,
-      table.personId,
-      table.receivedAt.desc(),
-      table.createdAt.desc(),
-    ),
-    uniqueIndex("person_settlements_invoice_allocation_unique").on(
-      table.invoicePaymentAllocationId,
-    ),
-    foreignKey({
-      name: "person_settlements_person_user_fk",
-      columns: [table.personId, table.userId],
-      foreignColumns: [people.id, people.userId],
-    }).onDelete("restrict"),
-    foreignKey({
-      name: "person_settlements_invoice_allocation_user_fk",
-      columns: [table.invoicePaymentAllocationId, table.userId],
-      foreignColumns: [invoicePaymentAllocations.id, invoicePaymentAllocations.userId],
-    }).onDelete("cascade"),
-    check("person_settlements_amount_positive_check", sql`${table.amount} > 0`),
-    check(
-      "person_settlements_note_not_blank_check",
-      sql`${table.note} IS NULL OR btrim(${table.note}) <> ''`,
-    ),
-  ],
-);
-
 export const budgets = pgTable(
   "budgets",
   {
@@ -2106,7 +2106,6 @@ export const userRelations = relations(user, ({ many, one }) => ({
   attachments: many(attachments),
   transactionSplits: many(transactionSplits),
   recurringTransactionSplits: many(recurringTransactionSplits),
-  personSettlements: many(personSettlements),
   notes: many(notes),
   noteItems: many(noteItems),
   deviceTokens: many(deviceTokens),
@@ -2168,7 +2167,6 @@ export const peopleRelations = relations(people, ({ one, many }) => ({
   recurringTransactionRules: many(recurringTransactionRules),
   transactionSplits: many(transactionSplits),
   recurringTransactionSplits: many(recurringTransactionSplits),
-  personSettlements: many(personSettlements),
   inboxRules: many(inboxRules),
 }));
 

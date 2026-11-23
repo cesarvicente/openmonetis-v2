@@ -29,7 +29,6 @@ import {
   people,
   personConnectionInvitations,
   personConnections,
-  personSettlements,
   recurringTransactionOccurrences,
   recurringTransactionRules,
   recurringTransactionSeries,
@@ -108,7 +107,6 @@ async function clearApplicationDataForUser(transaction: DatabaseTransaction, use
   await transaction.delete(dueDateRuleVersions).where(eq(dueDateRuleVersions.userId, userId));
   await transaction.delete(settlementEvents).where(eq(settlementEvents.userId, userId));
   await transaction.delete(transactionRefunds).where(eq(transactionRefunds.userId, userId));
-  await transaction.delete(personSettlements).where(eq(personSettlements.userId, userId));
   await transaction
     .delete(installmentAnticipationItems)
     .where(eq(installmentAnticipationItems.userId, userId));

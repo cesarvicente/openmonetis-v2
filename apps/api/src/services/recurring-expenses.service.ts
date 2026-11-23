@@ -25,7 +25,6 @@ export type RecurringExpenseRuleRecord = RecurringRuleReportRecord;
 
 type OwnedRecurringExpenseRule = Omit<
   RecurringExpenseRuleRecord,
-  | "adminAmount"
   | "personName"
   | "personAvatarUrl"
   | "personRole"
@@ -118,12 +117,6 @@ export function createRecurringExpensesService(
     if (rule?.type !== "expense" || !["active", "paused"].includes(rule.status)) {
       throw notFound("Recurring expense not found", "RECURRING_EXPENSE_NOT_FOUND");
     }
-    const belongsToAdmin = rule.splits.length
-      ? rule.splits.some((split) => split.personRole === "admin")
-      : rule.personRole === "admin";
-    if (!belongsToAdmin) {
-      throw notFound("Recurring expense not found", "RECURRING_EXPENSE_NOT_FOUND");
-    }
     return rule;
   }
 
@@ -179,7 +172,6 @@ export function createRecurringExpensesService(
         period,
       ];
       const items = rules.flatMap<RecurringExpensesOutput["items"][number]>((rule) => {
-        if (rule.adminAmount === null) return [];
         const startDate = dateString(rule.startDate);
         const endDate = rule.endDate ? dateString(rule.endDate) : null;
         const card = getCard(rule);
@@ -190,7 +182,7 @@ export function createRecurringExpensesService(
             {
               id: rule.id,
               name: rule.name,
-              amount: Math.abs(Number(rule.adminAmount)),
+              amount: Math.abs(Number(rule.amount)),
               totalAmount: Math.abs(Number(rule.amount)),
               paymentMethod: rule.paymentMethod,
               frequency: rule.frequency,
@@ -236,7 +228,7 @@ export function createRecurringExpensesService(
               {
                 id: rule.id,
                 name: rule.name,
-                amount: Math.abs(Number(rule.adminAmount)),
+                amount: Math.abs(Number(rule.amount)),
                 totalAmount: Math.abs(Number(rule.amount)),
                 paymentMethod: rule.paymentMethod,
                 frequency: rule.frequency,
@@ -292,8 +284,7 @@ export function createRecurringExpensesService(
         rules.map((rule) => rule.id),
       );
       const splitPeopleByRule = groupSplitPeople(splitPeople);
-      const projectionRules = rules.filter((rule) => rule.adminAmount !== null);
-      const currentAdminRules = projectionRules.filter(
+      const currentRules = rules.filter(
         (rule) =>
           (rule.versionEndDate === undefined
             ? rule.endDate === null
@@ -302,7 +293,7 @@ export function createRecurringExpensesService(
       );
       const totals = new Map(projectionPeriods.map((projectionPeriod) => [projectionPeriod, 0]));
 
-      for (const rule of projectionRules) {
+      for (const rule of rules) {
         if (rule.status !== "active") continue;
         const startDate = dateString(rule.startDate);
         const endDate = rule.endDate ? dateString(rule.endDate) : null;
@@ -313,15 +304,15 @@ export function createRecurringExpensesService(
           frequency: rule.frequency,
           periods: projectionPeriods,
         });
-        const amountCents = Math.round(Math.abs(Number(rule.adminAmount)) * 100);
+        const amountCents = Math.round(Math.abs(Number(rule.amount)) * 100);
         for (const occurrence of occurrences) {
           totals.set(occurrence.period, (totals.get(occurrence.period) ?? 0) + amountCents);
         }
       }
 
-      const items = currentAdminRules.map((rule) => {
+      const items = currentRules.map((rule) => {
         const startDate = dateString(rule.startDate);
-        const amount = Math.abs(Number(rule.adminAmount));
+        const amount = Math.abs(Number(rule.amount));
         const actionDate = getNextRecurringOccurrenceDate({
           anchorDate: dateString(rule.anchorDate),
           currentDate: today,

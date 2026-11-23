@@ -5,7 +5,7 @@ export const invoicePaymentCategoryName = "Pagamentos de fatura";
 export const balanceAdjustmentCategoryName = "Ajuste de saldo";
 export const invoiceAdjustmentCategoryName = "Ajustes de fatura";
 export const yieldCategoryName = "Rendimentos";
-export const personSettlementCategoryName = "Repasses";
+export const reimbursementCategoryName = "Reembolso";
 export const otherExpenseCategoryName = "Outras despesas";
 export const otherIncomeCategoryName = "Outras receitas";
 
@@ -294,11 +294,10 @@ const defaultCategoryDefinitions: Array<{
   { name: "Salário", type: "income", icon: "wallet" },
   { name: "Freelance", type: "income", icon: "briefcase" },
   { name: yieldCategoryName, type: "income", icon: "trending-up" },
-  { name: personSettlementCategoryName, type: "income", icon: "hand-coins", isSystem: true },
   { name: "Investimentos", type: "income", icon: "chart" },
   { name: "Vendas", type: "income", icon: "store" },
   { name: "Prêmios", type: "income", icon: "medal" },
-  { name: "Reembolso", type: "income", icon: "refresh-cw" },
+  { name: reimbursementCategoryName, type: "income", icon: "refresh-cw", isSystem: true },
   { name: "Aluguel recebido", type: "income", icon: "building" },
   { name: otherIncomeCategoryName, type: "income", icon: "more-horizontal" },
   {

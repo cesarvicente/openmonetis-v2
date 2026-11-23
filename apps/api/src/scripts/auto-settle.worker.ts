@@ -4,9 +4,12 @@ import { pool } from "@openmonetis/db";
 import { defaultAutoSettleTime } from "@openmonetis/domain/preferences";
 import { accountsRepository } from "../repositories/accounts.repository";
 import { attachmentsRepository } from "../repositories/attachments.repository";
+import { dueDateRulesRepository } from "../repositories/due-date-rules.repository";
+import { reimbursementsRepository } from "../repositories/reimbursements.repository";
 import { listAutoSettleUsers } from "../repositories/transactions.repository";
 import { createAccountsService } from "../services/accounts.service";
 import { createAttachmentsService } from "../services/attachments.service";
+import { createReimbursementsService } from "../services/reimbursements.service";
 import { createDefaultTransactionsService } from "../transactions-service";
 import { attachmentStorage } from "../utils/storage";
 
@@ -16,6 +19,11 @@ const tickIntervalMs = 5 * 60_000;
 const transactionsService = createDefaultTransactionsService(
   createAccountsService(accountsRepository),
   createAttachmentsService(attachmentsRepository, attachmentStorage),
+);
+
+const reimbursementsService = createReimbursementsService(
+  reimbursementsRepository,
+  dueDateRulesRepository,
 );
 
 let stopping = false;
@@ -28,6 +36,7 @@ async function runTick(now = new Date()) {
       [lockName],
     );
     if (lock.rows[0]?.acquired !== true) return;
+    await reimbursementsService.synchronizeAll();
     for (const user of await listAutoSettleUsers()) {
       if (stopping) break;
       const result = await transactionsService
